@@ -197,7 +197,7 @@ BEGIN
 END $$;
 
 CREATE POLICY membership_read_access ON store_memberships FOR SELECT
-  USING (user_id = app_user_id() OR EXISTS (SELECT 1 FROM store_memberships own WHERE own.store_id = store_memberships.store_id AND own.user_id = app_user_id()));
+  USING (user_id = app_user_id());
 -- Membership writes are reserved for a trusted provisioning/admin service; users cannot self-enrol.
 
 CREATE POLICY domains_member_access ON store_domains
