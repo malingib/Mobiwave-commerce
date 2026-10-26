@@ -105,7 +105,7 @@ CREATE TABLE order_items (
   line_total_minor bigint NOT NULL CHECK (line_total_minor >= 0),
   created_at timestamptz NOT NULL DEFAULT now(),
   FOREIGN KEY (store_id, order_id) REFERENCES orders(store_id, id) ON DELETE CASCADE,
-  FOREIGN KEY (store_id, product_id) REFERENCES products(store_id, id) ON DELETE SET NULL
+  FOREIGN KEY (store_id, product_id) REFERENCES products(store_id, id) ON DELETE SET NULL (product_id)
 );
 CREATE INDEX order_items_order_idx ON order_items(store_id, order_id);
 
@@ -156,7 +156,7 @@ CREATE TABLE message_events (
   error_code text,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  FOREIGN KEY (store_id, order_id) REFERENCES orders(store_id, id) ON DELETE SET NULL,
+  FOREIGN KEY (store_id, order_id) REFERENCES orders(store_id, id) ON DELETE CASCADE,
   UNIQUE (store_id, dedupe_key)
 );
 CREATE INDEX message_events_queue_idx ON message_events(status, created_at) WHERE status = 'queued';
@@ -196,9 +196,9 @@ BEGIN
   END LOOP;
 END $$;
 
-CREATE POLICY membership_self_access ON store_memberships
-  USING (user_id = app_user_id())
-  WITH CHECK (user_id = app_user_id());
+CREATE POLICY membership_read_access ON store_memberships FOR SELECT
+  USING (user_id = app_user_id() OR EXISTS (SELECT 1 FROM store_memberships own WHERE own.store_id = store_memberships.store_id AND own.user_id = app_user_id()));
+-- Membership writes are reserved for a trusted provisioning/admin service; users cannot self-enrol.
 
 CREATE POLICY domains_member_access ON store_domains
   USING (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = store_domains.store_id AND m.user_id = app_user_id()))
