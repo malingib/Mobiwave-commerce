@@ -3,8 +3,8 @@
 ## Milestone 0 — repository and UX shell
 - [x] Initialize repository and document product decisions.
 - [x] Add responsive product landing page shell.
-- [ ] Install dependencies and run typecheck/build.
-- [ ] Commit lockfile and CI checks.
+- [x] Install dependencies and establish CI for tests, typecheck, lint and build (passing status still being verified).
+- [ ] Commit a reproducible lockfile.
 
 ## Milestone 1 — commerce engine bootstrap
 - [ ] Bring in the official Medusa DTC Starter backend and storefront baseline, pin compatible versions, and retain upstream attribution/license.
@@ -12,6 +12,8 @@
 - [ ] Verify local development and production build.
 
 ## Milestone 2 — tenant/control plane
+- [x] Draft PostgreSQL foundation for stores, memberships, domains, products, orders, payment attempts, subscriptions, messaging events and audit events, with tenant-scoped foreign keys and RLS policies.
+- [ ] Validate the migration against a disposable PostgreSQL database and review provisioning/bypass-RLS paths before production.
 - [ ] Define tenant, store, domain, membership, plan and usage records.
 - [ ] Implement validated slug reservation and store provisioning.
 - [ ] Implement server-side host resolution.
@@ -40,4 +42,4 @@
 
 ## Current honest status
 
-Only the repository documentation and landing-page shell have been committed so far. The shop registration, product/order persistence, payment, SMS, tenant controls and production deployment are not implemented yet. Do not market the current shell as a working store.
+The repository has a landing-page shell, slug/hostname parsing tests, CI checks and a draft tenant-aware PostgreSQL schema. The schema has not yet been applied to a database or validated against PostgreSQL. Merchant authentication/onboarding, API handlers, product/order persistence, payment callbacks, SMS delivery, admin controls and production deployment remain incomplete. Do not market the current shell as a working store.
