@@ -60,7 +60,7 @@ export function normalizeStoreSlug(input: string): StoreSlugResult {
  * verified domain/store registry; a parsed slug is never proof of authorization.
  */
 export function resolveStoreSlug(hostname: string, rootDomain: string): string | null {
-  const host = hostname.toLowerCase().replace(/\.$/, "").split(":")[0];
+  const host = hostname.toLowerCase().split(":")[0].replace(/\.$/, "");
   const root = rootDomain.toLowerCase().replace(/^\.+|\.+$/g, "");
 
   if (!host || !root || host === root || !host.endsWith(`.${root}`)) {
