@@ -179,7 +179,7 @@ ALTER TABLE stores ENABLE ROW LEVEL SECURITY;
 ALTER TABLE stores FORCE ROW LEVEL SECURITY;
 CREATE POLICY stores_member_access ON stores
   USING (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = stores.id AND m.user_id = nullif(current_setting('app.user_id', true), '')::uuid))
-  WITH CHECK (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = stores.id AND m.user_id = app_user_id()));
+  WITH CHECK (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = stores.id AND m.user_id = nullif(current_setting('app.user_id', true), '')::uuid));
 
 ALTER TABLE store_memberships ENABLE ROW LEVEL SECURITY;
 ALTER TABLE store_memberships FORCE ROW LEVEL SECURITY;
@@ -201,33 +201,33 @@ ALTER TABLE audit_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_events FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY membership_read_access ON store_memberships FOR SELECT
-  USING (user_id = app_user_id());
+  USING (user_id = nullif(current_setting('app.user_id', true), '')::uuid);
 -- Membership writes are reserved for a trusted provisioning/admin service; users cannot self-enrol.
 
 CREATE POLICY domains_member_access ON store_domains
-  USING (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = store_domains.store_id AND m.user_id = app_user_id()))
-  WITH CHECK (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = store_domains.store_id AND m.user_id = app_user_id()));
+  USING (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = store_domains.store_id AND m.user_id = nullif(current_setting('app.user_id', true), '')::uuid))
+  WITH CHECK (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = store_domains.store_id AND m.user_id = nullif(current_setting('app.user_id', true), '')::uuid));
 CREATE POLICY products_member_access ON products
-  USING (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = products.store_id AND m.user_id = app_user_id()))
-  WITH CHECK (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = products.store_id AND m.user_id = app_user_id()));
+  USING (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = products.store_id AND m.user_id = nullif(current_setting('app.user_id', true), '')::uuid))
+  WITH CHECK (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = products.store_id AND m.user_id = nullif(current_setting('app.user_id', true), '')::uuid));
 CREATE POLICY orders_member_access ON orders
-  USING (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = orders.store_id AND m.user_id = app_user_id()))
-  WITH CHECK (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = orders.store_id AND m.user_id = app_user_id()));
+  USING (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = orders.store_id AND m.user_id = nullif(current_setting('app.user_id', true), '')::uuid))
+  WITH CHECK (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = orders.store_id AND m.user_id = nullif(current_setting('app.user_id', true), '')::uuid));
 CREATE POLICY order_items_member_access ON order_items
-  USING (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = order_items.store_id AND m.user_id = app_user_id()))
-  WITH CHECK (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = order_items.store_id AND m.user_id = app_user_id()));
+  USING (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = order_items.store_id AND m.user_id = nullif(current_setting('app.user_id', true), '')::uuid))
+  WITH CHECK (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = order_items.store_id AND m.user_id = nullif(current_setting('app.user_id', true), '')::uuid));
 CREATE POLICY payment_attempts_member_access ON payment_attempts
-  USING (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = payment_attempts.store_id AND m.user_id = app_user_id()))
-  WITH CHECK (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = payment_attempts.store_id AND m.user_id = app_user_id()));
+  USING (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = payment_attempts.store_id AND m.user_id = nullif(current_setting('app.user_id', true), '')::uuid))
+  WITH CHECK (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = payment_attempts.store_id AND m.user_id = nullif(current_setting('app.user_id', true), '')::uuid));
 CREATE POLICY subscriptions_member_access ON subscriptions
-  USING (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = subscriptions.store_id AND m.user_id = app_user_id()))
-  WITH CHECK (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = subscriptions.store_id AND m.user_id = app_user_id()));
+  USING (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = subscriptions.store_id AND m.user_id = nullif(current_setting('app.user_id', true), '')::uuid))
+  WITH CHECK (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = subscriptions.store_id AND m.user_id = nullif(current_setting('app.user_id', true), '')::uuid));
 CREATE POLICY message_events_member_access ON message_events
-  USING (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = message_events.store_id AND m.user_id = app_user_id()))
-  WITH CHECK (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = message_events.store_id AND m.user_id = app_user_id()));
+  USING (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = message_events.store_id AND m.user_id = nullif(current_setting('app.user_id', true), '')::uuid))
+  WITH CHECK (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = message_events.store_id AND m.user_id = nullif(current_setting('app.user_id', true), '')::uuid));
 CREATE POLICY audit_events_member_access ON audit_events
-  USING (store_id IS NULL OR EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = audit_events.store_id AND m.user_id = app_user_id()))
-  WITH CHECK (store_id IS NULL OR EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = audit_events.store_id AND m.user_id = app_user_id()));
+  USING (store_id IS NULL OR EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = audit_events.store_id AND m.user_id = nullif(current_setting('app.user_id', true), '')::uuid))
+  WITH CHECK (store_id IS NULL OR EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = audit_events.store_id AND m.user_id = nullif(current_setting('app.user_id', true), '')::uuid));
 
 -- Public storefront access is intentionally not granted to browser roles here.
 -- A server-side public catalog service must resolve an active hostname, then query
