@@ -175,26 +175,30 @@ CREATE INDEX audit_events_store_recent_idx ON audit_events(store_id, created_at 
 
 -- Tenant isolation: app sets app.user_id only after authenticating the request.
 -- Every authenticated database transaction must use SET LOCAL app.user_id = '<verified UUID>'.
-CREATE FUNCTION app_user_id() RETURNS uuid
-LANGUAGE sql STABLE AS $$
-  SELECT nullif(current_setting('app.user_id', true), '')::uuid
-$$;
-
 ALTER TABLE stores ENABLE ROW LEVEL SECURITY;
 ALTER TABLE stores FORCE ROW LEVEL SECURITY;
 CREATE POLICY stores_member_access ON stores
-  USING (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = stores.id AND m.user_id = app_user_id()))
+  USING (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = stores.id AND m.user_id = nullif(current_setting('app.user_id', true), '')::uuid))
   WITH CHECK (EXISTS (SELECT 1 FROM store_memberships m WHERE m.store_id = stores.id AND m.user_id = app_user_id()));
 
-DO $$
-DECLARE table_name text;
-BEGIN
-  FOREACH table_name IN ARRAY ARRAY['store_memberships','store_domains','products','orders','order_items','payment_attempts','subscriptions','message_events','audit_events']
-  LOOP
-    EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', table_name);
-    EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', table_name);
-  END LOOP;
-END $$;
+ALTER TABLE store_memberships ENABLE ROW LEVEL SECURITY;
+ALTER TABLE store_memberships FORCE ROW LEVEL SECURITY;
+ALTER TABLE store_domains ENABLE ROW LEVEL SECURITY;
+ALTER TABLE store_domains FORCE ROW LEVEL SECURITY;
+ALTER TABLE products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE products FORCE ROW LEVEL SECURITY;
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE orders FORCE ROW LEVEL SECURITY;
+ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE order_items FORCE ROW LEVEL SECURITY;
+ALTER TABLE payment_attempts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payment_attempts FORCE ROW LEVEL SECURITY;
+ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE subscriptions FORCE ROW LEVEL SECURITY;
+ALTER TABLE message_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE message_events FORCE ROW LEVEL SECURITY;
+ALTER TABLE audit_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE audit_events FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY membership_read_access ON store_memberships FOR SELECT
   USING (user_id = app_user_id());
