@@ -12,12 +12,14 @@ MobiWave Commerce is MobiWave-owned commerce SaaS for Kenyan merchants. The init
 - Public product storefront at `/shop/{slug}`.
 - Customer checkout with server-calculated totals, cash-on-delivery/manual payment selection, transactional order creation and stock decrement for tracked inventory.
 - Merchant order list and validated order-status transitions.
+- Superadmin overview with store suspension/reactivation, plan assignment and audited admin changes; access is controlled by the `SUPERADMIN_EMAILS` allowlist.
+- Hostname routing for free store subdomains (`{slug}.shop.mobiwave.co.ke`) when wildcard DNS and the Vercel domain are verified.
 - Audit events for store/product/order status actions.
 - GitHub Actions CI for unit tests, typecheck, lint and production build.
 
 ## Environment
 
-The production `DATABASE_URL` must connect through the Neon `commerce_app` login and set `options=-c%20role%3Dcommerce_runtime`. This switches each connection into the non-login, non-BYPASSRLS runtime role. See `db/roles/commerce-runtime.sql`. The Neon owner role is reserved for migrations and administration.
+The production `DATABASE_URL` must connect through the Neon `commerce_app` login and set `options=-c%20role%3Dcommerce_runtime`. Set `SUPERADMIN_EMAILS` to the comma-separated email address(es) allowed to access `/admin`. This switches each connection into the non-login, non-BYPASSRLS runtime role. See `db/roles/commerce-runtime.sql`. The Neon owner role is reserved for migrations and administration.
 
 Copy `.env.example` to `.env.local` and configure:
 
@@ -42,7 +44,7 @@ Then visit `/signup` to create an account, `/dashboard` to create a store, add p
 - Store membership is checked server-side; client-supplied store IDs never prove access.
 - Public catalog policies expose only active stores and active products and are restricted to requests without an authenticated tenant context.
 - Checkout totals are derived from database product prices. Browser redirects do not mark orders paid.
-- M-Pesa STK Push initiation and callback validation are implemented behind server-side environment variables, but have not been tested against Safaricom sandbox/production credentials. Pesapal/Paystack, SMS delivery, WhatsApp, email notifications, custom domain activation, subscription billing and a full superadmin portal are not enabled yet.
+- Merchant-triggered M-Pesa STK Push initiation and callback validation are implemented behind server-side environment variables, but have not been tested against Safaricom sandbox/production credentials. Pesapal/Paystack, SMS delivery, WhatsApp, email notifications, custom domain activation, automated subscription billing, customer notifications and custom-domain activation are not enabled yet. Superadmin store/plan controls exist, but paid plan collection is still manual.
 - The free store subdomain DNS/TLS wildcard and production domain routing still need to be configured and tested.
 - The repository currently contains a custom MVP foundation rather than a full Medusa DTC Starter integration. Medusa remains a candidate if/when the engine's operational value outweighs the cost of merging it with the current model.
 
