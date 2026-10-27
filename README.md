@@ -1,49 +1,48 @@
 # MobiWave Commerce
 
-MobiWave Commerce is a multi-tenant commerce SaaS for Kenyan merchants. It gives merchants a useful free storefront and a path to paid domains, advanced workflows, and MobiWave messaging.
+MobiWave Commerce is MobiWave-owned commerce SaaS for Kenyan merchants. The initial MVP uses Next.js, PostgreSQL/Neon and Better Auth. Take App and Bumpa are market benchmarks, not the platform foundation.
 
-## Product decisions
+## Current implementation
 
-- Build and own the MobiWave platform; Take App is a competitor/benchmark, not the foundation.
-- Core storefront and essential order management remain useful on the free plan.
-- Free stores use a MobiWave subdomain; custom domains are a paid upgrade.
-- Kenyan shilling pricing and mobile-first seller onboarding.
-- Cash on delivery/manual payment first; verified M-Pesa STK Push follows as a separate integration milestone.
-- MobiWave SMS is a first-party notification channel. WhatsApp/email require supported official integrations.
-- Shared infrastructure, explicit tenant scoping, and tests preventing cross-tenant access.
-- No per-merchant servers/containers and no percentage-of-sales fee in the initial release.
+- Email/password sign-up and sign-in using Better Auth, with a minimum 12-character password.
+- Merchant store creation with unique normalized subdomain slugs.
+- Tenant-aware PostgreSQL tables and row-level security for stores, products, orders, order items, payments, subscriptions, messaging events and audit events.
+- Product creation, draft/active/archived status and publish/unpublish controls.
+- Public product storefront at `/shop/{slug}`.
+- Customer checkout with server-calculated totals, cash-on-delivery/manual payment selection, transactional order creation and stock decrement for tracked inventory.
+- Merchant order list and validated order-status transitions.
+- Audit events for store/product/order status actions.
+- GitHub Actions CI for unit tests, typecheck, lint and production build.
 
-## Architecture direction
+## Environment
 
-Medusa DTC Starter is the leading commerce engine candidate for the product catalogue, cart, checkout and order lifecycle. It is not itself a complete multi-tenant SaaS; the tenant/domain/provisioning layer must be designed and tested by MobiWave.
+Copy `.env.example` to `.env.local` and configure:
 
-Expected application areas:
+- `DATABASE_URL`: the Neon PostgreSQL connection string for the Commerce project.
+- `BETTER_AUTH_SECRET`: a cryptographically random secret of at least 32 characters.
+- `BETTER_AUTH_URL`: canonical app URL.
+- `NEXT_PUBLIC_APP_URL`: canonical app URL.
 
-- `apps/backend`: Medusa commerce backend and MobiWave extensions.
-- `apps/storefront`: Next.js customer storefront.
-- `apps/control-plane`: tenant onboarding, store/domain provisioning and MobiWave superadmin (to be implemented after the engine is bootstrapped).
-- `docs`: architecture decisions, security model, deployment and runbooks.
+Do not commit `.env.local` or put secrets in `NEXT_PUBLIC_*` variables. Authentication and data APIs intentionally fail closed if the required database/auth secrets are absent.
 
-## First milestone
+## Development
 
-1. Merchant creates a store with a unique, validated slug.
-2. The platform provisions an isolated store context and a subdomain.
-3. Merchant creates and publishes a product.
-4. A customer can submit an order using cash on delivery/manual payment.
-5. Automated tests prove tenant A cannot read or mutate tenant B's data.
+```bash
+npm install
+npm run dev
+```
 
-## Development status
+Then visit `/signup` to create an account, `/dashboard` to create a store, add products, publish them, and use `/shop/{slug}` to test the public checkout. Store order management is available at `/dashboard/{storeId}/orders`.
 
-Repository initialized. The Medusa DTC Starter integration, tenant module, storefront branding, test suite and deployment are not yet complete. Do not treat this repository as production-ready until build, integration, isolation and deployment checks pass.
+## Architecture and launch boundaries
 
-## Prerequisites for the Medusa starter
+- Store membership is checked server-side; client-supplied store IDs never prove access.
+- Public catalog policies expose only active stores and active products and are restricted to requests without an authenticated tenant context.
+- Checkout totals are derived from database product prices. Browser redirects do not mark orders paid.
+- Online M-Pesa STK Push, verified callbacks, Pesapal/Paystack, SMS delivery, WhatsApp, email notifications, custom domain activation, subscriptions/billing and a full superadmin portal are not enabled yet.
+- The free store subdomain DNS/TLS wildcard and production domain routing still need to be configured and tested.
+- The repository currently contains a custom MVP foundation rather than a full Medusa DTC Starter integration. Medusa remains a candidate if/when the engine's operational value outweighs the cost of merging it with the current model.
 
-See the [official Medusa DTC Starter](https://github.com/medusajs/dtc-starter) for its current Node.js, PostgreSQL and pnpm requirements. Pin compatible dependency versions and commit a lockfile during bootstrap.
+## Production checklist
 
-## Security principles
-
-- Resolve tenant identity server-side from a verified hostname/store mapping or authenticated membership, never from a client-supplied tenant ID alone.
-- Enforce tenant ownership in backend workflows and database queries.
-- Keep secrets server-side; never commit credentials or real environment files.
-- Use idempotency and verified provider callbacks for payment state changes.
-- Test authorization failures as first-class cases.
+Before a public launch: configure production secrets in Vercel, deploy the connected project, verify DB connectivity/auth/session cookies, test store isolation with two independent users, run a complete checkout and inventory-concurrency test, verify status transitions, add rate limits and abuse controls, set up backup/restore and monitoring, and configure wildcard DNS/TLS. Do not accept real online payments until provider callback verification and reconciliation are implemented.
