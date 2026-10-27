@@ -27,6 +27,7 @@ export async function POST(request: Request) {
   const client = await db.connect();
   try {
     await client.query("BEGIN");
+    await client.query("SELECT set_config('app.mpesa_callback', 'true', true)");
     const result = await client.query(
       "SELECT id, store_id, order_id, amount_minor, status FROM payment_attempts WHERE provider='mpesa' AND checkout_request_id=$1 FOR UPDATE",
       [checkoutRequestId]
