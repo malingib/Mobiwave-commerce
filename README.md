@@ -39,7 +39,7 @@ Then visit `/signup` to create an account, `/dashboard` to create a store, add p
 - Store membership is checked server-side; client-supplied store IDs never prove access.
 - Public catalog policies expose only active stores and active products and are restricted to requests without an authenticated tenant context.
 - Checkout totals are derived from database product prices. Browser redirects do not mark orders paid.
-- Online M-Pesa STK Push, verified callbacks, Pesapal/Paystack, SMS delivery, WhatsApp, email notifications, custom domain activation, subscriptions/billing and a full superadmin portal are not enabled yet.
+- M-Pesa STK Push initiation and callback validation are implemented behind server-side environment variables, but have not been tested against Safaricom sandbox/production credentials. Pesapal/Paystack, SMS delivery, WhatsApp, email notifications, custom domain activation, subscription billing and a full superadmin portal are not enabled yet.
 - The free store subdomain DNS/TLS wildcard and production domain routing still need to be configured and tested.
 - The repository currently contains a custom MVP foundation rather than a full Medusa DTC Starter integration. Medusa remains a candidate if/when the engine's operational value outweighs the cost of merging it with the current model.
 
