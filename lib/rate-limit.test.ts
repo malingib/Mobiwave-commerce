@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clientAddress, rateLimitKey } from "./rate-limit";
+import { clientAddress, rateLimitKey } from "./rate-limit-utils";
 
 describe("rate limit key helpers", () => {
   it("prefers the platform real-ip header", () => {
