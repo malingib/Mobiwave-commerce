@@ -35,6 +35,7 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
 
   const client = await db.connect();
   let attemptId: string | null = null;
+  let stkRequestStarted = false;
   try {
     await client.query("BEGIN");
     await client.query("SELECT set_config('app.user_id', $1, true)", [user.id]);
@@ -72,6 +73,7 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
 
     const time = timestamp();
     const password = Buffer.from(`${shortcode}${passkey}${time}`).toString("base64");
+    stkRequestStarted = true;
     const stkResponse = await fetch(`${baseUrl}/mpesa/stkpush/v1/processrequest`, {
       method: "POST",
       headers: { Authorization: `Bearer ${authData.access_token}`, "Content-Type": "application/json" },
@@ -107,8 +109,9 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
       try {
         await client.query("BEGIN");
         await client.query("SELECT set_config('app.user_id', $1, true)", [user.id]);
-        await client.query("UPDATE payment_attempts SET status='failed', updated_at=now() WHERE id=$1 AND store_id=$2", [attemptId, storeId]);
-        await client.query("UPDATE orders SET payment_status='failed', updated_at=now() WHERE id=$1 AND store_id=$2 AND payment_status='pending'", [orderId, storeId]);
+        const uncertainStatus = stkRequestStarted ? "review_required" : "failed";
+        await client.query("UPDATE payment_attempts SET status=$1::payment_status, updated_at=now() WHERE id=$2 AND store_id=$3 AND status <> 'paid'", [uncertainStatus, attemptId, storeId]);
+        await client.query("UPDATE orders SET payment_status=$1::payment_status, updated_at=now() WHERE id=$2 AND store_id=$3 AND payment_status='pending'", [uncertainStatus, orderId, storeId]);
         await client.query("COMMIT");
       } catch {
         await client.query("ROLLBACK").catch(()=>undefined);
