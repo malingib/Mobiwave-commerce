@@ -7,6 +7,7 @@ MobiWave Commerce is MobiWave-owned commerce SaaS for Kenyan merchants. The init
 - Email/password sign-up and sign-in using Better Auth, with a minimum 12-character password.
 - Merchant store creation with unique normalized subdomain slugs.
 - Tenant-aware PostgreSQL tables and row-level security for stores, products, orders, order items, payments, subscriptions, messaging events and audit events.
+- Dedicated `commerce_runtime` role with `NOBYPASSRLS`; the application connection must set this role at connection startup. Never use the Neon owner connection string in the app.
 - Product creation, draft/active/archived status and publish/unpublish controls.
 - Public product storefront at `/shop/{slug}`.
 - Customer checkout with server-calculated totals, cash-on-delivery/manual payment selection, transactional order creation and stock decrement for tracked inventory.
@@ -15,6 +16,8 @@ MobiWave Commerce is MobiWave-owned commerce SaaS for Kenyan merchants. The init
 - GitHub Actions CI for unit tests, typecheck, lint and production build.
 
 ## Environment
+
+The production `DATABASE_URL` must connect through the Neon `commerce_app` login and set `options=-c%20role%3Dcommerce_runtime`. This switches each connection into the non-login, non-BYPASSRLS runtime role. See `db/roles/commerce-runtime.sql`. The Neon owner role is reserved for migrations and administration.
 
 Copy `.env.example` to `.env.local` and configure:
 
