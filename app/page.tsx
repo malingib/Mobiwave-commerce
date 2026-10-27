@@ -1,7 +1,6 @@
 "use client";
 
 import { ArrowDownRight, ArrowRight, Check, ChevronDown, CircleHelp, Globe2, MessageSquareText, Package, ShoppingBag, Store, Truck, Zap } from "lucide-react";
-import { useState } from "react";
 
 const benefits = [
   { icon: Store, title: "Your own online shop", text: "A clean storefront on your own MobiWave address. No web development needed." },
@@ -16,9 +15,6 @@ const steps = [
 ];
 
 export default function HomePage() {
-  const [email, setEmail] = useState("");
-  const [submitted, setSubmitted] = useState(false);
-
   return (
     <main>
       <header className="site-header">
