@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDownRight, ArrowRight, Check, ChevronDown, CircleHelp, Globe2, MessageSquareText, Package, ShoppingBag, Store, Truck, Zap } from "lucide-react";
+import { ArrowDownRight, ArrowRight, Check, ChevronDown, CircleHelp, Globe2, MessageSquareText, Package, ShoppingBag, Store, Truck } from "lucide-react";
 
 const benefits = [
   { icon: Store, title: "Your own online shop", text: "A clean storefront on your own MobiWave address. No web development needed." },
