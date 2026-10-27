@@ -18,3 +18,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS payment_attempts_mpesa_receipt_unique
   WHERE provider = 'mpesa' AND provider_reference IS NOT NULL;
 
 -- Schedule: DELETE FROM api_rate_limits WHERE updated_at < now() - interval '2 days';
+
+-- The callback path may only move orders into the explicit reconciliation state as well.
+DROP POLICY IF EXISTS orders_mpesa_callback_update ON orders;
+CREATE POLICY orders_mpesa_callback_update ON orders FOR UPDATE
+  USING (current_setting('app.mpesa_callback', true) = 'true')
+  WITH CHECK (current_setting('app.mpesa_callback', true) = 'true'
+    AND payment_status IN ('paid', 'failed', 'pending', 'unpaid', 'review_required'));

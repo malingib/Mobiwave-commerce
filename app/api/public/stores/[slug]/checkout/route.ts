@@ -51,7 +51,7 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
     items: [...quantities.entries()].sort(([a], [b]) => a.localeCompare(b)),
   })).digest("hex");
 
-  const rate = await consumeRateLimit(rateLimitKey("checkout:" + normalized.slug, clientAddress(request)), 8, 600).catch(() => null);
+  const rate = await consumeRateLimit(rateLimitKey("checkout", clientAddress(request)), 8, 600).catch(() => null);
   if (!rate) return NextResponse.json({ error: "Checkout is temporarily unavailable. Please try again shortly." }, { status: 503, headers: { "Cache-Control": "no-store" } });
   if (!rate.allowed) return NextResponse.json({ error: "Too many checkout attempts. Please wait before trying again." }, {
     status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds), "Cache-Control": "no-store" },
