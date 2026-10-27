@@ -11,7 +11,6 @@ export function middleware(request: NextRequest) {
 
   const url = request.nextUrl.clone();
   url.pathname = `/shop/${slug}`;
-  url.searchParams.set("source", "store-subdomain");
   return NextResponse.rewrite(url);
 }
 
