@@ -267,3 +267,20 @@ h1 span{color:var(--green)}
 .admin-store-row .status-toggle{white-space:nowrap;margin:0}
 @media(max-width:950px){.admin-store-row{grid-template-columns:38px minmax(130px,1fr) auto;}.admin-store-row select,.admin-store-row .status-toggle{grid-column:2/4;}}
 @media(max-width:600px){.admin-metrics{gap:8px}.admin-metrics article{padding:14px 11px}.admin-metrics b{font-size:21px}.admin-store-row{grid-template-columns:32px minmax(0,1fr);gap:9px;padding:14px 12px}.admin-store-row>.order-status-pill,.admin-store-row select,.admin-store-row .status-toggle{grid-column:2;justify-self:start}.admin-store-row .status-toggle{width:max-content}}
+
+.billing-current{background:#fff;border:1px solid #e5eae3;border-radius:8px;padding:22px;display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:20px}
+.billing-current h2{font-size:23px;letter-spacing:-.7px;margin:8px 0}
+.billing-current p{font-size:11px;color:#7b887e;line-height:1.6;margin:0;max-width:520px}
+.billing-plans{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.billing-plan{background:#fff;border:1px solid #e5eae3;border-radius:8px;padding:21px;display:flex;flex-direction:column;min-width:0}
+.billing-plan.current{border-color:#8cae91;box-shadow:inset 0 0 0 1px #8cae91}
+.billing-plan-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.billing-plan h3{font-size:16px;margin:0 0 7px}
+.billing-plan-head p{font-size:10px;color:#7c897f;line-height:1.6;margin:0}
+.current-plan-label{font-size:8px;font-weight:750;letter-spacing:.7px;color:#386446;background:#edf3ed;border-radius:4px;padding:6px 7px;white-space:nowrap}
+.billing-plan ul{list-style:none;padding:16px 0 20px;margin:0;display:flex;flex-direction:column;gap:11px;flex:1}
+.billing-plan li{display:flex;align-items:flex-start;gap:8px;font-size:10px;color:#5f6e63;line-height:1.5}
+.billing-plan li svg{color:#4b7653;flex-shrink:0;margin-top:1px}
+.billing-plan .button,.billing-request{width:100%;justify-content:center;min-height:39px;text-decoration:none;font-size:11px}
+.billing-note{font-size:10px;line-height:1.7;color:#818d83;margin:16px 0 0;padding:13px 15px;border-left:2px solid #d7e4d6;background:#f1f5ef}
+@media(max-width:650px){.billing-current{padding:17px;flex-direction:column;gap:12px}.billing-plans{grid-template-columns:1fr}.billing-plan{padding:17px}}
