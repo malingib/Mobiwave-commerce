@@ -21,7 +21,13 @@ export function createAuth() {
     database: pool,
     baseURL: process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
     secret,
-    trustedOrigins: [process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"],
+    trustedOrigins: [
+      process.env.NEXT_PUBLIC_APP_URL || "https://mobiwave-commerce.vercel.app",
+      "https://*.vercel.app",
+      "https://mobiwave.co.ke",
+      "https://*.mobiwave.co.ke",
+      ...(process.env.NODE_ENV === "production" ? [] : ["http://localhost:3000"]),
+    ],
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: false,
