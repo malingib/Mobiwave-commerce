@@ -34,7 +34,6 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
   }
 
   const client = await db.connect();
-  let order: { id:string; customer_phone:string; total_minor:string|number; currency:string; payment_status:string } | null = null;
   let attemptId: string | null = null;
   try {
     await client.query("BEGIN");
@@ -44,7 +43,7 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
       [orderId, storeId]
     );
     if (!result.rowCount) { await client.query("ROLLBACK"); return NextResponse.json({ error: "Order not found or access denied" }, { status: 404 }); }
-    order = result.rows[0];
+    const order = result.rows[0] as { id:string; customer_phone:string; total_minor:string|number; currency:string; payment_status:string };
     if (order.payment_status === "paid") { await client.query("ROLLBACK"); return NextResponse.json({ error: "This order is already paid." }, { status: 409 }); }
     if (order.currency !== "KES" || Number(order.total_minor) <= 0 || Number(order.total_minor) % 100 !== 0) {
       await client.query("ROLLBACK");
