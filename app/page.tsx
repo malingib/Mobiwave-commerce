@@ -31,7 +31,7 @@ export default function HomePage() {
           <a href="#features">Features</a>
           <a href="#pricing">Pricing</a>
         </nav>
-        <a className="button button-dark button-small" href="#get-started">Get started <ArrowRight size={15} /></a>
+        <a className="button button-dark button-small" href="/signup">Get started <ArrowRight size={15} /></a>
       </header>
 
       <section className="hero">
@@ -40,7 +40,7 @@ export default function HomePage() {
           <h1>Your business deserves <span>its own place online.</span></h1>
           <p className="hero-lede">Open a simple online shop, organise your orders and keep customers in the loop — without starting with an expensive website.</p>
           <div className="hero-actions">
-            <a className="button button-dark" href="#get-started">Start your free shop <ArrowRight size={16} /></a>
+            <a className="button button-dark" href="/signup">Start your free shop <ArrowRight size={16} /></a>
             <a className="text-link" href="#how-it-works">See how it works <ArrowDownRight size={16} /></a>
           </div>
           <div className="trust-line"><span className="check-icon"><Check size={12} /></span> Start free · No coding required · Built for mobile</div>
@@ -73,7 +73,7 @@ export default function HomePage() {
 
       <section className="section features-section" id="features">
         <div className="section-heading"><div><span className="eyebrow">THE ESSENTIALS, DONE WELL</span><h2>Less admin. More selling.</h2></div><p>The tools to start taking orders online, without the complexity that gets in the way.</p></div>
-        <div className="feature-grid">{benefits.map(({ icon: Icon, title, text }) => <article className="feature-item" key={title}><span className="feature-icon"><Icon size={21} strokeWidth={1.7} /></span><h3>{title}</h3><p>{text}</p><a href="#get-started">Explore the platform <ArrowRight size={14} /></a></article>)}</div>
+        <div className="feature-grid">{benefits.map(({ icon: Icon, title, text }) => <article className="feature-item" key={title}><span className="feature-icon"><Icon size={21} strokeWidth={1.7} /></span><h3>{title}</h3><p>{text}</p><a href="/signup">Explore the platform <ArrowRight size={14} /></a></article>)}</div>
       </section>
 
       <section className="workflow-section" id="how-it-works">
@@ -87,8 +87,8 @@ export default function HomePage() {
       </section>
 
       <section className="cta-section" id="get-started">
-        <div className="cta-content"><span className="eyebrow">YOUR NEXT CHAPTER STARTS HERE</span><h2>Give your business a home online.</h2><p>Join the early-access list and help shape a commerce platform made for the way Kenyan businesses sell.</p>
-          {submitted ? <div className="success-message"><Check size={17} /> Thanks — this demo has recorded your local interaction only. Early-access sign-up is not connected yet.</div> : <form className="signup-form" onSubmit={(event) => { event.preventDefault(); if (email.trim()) setSubmitted(true); }}><label className="sr-only" htmlFor="early-access-email">Email address</label><input id="early-access-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Your email address" required /><button className="button button-light" type="submit">Get early access <ArrowRight size={16} /></button></form>}
+        <div className="cta-content"><span className="eyebrow">YOUR NEXT CHAPTER STARTS HERE</span><h2>Give your business a home online.</h2><p>Create your free account, set up your store and start adding products.</p>
+          <a className="button button-light" href="/signup">Create your free shop <ArrowRight size={16} /></a>
           <small className="cta-footnote"><Truck size={14} /> Built for the realities of local commerce.</small>
         </div>
       </section>
