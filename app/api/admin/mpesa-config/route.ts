@@ -55,7 +55,7 @@ export async function PUT(request: Request) {
     await client.query(
       `INSERT INTO mpesa_configurations (scope_type, store_id, consumer_key_ciphertext, consumer_secret_ciphertext, shortcode, passkey_ciphertext, environment, transaction_type, enabled, updated_by)
        VALUES ('platform', NULL, $1, $2, $3, $4, $5, $6, $7, $8)
-       ON CONFLICT (scope_type, store_id) DO UPDATE SET consumer_key_ciphertext=EXCLUDED.consumer_key_ciphertext, consumer_secret_ciphertext=EXCLUDED.consumer_secret_ciphertext, shortcode=EXCLUDED.shortcode, passkey_ciphertext=EXCLUDED.passkey_ciphertext, environment=EXCLUDED.environment, transaction_type=EXCLUDED.transaction_type, enabled=EXCLUDED.enabled, updated_by=EXCLUDED.updated_by, updated_at=now()`,
+       ON CONFLICT (scope_type) WHERE scope_type='platform' DO UPDATE SET consumer_key_ciphertext=EXCLUDED.consumer_key_ciphertext, consumer_secret_ciphertext=EXCLUDED.consumer_secret_ciphertext, shortcode=EXCLUDED.shortcode, passkey_ciphertext=EXCLUDED.passkey_ciphertext, environment=EXCLUDED.environment, transaction_type=EXCLUDED.transaction_type, enabled=EXCLUDED.enabled, updated_by=EXCLUDED.updated_by, updated_at=now()`,
       [keyCipher, secretCipher, shortcode, passkeyCipher, environment, transactionType, body.enabled, user.id]
     );
     await client.query("INSERT INTO audit_events (actor_user_id, action, resource_type, metadata) VALUES ($1, 'mpesa.platform_config_updated', 'mpesa_configuration', $2::jsonb)", [user.id, JSON.stringify({ environment, transactionType, enabled: body.enabled })]);
