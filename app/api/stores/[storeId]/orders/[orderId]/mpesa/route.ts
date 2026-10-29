@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getRequestUser } from "@/lib/request-user";
+import { decryptCredential } from "@/lib/mpesa-config";
 
 export const runtime = "nodejs";
 
@@ -23,22 +24,44 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
   const user = await getRequestUser();
   if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   const { storeId, orderId } = await context.params;
-  const consumerKey = process.env.MPESA_CONSUMER_KEY;
-  const consumerSecret = process.env.MPESA_CONSUMER_SECRET;
-  const shortcode = process.env.MPESA_SHORTCODE;
-  const passkey = process.env.MPESA_PASSKEY;
   const callbackToken = process.env.MPESA_CALLBACK_TOKEN;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-  if (!consumerKey || !consumerSecret || !shortcode || !passkey || !callbackToken || !appUrl) {
-    return NextResponse.json({ error: "M-Pesa STK Push is not configured for this environment yet." }, { status: 503 });
+  if (!callbackToken || !appUrl) {
+    return NextResponse.json({ error: "M-Pesa callback configuration is incomplete." }, { status: 503 });
   }
 
+  let consumerKey = "";
+  let consumerSecret = "";
+  let shortcode = "";
+  let passkey = "";
+  let environment: "sandbox" | "production" = "sandbox";
+  let transactionType: "CustomerPayBillOnline" | "CustomerBuyGoodsOnline" = "CustomerPayBillOnline";
   const client = await db.connect();
   let attemptId: string | null = null;
   let stkRequestStarted = false;
   try {
     await client.query("BEGIN");
     await client.query("SELECT set_config('app.user_id', $1, true)", [user.id]);
+    const configResult = await client.query(
+      "SELECT consumer_key_ciphertext, consumer_secret_ciphertext, shortcode, passkey_ciphertext, environment, transaction_type, enabled FROM mpesa_configurations WHERE scope_type='store' AND store_id=$1 LIMIT 1",
+      [storeId]
+    );
+    if (!configResult.rowCount || !configResult.rows[0].enabled) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "This store has not enabled its own M-Pesa Daraja integration. Ask a store owner or manager to configure it." }, { status: 503 });
+    }
+    try {
+      const config = configResult.rows[0];
+      consumerKey = decryptCredential(config.consumer_key_ciphertext);
+      consumerSecret = decryptCredential(config.consumer_secret_ciphertext);
+      shortcode = config.shortcode;
+      passkey = decryptCredential(config.passkey_ciphertext);
+      environment = config.environment;
+      transactionType = config.transaction_type;
+    } catch {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "M-Pesa credentials could not be decrypted. Check the server encryption key." }, { status: 503 });
+    }
     const result = await client.query(
       "SELECT id, customer_phone, total_minor, currency, payment_status FROM orders WHERE id=$1 AND store_id=$2 FOR UPDATE",
       [orderId, storeId]
@@ -62,7 +85,7 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
     await client.query("UPDATE orders SET payment_status='pending', updated_at=now() WHERE id=$1 AND store_id=$2", [orderId, storeId]);
     await client.query("COMMIT");
 
-    const baseUrl = process.env.MPESA_ENV === "production" ? "https://api.safaricom.co.ke" : "https://sandbox.safaricom.co.ke";
+    const baseUrl = environment === "production" ? "https://api.safaricom.co.ke" : "https://sandbox.safaricom.co.ke";
     const authResponse = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
       headers: { Authorization: `Basic ${Buffer.from(`${consumerKey}:${consumerSecret}`).toString("base64")}` },
       cache: "no-store",
@@ -81,7 +104,7 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
         BusinessShortCode: shortcode,
         Password: password,
         Timestamp: time,
-        TransactionType: process.env.MPESA_TRANSACTION_TYPE || "CustomerPayBillOnline",
+        TransactionType: transactionType,
         Amount: Number(order.total_minor) / 100,
         PartyA: normalizePhone(order.customer_phone),
         PartyB: shortcode,
