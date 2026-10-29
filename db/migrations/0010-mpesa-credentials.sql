@@ -42,3 +42,12 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON mpesa_configurations TO commerce_runtime
 -- PostgreSQL UNIQUE constraints treat NULLs as distinct; enforce one platform row explicitly.
 CREATE UNIQUE INDEX IF NOT EXISTS mpesa_configurations_single_platform
   ON mpesa_configurations(scope_type) WHERE scope_type = 'platform';
+
+-- All store members may use the saved integration; only owners/managers may manage it.
+DROP POLICY IF EXISTS mpesa_configurations_store_member_use ON mpesa_configurations;
+CREATE POLICY mpesa_configurations_store_member_use ON mpesa_configurations FOR SELECT
+  USING (scope_type = 'store' AND EXISTS (
+    SELECT 1 FROM store_memberships m
+    WHERE m.store_id = mpesa_configurations.store_id
+      AND m.user_id = nullif(current_setting('app.user_id', true), '')::uuid
+  ));
