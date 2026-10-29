@@ -38,3 +38,7 @@ CREATE POLICY mpesa_configurations_store_member ON mpesa_configurations
       AND m.role IN ('owner', 'manager')
   ));
 GRANT SELECT, INSERT, UPDATE, DELETE ON mpesa_configurations TO commerce_runtime;
+
+-- PostgreSQL UNIQUE constraints treat NULLs as distinct; enforce one platform row explicitly.
+CREATE UNIQUE INDEX IF NOT EXISTS mpesa_configurations_single_platform
+  ON mpesa_configurations(scope_type) WHERE scope_type = 'platform';
