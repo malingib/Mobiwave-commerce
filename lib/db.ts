@@ -10,6 +10,9 @@ function getPool(): Pool {
   if (!connectionString) throw new Error("DATABASE_URL is not configured");
   localPool = new Pool({
     connectionString,
+    // Enforce the non-login, non-BYPASSRLS runtime role for every app connection.
+    // This must not depend on a manually appended DATABASE_URL query parameter.
+    options: "-c role=commerce_runtime",
     max: process.env.NODE_ENV === "production" ? 5 : 3,
     idleTimeoutMillis: 10_000,
     connectionTimeoutMillis: 5_000,
