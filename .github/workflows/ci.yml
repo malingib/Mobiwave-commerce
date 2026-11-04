@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'codex/**']
   pull_request:
     branches: [main]
 
@@ -21,6 +21,8 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install
+      - name: Dependency security audit
+        run: npm audit --audit-level=high
       - name: Unit tests
         run: npm test
       - name: Typecheck
