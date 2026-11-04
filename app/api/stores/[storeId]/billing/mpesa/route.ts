@@ -38,6 +38,8 @@ export async function POST(request: Request, context: Context) {
   let environment: "sandbox" | "production" = "sandbox";
   let transactionType: "CustomerPayBillOnline" | "CustomerBuyGoodsOnline" = "CustomerPayBillOnline";
   let amountMinor = 0;
+  let checkoutRequestId: string | null = null;
+  let merchantRequestId: string | null = null;
   try {
     await client.query("BEGIN");
     await client.query("SELECT set_config('app.user_id', $1, true)", [user.id]);
@@ -151,8 +153,11 @@ export async function POST(request: Request, context: Context) {
     });
     const stkData = await stkResponse.json() as { CheckoutRequestID?: string; MerchantRequestID?: string; ResponseCode?: string; ResponseDescription?: string; errorMessage?: string };
     if (!stkResponse.ok || stkData.ResponseCode !== "0" || !stkData.CheckoutRequestID) throw new Error(stkData.errorMessage || stkData.ResponseDescription || "M-Pesa rejected the STK request");
+    checkoutRequestId = stkData.CheckoutRequestID;
+    merchantRequestId = stkData.MerchantRequestID || null;
     await client.query("BEGIN");
-    await client.query("UPDATE subscription_payment_attempts SET checkout_request_id=$1, merchant_request_id=$2, updated_at=now() WHERE id=$3 AND store_id=$4", [stkData.CheckoutRequestID, stkData.MerchantRequestID || null, attemptId, storeId]);
+    await client.query("SELECT set_config('app.user_id', $1, true)", [user.id]);
+    await client.query("UPDATE subscription_payment_attempts SET checkout_request_id=$1, merchant_request_id=$2, updated_at=now() WHERE id=$3 AND store_id=$4", [checkoutRequestId, merchantRequestId, attemptId, storeId]);
     await client.query("COMMIT");
     return NextResponse.json({ message: "Subscription STK Push sent. Approve the payment on your phone.", checkoutRequestId: stkData.CheckoutRequestID });
   } catch (error) {
@@ -160,8 +165,9 @@ export async function POST(request: Request, context: Context) {
     if (attemptId) {
       try {
         await client.query("BEGIN");
+        await client.query("SELECT set_config('app.user_id', $1, true)", [user.id]);
         const status = stkRequestStarted ? "review_required" : "failed";
-        await client.query("UPDATE subscription_payment_attempts SET status=$1::payment_status, updated_at=now() WHERE id=$2 AND store_id=$3 AND status <> 'paid'", [status, attemptId, storeId]);
+        await client.query("UPDATE subscription_payment_attempts SET status=$1::payment_status, checkout_request_id=COALESCE($2,checkout_request_id), merchant_request_id=COALESCE($3,merchant_request_id), updated_at=now() WHERE id=$4 AND store_id=$5 AND status <> 'paid'", [status, checkoutRequestId, merchantRequestId, attemptId, storeId]);
         await client.query("COMMIT");
       } catch { await client.query("ROLLBACK").catch(() => undefined); }
     }

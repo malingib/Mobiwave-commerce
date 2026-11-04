@@ -38,7 +38,7 @@ export async function PUT(request: Request) {
   if (body.code === "free" && amountMinor !== 0) {
     return NextResponse.json({ error: "The Free plan must remain zero-priced." }, { status: 400 });
   }
-  if (typeof body.isActive !== "boolean" || (body.billingInterval !== "monthly" && body.billingInterval !== "yearly")) {
+  if (typeof body.isActive !== "boolean" || body.billingInterval !== "monthly") {
     return NextResponse.json({ error: "Provide a valid active state and billing interval." }, { status: 400 });
   }
   if (!body.limits || typeof body.limits !== "object" || Array.isArray(body.limits)) {

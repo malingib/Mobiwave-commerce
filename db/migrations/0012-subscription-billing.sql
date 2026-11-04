@@ -25,7 +25,7 @@ CREATE POLICY commerce_plans_admin_manage ON commerce_plans FOR ALL
 
 INSERT INTO commerce_plans (code, name, description, amount_minor, currency, billing_interval, is_active, limits, features)
 VALUES
-  ('free', 'Free', 'Start selling with the essentials.', 0, 'KES', 'monthly', true, '{}'::jsonb,
+  ('free', 'Free', 'Start selling with the essentials.', 0, 'KES', 'monthly', true, '{"maxDomains":0}'::jsonb,
    '["MobiWave store address","Product catalogue and checkout","Order management","Manual and cash-on-delivery payments"]'::jsonb),
   ('growth', 'Growth', 'For businesses building repeat sales.', NULL, 'KES', 'monthly', true, '{}'::jsonb,
    '["Everything in Free","Custom domain connection","Customer notifications","More store insights"]'::jsonb),
