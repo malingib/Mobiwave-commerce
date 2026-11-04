@@ -1,5 +1,6 @@
 import type { PoolClient } from "pg";
 import { db } from "@/lib/db";
+import { normalizeKenyanPhone } from "@/lib/mpesa-utils";
 
 type SmsEventInput = {
   storeId: string;
@@ -20,11 +21,13 @@ type QueuedSms = {
 };
 
 export async function enqueueSms(client: PoolClient, event: SmsEventInput) {
+  const recipient = normalizeKenyanPhone(event.recipient);
+  if (!recipient) return;
   await client.query(
     `INSERT INTO message_events (store_id, order_id, channel, recipient, template_key, status, dedupe_key, payload)
      VALUES ($1,$2,'sms',$3,$4,'queued',$5,$6::jsonb)
      ON CONFLICT (store_id, dedupe_key) DO NOTHING`,
-    [event.storeId, event.orderId || null, event.recipient, event.templateKey, event.dedupeKey, JSON.stringify(event.payload)],
+    [event.storeId, event.orderId || null, recipient, event.templateKey, event.dedupeKey, JSON.stringify(event.payload)],
   );
 }
 

@@ -78,7 +78,7 @@ export async function POST(request: Request) {
     }
     const attempt = selected.rows[0];
     if (paid) {
-      if (verifiedAmount !== Number(attempt.amount_minor) || !matchesKenyanPhone(attempt.customer_phone, verifiedPhone)) {
+      if (attempt.currency !== "KES" || verifiedAmount !== Number(attempt.amount_minor) || !matchesKenyanPhone(attempt.customer_phone, verifiedPhone)) {
         await client.query("ROLLBACK");
         return NextResponse.json({ error: "The verified amount or phone does not match the payment attempt." }, { status: 409 });
       }

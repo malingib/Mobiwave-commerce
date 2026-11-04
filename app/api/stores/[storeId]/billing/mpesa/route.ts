@@ -67,7 +67,7 @@ export async function POST(request: Request, context: Context) {
       return NextResponse.json({ error: "The configured plan price must be a positive whole KES amount." }, { status: 409 });
     }
     const subscriptionResult = await client.query(
-      "SELECT id, plan_code, status FROM subscriptions WHERE store_id=$1 FOR UPDATE",
+      "SELECT id, plan_code, status, current_period_end FROM subscriptions WHERE store_id=$1 FOR UPDATE",
       [storeId],
     );
     if (!subscriptionResult.rowCount) {
@@ -75,8 +75,13 @@ export async function POST(request: Request, context: Context) {
       return NextResponse.json({ error: "Subscription record not found for this store." }, { status: 404 });
     }
     if (subscriptionResult.rows[0].plan_code === body.planCode && subscriptionResult.rows[0].status === "active") {
-      await client.query("ROLLBACK");
-      return NextResponse.json({ error: "This is already the active plan." }, { status: 409 });
+      const periodEnd = subscriptionResult.rows[0].current_period_end
+        ? new Date(subscriptionResult.rows[0].current_period_end).getTime()
+        : 0;
+      if (periodEnd > Date.now() + 7 * 24 * 60 * 60 * 1000) {
+        await client.query("ROLLBACK");
+        return NextResponse.json({ error: "This plan is active and not yet due for renewal." }, { status: 409 });
+      }
     }
     const existing = await client.query(
       "SELECT id, plan_code, amount_minor, status, checkout_request_id, idempotency_hash FROM subscription_payment_attempts WHERE store_id=$1 AND idempotency_key=$2 LIMIT 1",

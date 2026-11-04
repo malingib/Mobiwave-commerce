@@ -56,6 +56,8 @@ export default function BillingClient({ storeId, userName }: { storeId: string; 
     finally { setBusy(""); }
   }
 
+  const renewalDue = Boolean(billing && billing.plan_code !== "free" && billing.current_period_end && new Date(billing.current_period_end).getTime() <= Date.now() + 7 * 24 * 60 * 60 * 1000);
+
   const money = (minor: number | string | null, currency = "KES") => minor === null
     ? "Pricing being finalized"
     : new Intl.NumberFormat("en-KE", { style: "currency", currency, maximumFractionDigits: 2 }).format(Number(minor) / 100);
@@ -93,7 +95,8 @@ export default function BillingClient({ storeId, userName }: { storeId: string; 
               <div className="billing-plan-head"><div><h3>{plan.name}</h3><p>{plan.description}</p></div>{billing.plan_code === plan.code && <span className="current-plan-label">CURRENT</span>}</div>
               <div className="billing-price">{money(plan.amount_minor, plan.currency)}{plan.amount_minor !== null && <small> / {plan.billing_interval}</small>}</div>
               <ul>{(plan.features || []).map(feature => <li key={feature}><Check size={14}/>{feature}</li>)}</ul>
-              {billing.plan_code === plan.code ? <button className="button button-secondary" disabled>Current plan</button>
+              {billing.plan_code === plan.code && renewalDue && platformPaymentsEnabled ? <button className="button button-dark" disabled={busy === plan.code || !phone.trim()} onClick={() => void requestUpgrade(plan)}>{busy === plan.code ? "Sending STK Push…" : "Renew with M-Pesa"}</button>
+                : billing.plan_code === plan.code ? <button className="button button-secondary" disabled>Current plan</button>
                 : plan.code === "free" ? <button className="button button-secondary" disabled>Free plan</button>
                 : plan.amount_minor === null ? <button className="button button-light" disabled>Contact MobiWave for pricing</button>
                 : platformPaymentsEnabled ? <button className="button button-dark" disabled={busy === plan.code || !phone.trim()} onClick={() => void requestUpgrade(plan)}>{busy === plan.code ? "Sending STK Push…" : "Pay with M-Pesa"}</button>
