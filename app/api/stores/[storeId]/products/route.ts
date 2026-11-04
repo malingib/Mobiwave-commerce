@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getRequestUser } from "@/lib/request-user";
 import { normalizeStoreSlug } from "@/lib/tenant";
+import { canManagePaidFeatures, hasReachedPlanLimit } from "@/lib/plans";
 
 export const runtime = "nodejs";
 
@@ -49,6 +50,32 @@ export async function POST(request: Request, context: RouteContext) {
   try {
     await client.query("BEGIN");
     await client.query("SELECT set_config('app.user_id', $1, true)", [user.id]);
+    const member = await client.query(
+      "SELECT role FROM store_memberships WHERE store_id=$1 AND user_id=$2 AND role IN ('owner','manager')",
+      [storeId, user.id],
+    );
+    if (!member.rowCount) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "Store owner or manager access required" }, { status: 403 });
+    }
+    const planResult = await client.query(
+      "SELECT sub.plan_code, sub.status, p.limits FROM subscriptions sub JOIN commerce_plans p ON p.code=sub.plan_code WHERE sub.store_id=$1 LIMIT 1",
+      [storeId],
+    );
+    if (!planResult.rowCount) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "Store subscription is not configured" }, { status: 409 });
+    }
+    const plan = planResult.rows[0];
+    if (!canManagePaidFeatures(plan.status, plan.plan_code)) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "This subscription is past due. Restore billing before creating products." }, { status: 402 });
+    }
+    const productCount = await client.query("SELECT count(*)::int AS count FROM products WHERE store_id=$1", [storeId]);
+    if (hasReachedPlanLimit(plan.limits?.maxProducts, Number(productCount.rows[0].count))) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "This store has reached its product limit. Upgrade the plan or adjust its quota." }, { status: 403 });
+    }
     const result = await client.query(
       "INSERT INTO products (store_id, name, slug, description, sku, price_minor, currency, stock_quantity, status) VALUES ($1, $2, $3, $4, $5, $6, 'KES', $7, 'draft') RETURNING id, name, slug, description, sku, price_minor, currency, stock_quantity, status, created_at",
       [storeId, name, slugResult.slug, description, sku, Math.round(price * 100), stock]

@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
+import type { PoolClient } from "pg";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { matchesKenyanPhone } from "@/lib/mpesa-utils";

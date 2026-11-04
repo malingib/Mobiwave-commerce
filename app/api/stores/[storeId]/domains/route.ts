@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getRequestUser } from "@/lib/request-user";
 import { normalizeCustomHostname, domainVerificationRecordName, domainVerificationRecordValue } from "@/lib/domains";
+import { canManagePaidFeatures, hasReachedPlanLimit } from "@/lib/plans";
 
 export const runtime = "nodejs";
 type Context = { params: Promise<{ storeId: string }> };
@@ -62,6 +63,24 @@ export async function POST(request: Request, context: Context) {
     if (!member.rowCount) {
       await client.query("ROLLBACK");
       return NextResponse.json({ error: "Store owner or manager access required" }, { status: 403 });
+    }
+    const planResult = await client.query(
+      "SELECT sub.plan_code, sub.status, p.limits FROM subscriptions sub JOIN commerce_plans p ON p.code=sub.plan_code WHERE sub.store_id=$1 LIMIT 1",
+      [storeId],
+    );
+    if (!planResult.rowCount) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "Store subscription is not configured" }, { status: 409 });
+    }
+    const plan = planResult.rows[0];
+    if (!canManagePaidFeatures(plan.status, plan.plan_code)) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "This subscription is past due. Restore billing before changing domains." }, { status: 402 });
+    }
+    const domainCount = await client.query("SELECT count(*)::int AS count FROM store_domains WHERE store_id=$1", [storeId]);
+    if (hasReachedPlanLimit(plan.limits?.maxDomains, Number(domainCount.rows[0].count))) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "This plan does not include another custom domain. Upgrade the plan or adjust its quota." }, { status: 403 });
     }
     const inserted = await client.query(
       "INSERT INTO store_domains (store_id, hostname) VALUES ($1,$2) RETURNING id, hostname, status, verification_token, verified_at, activated_at, created_at",
