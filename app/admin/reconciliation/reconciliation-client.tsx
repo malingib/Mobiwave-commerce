@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, CheckCircle2, CreditCard, Globe, Save, ShieldCheck, Store } from "lucide-react";
+import { ArrowLeft, CheckCircle2, CreditCard, Store } from "lucide-react";
 
 type Attempt = {
   id: string; store_id: string; amount_minor: string | number; currency: string; status: string;
