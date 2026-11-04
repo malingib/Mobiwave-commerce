@@ -1,8 +1,9 @@
 import { timingSafeEqual } from "node:crypto";
 import type { PoolClient } from "pg";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { matchesKenyanPhone } from "@/lib/mpesa-utils";
+import { enqueueSms, processQueuedSmsBatch } from "@/lib/message-outbox";
 
 type CallbackData = {
   ResultCode: number;
@@ -18,6 +19,7 @@ type SubscriptionAttempt = {
   currency: string;
   status: string;
   customer_phone: string;
+  store_name: string;
 };
 
 export const runtime = "nodejs";
@@ -122,6 +124,14 @@ async function processSubscriptionCallback(client: PoolClient, attempt: Subscrip
     [attempt.plan_code, receipt, attempt.subscription_id, attempt.store_id],
   );
   await client.query("COMMIT");
+  await enqueueSms(client, {
+    storeId: attempt.store_id,
+    recipient: attempt.customer_phone,
+    templateKey: "subscription_payment_received",
+    dedupeKey: `subscription:${attempt.subscription_id}:payment:${attempt.id}`,
+    payload: { storeName: attempt.store_name, planName: attempt.plan_code },
+  });
+  after(() => processQueuedSmsBatch());
   return NextResponse.json({ ResultCode: 0, ResultDesc: "Subscription payment recorded" });
 }
 
@@ -144,7 +154,7 @@ export async function POST(request: Request) {
     await client.query("SELECT set_config('app.mpesa_callback', 'true', true)");
 
     const subscriptionResult = await client.query(
-      "SELECT id, store_id, subscription_id, plan_code, amount_minor, currency, status, customer_phone FROM subscription_payment_attempts WHERE provider='mpesa' AND checkout_request_id=$1 FOR UPDATE",
+      "SELECT p.id, p.store_id, p.subscription_id, p.plan_code, p.amount_minor, p.currency, p.status, p.customer_phone, s.name AS store_name FROM subscription_payment_attempts p JOIN stores s ON s.id=p.store_id WHERE p.provider='mpesa' AND p.checkout_request_id=$1 FOR UPDATE OF p",
       [checkoutRequestId],
     );
     if (subscriptionResult.rowCount) {
@@ -153,9 +163,10 @@ export async function POST(request: Request) {
 
     const result = await client.query(
       `SELECT p.id, p.store_id, p.order_id, p.amount_minor, p.currency, p.status,
-              o.customer_phone, o.currency AS order_currency
+              o.customer_phone, o.customer_name, o.order_number, o.currency AS order_currency, s.name AS store_name
          FROM payment_attempts p
          JOIN orders o ON o.id=p.order_id AND o.store_id=p.store_id
+         JOIN stores s ON s.id=p.store_id
         WHERE p.provider='mpesa' AND p.checkout_request_id=$1
         FOR UPDATE OF p, o`,
       [checkoutRequestId],
@@ -180,7 +191,16 @@ export async function POST(request: Request) {
         [attempt.order_id, attempt.store_id],
       );
       await client.query("COMMIT");
-      return NextResponse.json({ ResultCode: 0, ResultDesc: "Payment failure recorded" });
+      await enqueueSms(client, {
+    storeId: attempt.store_id,
+    orderId: attempt.order_id,
+    recipient: attempt.customer_phone,
+    templateKey: "order_payment_failed",
+    dedupeKey: `order:${attempt.order_id}:payment_failed:${attempt.id}`,
+    payload: { storeName: attempt.store_name, customerName: attempt.customer_name, orderNumber: attempt.order_number },
+  });
+  after(() => processQueuedSmsBatch());
+  return NextResponse.json({ ResultCode: 0, ResultDesc: "Payment failure recorded" });
     }
 
     const { amount, receipt, phone, transactionDate } = callbackMetadata(callback);
@@ -246,7 +266,16 @@ export async function POST(request: Request) {
       [attempt.order_id, attempt.store_id],
     );
     await client.query("COMMIT");
-    return NextResponse.json({ ResultCode: 0, ResultDesc: "Payment recorded" });
+    await enqueueSms(client, {
+    storeId: attempt.store_id,
+    orderId: attempt.order_id,
+    recipient: attempt.customer_phone,
+    templateKey: "order_payment_received",
+    dedupeKey: `order:${attempt.order_id}:payment_received`,
+    payload: { storeName: attempt.store_name, customerName: attempt.customer_name, orderNumber: attempt.order_number, receipt },
+  });
+  after(() => processQueuedSmsBatch());
+  return NextResponse.json({ ResultCode: 0, ResultDesc: "Payment recorded" });
   } catch {
     await client.query("ROLLBACK").catch(() => undefined);
     return NextResponse.json({ ResultCode: 1, ResultDesc: "Callback processing failed" }, { status: 500 });
