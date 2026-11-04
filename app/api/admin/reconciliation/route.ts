@@ -15,7 +15,7 @@ export async function GET() {
     const result = await client.query(
       `SELECT p.id, p.store_id, p.amount_minor, p.currency, p.status, p.provider_reference,
               p.checkout_request_id, o.customer_phone, s.name AS store_name,
-              o.order_number AS resource_label, p.created_at, 'order' AS attempt_type
+              o.order_number::text AS resource_label, p.created_at, 'order' AS attempt_type
          FROM payment_attempts p
          JOIN orders o ON o.id=p.order_id AND o.store_id=p.store_id
          JOIN stores s ON s.id=p.store_id

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Globe, ShieldCheck, Store } from "lucide-react";
+import { ArrowLeft, CheckCircle2, CreditCard, Globe, ShieldCheck, Store } from "lucide-react";
 
 type DomainRow = {
   id: string;
@@ -55,7 +55,7 @@ export default function AdminDomainsClient({ email }: { email: string }) {
       <div className="sidebar-label">PLATFORM</div>
       <Link className="sidebar-link" href="/admin"><ShieldCheck size={17}/> Superadmin</Link>
       <div className="sidebar-link active"><Globe size={17}/> Custom domains</div>
-      <Link className="sidebar-link" href="/admin/integrations/mpesa">M-Pesa integration</Link>
+      <Link className="sidebar-link" href="/admin/integrations/mpesa">M-Pesa integration</Link><Link className="sidebar-link" href="/admin/plans"><CreditCard size={17}/> Subscription plans</Link><Link className="sidebar-link" href="/admin/reconciliation"><CheckCircle2 size={17}/> Payment reconciliation</Link>
       <Link className="sidebar-link" href="/dashboard"><ArrowLeft size={17}/> Merchant dashboard</Link>
       <div className="sidebar-bottom"><div className="user-avatar">A</div><div className="user-details"><b>Platform admin</b><small>{email}</small></div></div>
     </aside>

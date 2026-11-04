@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, CheckCircle2, CreditCard, Store } from "lucide-react";
+import { ArrowLeft, CheckCircle2, CreditCard, Globe, Save, ShieldCheck, Store } from "lucide-react";
 
 type Attempt = {
   id: string; store_id: string; amount_minor: string | number; currency: string; status: string;
@@ -67,7 +67,7 @@ export default function ReconciliationClient({ email }: { email: string }) {
       <div className="sidebar-label">PLATFORM</div>
       <Link className="sidebar-link" href="/admin">Superadmin</Link>
       <div className="sidebar-link active"><CreditCard size={17}/> Payment reconciliation</div>
-      <Link className="sidebar-link" href="/admin/plans">Subscription plans</Link>
+      <Link className="sidebar-link" href="/admin/plans"><CreditCard size={17}/> Subscription plans</Link><Link className="sidebar-link" href="/admin/integrations/mpesa">M-Pesa integration</Link>
       <Link className="sidebar-link" href="/admin/domains">Custom domains</Link>
       <Link className="sidebar-link" href="/dashboard"><ArrowLeft size={17}/> Merchant dashboard</Link>
       <div className="sidebar-bottom"><div className="user-avatar">A</div><div className="user-details"><b>Platform admin</b><small>{email}</small></div></div>
