@@ -6,39 +6,52 @@ import { decryptCredential } from "@/lib/mpesa-config";
 import { formatDarajaTimestamp, normalizeKenyanPhone } from "@/lib/mpesa-utils";
 
 export const runtime = "nodejs";
+type Context = { params: Promise<{ storeId: string; orderId: string }> };
 
-export async function POST(request: Request, context: { params: Promise<{ storeId: string; orderId: string }> }) {
+export async function POST(_request: Request, context: Context) {
   const user = await getRequestUser();
   if (!user) return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   const { storeId, orderId } = await context.params;
   const callbackToken = process.env.MPESA_CALLBACK_TOKEN;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
-  if (!callbackToken || !appUrl) {
-    return NextResponse.json({ error: "M-Pesa callback configuration is incomplete." }, { status: 503 });
-  }
+  if (!callbackToken || !appUrl) return NextResponse.json({ error: "M-Pesa callback configuration is incomplete." }, { status: 503 });
 
-  let consumerKey = "";
-  let consumerSecret = "";
-  let shortcode = "";
-  let passkey = "";
-  let environment: "sandbox" | "production" = "sandbox";
-  let transactionType: "CustomerPayBillOnline" | "CustomerBuyGoodsOnline" = "CustomerPayBillOnline";
   const client = await db.connect();
   let attemptId: string | null = null;
+  let checkoutRequestId: string | null = null;
+  let merchantRequestId: string | null = null;
   let stkRequestStarted = false;
+  let stkResponseReceived = false;
+  let stkAccepted = false;
   try {
     await client.query("BEGIN");
     await client.query("SELECT set_config('app.user_id', $1, true)", [user.id]);
-    const configResult = await client.query(
+    await client.query("SELECT set_config('app.mpesa_order', 'true', true)");
+
+    const storeConfig = await client.query(
       "SELECT consumer_key_ciphertext, consumer_secret_ciphertext, shortcode, passkey_ciphertext, environment, transaction_type, enabled FROM mpesa_configurations WHERE scope_type='store' AND store_id=$1 LIMIT 1",
-      [storeId]
+      [storeId],
     );
-    if (!configResult.rowCount || !configResult.rows[0].enabled) {
+    let config = storeConfig.rows[0] || null;
+    if (config && !config.enabled) {
       await client.query("ROLLBACK");
-      return NextResponse.json({ error: "This store has not enabled its own M-Pesa Daraja integration. Ask a store owner or manager to configure it." }, { status: 503 });
+      return NextResponse.json({ error: "M-Pesa is disabled for this store." }, { status: 503 });
     }
+    if (!config) {
+      const platformConfig = await client.query(
+        "SELECT consumer_key_ciphertext, consumer_secret_ciphertext, shortcode, passkey_ciphertext, environment, transaction_type, enabled FROM mpesa_configurations WHERE scope_type='platform' AND store_id IS NULL AND enabled=true LIMIT 1",
+      );
+      config = platformConfig.rows[0] || null;
+    }
+    if (!config || !config.enabled) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "M-Pesa is not configured for this store or the platform." }, { status: 503 });
+    }
+
+    let consumerKey: string, consumerSecret: string, shortcode: string, passkey: string;
+    let environment: "sandbox" | "production";
+    let transactionType: "CustomerPayBillOnline" | "CustomerBuyGoodsOnline";
     try {
-      const config = configResult.rows[0];
       consumerKey = decryptCredential(config.consumer_key_ciphertext);
       consumerSecret = decryptCredential(config.consumer_secret_ciphertext);
       shortcode = config.shortcode;
@@ -49,24 +62,40 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
       await client.query("ROLLBACK");
       return NextResponse.json({ error: "M-Pesa credentials could not be decrypted. Check the server encryption key." }, { status: 503 });
     }
+
     const result = await client.query(
       "SELECT id, customer_phone, total_minor, currency, payment_status FROM orders WHERE id=$1 AND store_id=$2 FOR UPDATE",
-      [orderId, storeId]
+      [orderId, storeId],
     );
-    if (!result.rowCount) { await client.query("ROLLBACK"); return NextResponse.json({ error: "Order not found or access denied" }, { status: 404 }); }
-    const order = result.rows[0] as { id:string; customer_phone:string; total_minor:string|number; currency:string; payment_status:string };
-    if (order.payment_status === "paid") { await client.query("ROLLBACK"); return NextResponse.json({ error: "This order is already paid." }, { status: 409 }); }
+    if (!result.rowCount) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "Order not found or access denied" }, { status: 404 });
+    }
+    const order = result.rows[0] as { id: string; customer_phone: string; total_minor: string | number; currency: string; payment_status: string };
+    if (order.payment_status === "paid") {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "This order is already paid." }, { status: 409 });
+    }
     if (order.currency !== "KES" || Number(order.total_minor) <= 0 || Number(order.total_minor) % 100 !== 0) {
       await client.query("ROLLBACK");
       return NextResponse.json({ error: "M-Pesa requires a positive total in whole Kenyan shillings." }, { status: 400 });
     }
     const phone = normalizeKenyanPhone(order.customer_phone);
-    if (!phone) { await client.query("ROLLBACK"); return NextResponse.json({ error: "The customer's phone number is not a valid Kenyan mobile number." }, { status: 400 }); }
-    const existing = await client.query("SELECT id FROM payment_attempts WHERE store_id=$1 AND order_id=$2 AND provider='mpesa' AND status='pending' LIMIT 1", [storeId, orderId]);
-    if (existing.rowCount) { await client.query("ROLLBACK"); return NextResponse.json({ error: "An M-Pesa request is already pending for this order." }, { status: 409 }); }
+    if (!phone) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "The customer's phone number is not a valid Kenyan mobile number." }, { status: 400 });
+    }
+    const existing = await client.query(
+      "SELECT id,status FROM payment_attempts WHERE store_id=$1 AND order_id=$2 AND provider='mpesa' AND status IN ('pending','review_required') LIMIT 1 FOR UPDATE",
+      [storeId, orderId],
+    );
+    if (existing.rowCount) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "An M-Pesa payment is pending or under reconciliation for this order." }, { status: 409 });
+    }
     const inserted = await client.query(
       "INSERT INTO payment_attempts (store_id, order_id, provider, status, amount_minor, currency, idempotency_key) VALUES ($1,$2,'mpesa','pending',$3,'KES',$4) RETURNING id",
-      [storeId, orderId, Number(order.total_minor), randomUUID()]
+      [storeId, orderId, Number(order.total_minor), randomUUID()],
     );
     attemptId = inserted.rows[0].id;
     await client.query("UPDATE orders SET payment_status='pending', updated_at=now() WHERE id=$1 AND store_id=$2", [orderId, storeId]);
@@ -76,13 +105,14 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
     const authResponse = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
       headers: { Authorization: `Basic ${Buffer.from(`${consumerKey}:${consumerSecret}`).toString("base64")}` },
       cache: "no-store",
+      signal: AbortSignal.timeout(12_000),
     });
     if (!authResponse.ok) throw new Error("M-Pesa authentication failed");
     const authData = await authResponse.json() as { access_token?: string };
     if (!authData.access_token) throw new Error("M-Pesa did not return an access token");
 
-    const time = formatDarajaTimestamp();
-    const password = Buffer.from(`${shortcode}${passkey}${time}`).toString("base64");
+    const timestamp = formatDarajaTimestamp();
+    const password = Buffer.from(`${shortcode}${passkey}${timestamp}`).toString("base64");
     stkRequestStarted = true;
     const stkResponse = await fetch(`${baseUrl}/mpesa/stkpush/v1/processrequest`, {
       method: "POST",
@@ -90,41 +120,57 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
       body: JSON.stringify({
         BusinessShortCode: shortcode,
         Password: password,
-        Timestamp: time,
+        Timestamp: timestamp,
         TransactionType: transactionType,
         Amount: Number(order.total_minor) / 100,
         PartyA: phone,
         PartyB: shortcode,
         PhoneNumber: phone,
         CallBackURL: `${appUrl.replace(/\/$/, "")}/api/payments/mpesa/callback?token=${encodeURIComponent(callbackToken)}`,
-        AccountReference: `MW-${orderId.replace(/-/g, "").slice(0, 10).toUpperCase()}`,
-        TransactionDesc: "MobiWave Commerce order",
+        AccountReference: `MW${orderId.replace(/-/g, "").slice(0, 10).toUpperCase()}`,
+        TransactionDesc: "MW Order",
       }),
       cache: "no-store",
+      signal: AbortSignal.timeout(20_000),
     });
-    const stkData = await stkResponse.json() as { CheckoutRequestID?: string; MerchantRequestID?: string; ResponseCode?: string; ResponseDescription?: string; errorMessage?: string };
-    if (!stkResponse.ok || stkData.ResponseCode !== "0" || !stkData.CheckoutRequestID) throw new Error(stkData.errorMessage || stkData.ResponseDescription || "M-Pesa rejected the STK request");
+    const stkData = await stkResponse.json() as {
+      CheckoutRequestID?: string; MerchantRequestID?: string; ResponseCode?: string;
+      ResponseDescription?: string; errorMessage?: string;
+    };
+    stkResponseReceived = true;
+    stkAccepted = stkData.ResponseCode === "0";
+    if (!stkResponse.ok || stkData.ResponseCode !== "0" || !stkData.CheckoutRequestID) {
+      throw new Error(stkData.errorMessage || stkData.ResponseDescription || "M-Pesa rejected the STK request");
+    }
+    checkoutRequestId = stkData.CheckoutRequestID;
+    merchantRequestId = stkData.MerchantRequestID || null;
 
     await client.query("BEGIN");
     await client.query("SELECT set_config('app.user_id', $1, true)", [user.id]);
     await client.query(
       "UPDATE payment_attempts SET checkout_request_id=$1, merchant_request_id=$2, updated_at=now() WHERE id=$3 AND store_id=$4",
-      [stkData.CheckoutRequestID, stkData.MerchantRequestID || null, attemptId, storeId]
+      [checkoutRequestId, merchantRequestId, attemptId, storeId],
     );
     await client.query("COMMIT");
-    return NextResponse.json({ message: "STK Push sent. Ask the customer to enter their M-Pesa PIN on their phone.", checkoutRequestId: stkData.CheckoutRequestID });
+    return NextResponse.json({ message: "STK Push sent. Ask the customer to enter their M-Pesa PIN on their phone.", checkoutRequestId });
   } catch (error) {
-    await client.query("ROLLBACK").catch(()=>undefined);
+    await client.query("ROLLBACK").catch(() => undefined);
     if (attemptId) {
       try {
         await client.query("BEGIN");
         await client.query("SELECT set_config('app.user_id', $1, true)", [user.id]);
-        const uncertainStatus = stkRequestStarted ? "review_required" : "failed";
-        await client.query("UPDATE payment_attempts SET status=$1::payment_status, updated_at=now() WHERE id=$2 AND store_id=$3 AND status <> 'paid'", [uncertainStatus, attemptId, storeId]);
-        await client.query("UPDATE orders SET payment_status=$1::payment_status, updated_at=now() WHERE id=$2 AND store_id=$3 AND payment_status='pending'", [uncertainStatus, orderId, storeId]);
+        const uncertainStatus = stkAccepted || (stkRequestStarted && !stkResponseReceived) ? "review_required" : "failed";
+        await client.query(
+          "UPDATE payment_attempts SET status=$1::payment_status, checkout_request_id=COALESCE($2,checkout_request_id), merchant_request_id=COALESCE($3,merchant_request_id), updated_at=now() WHERE id=$4 AND store_id=$5 AND status <> 'paid'",
+          [uncertainStatus, checkoutRequestId, merchantRequestId, attemptId, storeId],
+        );
+        await client.query(
+          "UPDATE orders SET payment_status=$1::payment_status, updated_at=now() WHERE id=$2 AND store_id=$3 AND payment_status='pending'",
+          [uncertainStatus, orderId, storeId],
+        );
         await client.query("COMMIT");
       } catch {
-        await client.query("ROLLBACK").catch(()=>undefined);
+        await client.query("ROLLBACK").catch(() => undefined);
       }
     }
     const message = error instanceof Error ? error.message : "M-Pesa request failed";
