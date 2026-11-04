@@ -3,22 +3,9 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getRequestUser } from "@/lib/request-user";
 import { decryptCredential } from "@/lib/mpesa-config";
+import { formatDarajaTimestamp, normalizeKenyanPhone } from "@/lib/mpesa-utils";
 
 export const runtime = "nodejs";
-
-function normalizePhone(value: string) {
-  const digits = value.replace(/\D/g, "");
-  if (digits.startsWith("0") && digits.length === 10) return `254${digits.slice(1)}`;
-  if (digits.startsWith("254") && digits.length === 12) return digits;
-  if (digits.startsWith("7") && digits.length === 9) return `254${digits}`;
-  if (digits.startsWith("1") && digits.length === 9) return `254${digits}`;
-  return null;
-}
-
-function timestamp() {
-  const d = new Date();
-  return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}${String(d.getHours()).padStart(2,"0")}${String(d.getMinutes()).padStart(2,"0")}${String(d.getSeconds()).padStart(2,"0")}`;
-}
 
 export async function POST(request: Request, context: { params: Promise<{ storeId: string; orderId: string }> }) {
   const user = await getRequestUser();
@@ -73,7 +60,7 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
       await client.query("ROLLBACK");
       return NextResponse.json({ error: "M-Pesa requires a positive total in whole Kenyan shillings." }, { status: 400 });
     }
-    const phone = normalizePhone(order.customer_phone);
+    const phone = normalizeKenyanPhone(order.customer_phone);
     if (!phone) { await client.query("ROLLBACK"); return NextResponse.json({ error: "The customer's phone number is not a valid Kenyan mobile number." }, { status: 400 }); }
     const existing = await client.query("SELECT id FROM payment_attempts WHERE store_id=$1 AND order_id=$2 AND provider='mpesa' AND status='pending' LIMIT 1", [storeId, orderId]);
     if (existing.rowCount) { await client.query("ROLLBACK"); return NextResponse.json({ error: "An M-Pesa request is already pending for this order." }, { status: 409 }); }
@@ -94,7 +81,7 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
     const authData = await authResponse.json() as { access_token?: string };
     if (!authData.access_token) throw new Error("M-Pesa did not return an access token");
 
-    const time = timestamp();
+    const time = formatDarajaTimestamp();
     const password = Buffer.from(`${shortcode}${passkey}${time}`).toString("base64");
     stkRequestStarted = true;
     const stkResponse = await fetch(`${baseUrl}/mpesa/stkpush/v1/processrequest`, {
@@ -106,9 +93,9 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
         Timestamp: time,
         TransactionType: transactionType,
         Amount: Number(order.total_minor) / 100,
-        PartyA: normalizePhone(order.customer_phone),
+        PartyA: phone,
         PartyB: shortcode,
-        PhoneNumber: normalizePhone(order.customer_phone),
+        PhoneNumber: phone,
         CallBackURL: `${appUrl.replace(/\/$/, "")}/api/payments/mpesa/callback?token=${encodeURIComponent(callbackToken)}`,
         AccountReference: `MW-${orderId.replace(/-/g, "").slice(0, 10).toUpperCase()}`,
         TransactionDesc: "MobiWave Commerce order",

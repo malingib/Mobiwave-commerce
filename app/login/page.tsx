@@ -15,8 +15,12 @@ export default function LoginPage() {
     event.preventDefault(); setError(""); setBusy(true);
     try {
       const result = await authClient.signIn.email({ email, password, callbackURL: "/dashboard" });
-      if (result.error) setError(result.error.message || "Could not sign in.");
-      else window.location.assign("/dashboard");
+      if (result.error) {
+        const code = String(result.error.code || "");
+        setError(code === "EMAIL_NOT_VERIFIED"
+          ? "Please verify your email using the link we sent you. Try signing in again to request another link."
+          : result.error.message || "Could not sign in.");
+      } else window.location.assign("/dashboard");
     } catch { setError("Unable to sign in right now. Please try again."); }
     finally { setBusy(false); }
   }
