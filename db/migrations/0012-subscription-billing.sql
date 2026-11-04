@@ -63,8 +63,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS subscription_payment_attempts_checkout_unique
   ON subscription_payment_attempts(checkout_request_id) WHERE checkout_request_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS subscription_payment_attempts_receipt_unique
   ON subscription_payment_attempts(provider_reference) WHERE provider_reference IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS subscription_payment_attempts_one_pending
-  ON subscription_payment_attempts(store_id) WHERE status = 'pending';
+DROP INDEX IF EXISTS subscription_payment_attempts_one_pending;
+CREATE UNIQUE INDEX IF NOT EXISTS subscription_payment_attempts_one_open
+  ON subscription_payment_attempts(store_id) WHERE status IN ('pending', 'review_required');
 CREATE INDEX IF NOT EXISTS subscription_payment_attempts_store_recent
   ON subscription_payment_attempts(store_id, created_at DESC);
 

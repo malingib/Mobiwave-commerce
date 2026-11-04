@@ -1,10 +1,10 @@
 import { timingSafeEqual } from "node:crypto";
 import type { PoolClient } from "pg";
-
-type SubscriptionAttempt = { id: string; store_id: string; subscription_id: string; plan_code: string; amount_minor: string | number; currency: string; status: string; customer_phone: string };
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { matchesKenyanPhone } from "@/lib/mpesa-utils";
+
+type SubscriptionAttempt = { id: string; store_id: string; subscription_id: string; plan_code: string; amount_minor: string | number; currency: string; status: string; customer_phone: string };
 
 export const runtime = "nodejs";
 

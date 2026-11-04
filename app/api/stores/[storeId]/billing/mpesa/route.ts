@@ -89,12 +89,12 @@ export async function POST(request: Request, context: Context) {
       return NextResponse.json({ message: "This subscription payment request was already received.", status: previous.status, checkoutRequestId: previous.checkout_request_id }, { status: 200 });
     }
     const pending = await client.query(
-      "SELECT id FROM subscription_payment_attempts WHERE store_id=$1 AND status='pending' LIMIT 1 FOR UPDATE",
+      "SELECT id FROM subscription_payment_attempts WHERE store_id=$1 AND status IN ('pending','review_required') LIMIT 1 FOR UPDATE",
       [storeId],
     );
     if (pending.rowCount) {
       await client.query("ROLLBACK");
-      return NextResponse.json({ error: "A subscription payment is already pending for this store." }, { status: 409 });
+      return NextResponse.json({ error: "A subscription payment is pending or under reconciliation for this store. Resolve it before starting another payment." }, { status: 409 });
     }
     const configResult = await client.query(
       "SELECT consumer_key_ciphertext, consumer_secret_ciphertext, shortcode, passkey_ciphertext, environment, transaction_type, enabled FROM mpesa_configurations WHERE scope_type='platform' AND store_id IS NULL LIMIT 1",
