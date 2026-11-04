@@ -83,7 +83,7 @@ export async function processQueuedSmsBatch(batchSize = 20) {
   }
 
   const client = await db.connect();
-  let events: QueuedSms[] = [];
+  const events: QueuedSms[] = [];
   try {
     await client.query("BEGIN");
     await client.query("SELECT set_config('app.message_worker', 'true', true)");

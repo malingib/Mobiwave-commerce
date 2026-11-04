@@ -18,7 +18,7 @@ export default function ProductsClient({ storeId, userName }: { storeId: string;
   const [stock, setStock] = useState("");
   const [busy, setBusy] = useState(false);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
       const [productResponse, storeResponse] = await Promise.all([
@@ -32,8 +32,8 @@ export default function ProductsClient({ storeId, userName }: { storeId: string;
       setStore((storeData.stores || []).find((item: {id:string})=>item.id===storeId) || null);
     } catch (e) { setError(e instanceof Error ? e.message : "Could not load this store."); }
     finally { setLoading(false); }
-  }
-  useEffect(()=>{void load();},[storeId]);
+  }, [storeId]);
+  useEffect(() => { void load(); }, [load]);
 
   async function setProductStatus(product: Product, status: "active" | "draft" | "archived") {
     setError("");

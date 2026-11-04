@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Check, CreditCard, Store } from "lucide-react";
 
 type Billing = {
@@ -25,7 +25,7 @@ export default function BillingClient({ storeId, userName }: { storeId: string; 
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
       const response = await fetch(`/api/stores/${storeId}/billing`, { cache: "no-store" });
@@ -37,8 +37,8 @@ export default function BillingClient({ storeId, userName }: { storeId: string; 
       setLatestPayment(data.latestPayment || null);
     } catch (e) { setError(e instanceof Error ? e.message : "Could not load billing"); }
     finally { setLoading(false); }
-  }
-  useEffect(() => { void load(); }, [storeId]);
+  }, [storeId]);
+  useEffect(() => { void load(); }, [load]);
 
   async function requestUpgrade(plan: Plan) {
     setBusy(plan.code); setError(""); setNotice("");
