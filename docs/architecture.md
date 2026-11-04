@@ -1,43 +1,49 @@
 # Architecture decisions
 
-## Decision 001 — own the platform
+## Decision 001 — MobiWave owns the platform
 
-MobiWave Commerce is built as MobiWave-owned software. Take App and Bumpa are market benchmarks and possible integration partners, not the platform foundation.
+MobiWave Commerce is MobiWave-owned software. Take App and Bumpa are market benchmarks, not the platform foundation.
 
-## Decision 002 — commerce engine
+## Decision 002 — application and persistence
 
-Medusa DTC Starter is the leading candidate because it provides a Next.js storefront and mature commerce primitives. Its current official requirements and workspace layout must be rechecked at bootstrap. This repository currently contains a frontend proof of direction, not a completed Medusa integration.
+The active application is a custom Next.js 15 / React 19 / TypeScript application using Better Auth and Neon PostgreSQL. A Medusa DTC Starter integration is deferred; it is not part of the current runtime. Do not describe this repository as a completed Medusa integration.
 
-## Decision 003 — tenant identity
+## Decision 003 — tenant identity and authorization
 
-- Every merchant-owned resource must be associated with an internal tenant/store ID.
-- Public storefront tenant resolution must use a validated hostname-to-store mapping.
-- Authenticated dashboard requests must validate membership and role on the server.
-- Never accept a tenant ID from a request body as proof of access.
-- Tenant filters must be enforced in backend services/workflows and covered by negative authorization tests.
+- Every merchant-owned resource is associated with an internal store ID.
+- Authenticated dashboard requests validate membership and role server-side.
+- Public storefront resolution uses a validated free-subdomain parser or an explicitly activated custom-domain registry entry.
+- The application uses the restricted commerce_runtime database role with NOBYPASSRLS; the Neon owner role is migration-only.
+- Callback, worker, checkout and platform-admin database capabilities use distinct transaction-local PostgreSQL settings and RLS policies.
+- Tenant isolation is tested with two synthetic merchant workspaces on an isolated Neon branch. Production Neon has not been modified.
 
 ## Decision 004 — domain strategy
 
 - Free stores use a slug under the MobiWave-controlled root domain.
-- Slugs are unique, normalized and reserved words are blocked.
-- Custom domains are a paid capability.
-- Domain verification and activation are separate states; an unverified hostname must never route to a merchant.
-- DNS wildcard, TLS, edge routing and canonical URL behaviour must be validated before launch.
+- Custom domains are a paid capability and are quota-controlled by the plan catalogue.
+- Ownership verification uses a unique DNS TXT record at _mobiwave-commerce.<hostname>.
+- DNS ownership verification, Vercel project attachment and platform activation are separate steps. Only verified and activated domains resolve to a merchant storefront.
+- Production wildcard DNS, TLS and Vercel custom-domain attachment still require operational verification.
 
-## Decision 005 — payment sequence
+## Decision 005 — payments
 
-1. Cash on delivery and manual payment instructions/order status.
-2. M-Pesa STK Push initiation through server-side credentials.
-3. Provider callback signature/validation, transaction lookup and idempotent payment updates.
-4. Reconciliation, retries and observability.
-5. Other gateways after the M-Pesa flow is tested.
-
-The storefront must not mark an order paid based solely on a browser redirect.
+- Order and subscription M-Pesa STK Push flows use encrypted platform or merchant Daraja credentials.
+- STK requests are correlated with durable payment attempts.
+- Callbacks validate the configured callback token, checkout request, amount, currency, customer phone and receipt uniqueness.
+- A shared receipt-claim table prevents one receipt from being applied to multiple order/subscription payments.
+- Uncertain outcomes enter review_required; a verified platform administrator can reconcile against Safaricom evidence.
+- Subscription activation occurs only after a verified callback or audited manual reconciliation.
+- Browser redirects and STK initiation responses never mark payments paid.
+- Real Safaricom sandbox/production credentials and live end-to-end tests remain outstanding.
 
 ## Decision 006 — messaging
 
-MobiWave SMS is a first-party integration and usage revenue line. Message sends should be queued, deduplicated and logged against the correct tenant. Consent, sender ID, opt-out, delivery reports and failure handling must be designed before bulk or marketing messaging is enabled. WhatsApp should use official supported APIs only.
+Transactional SMS uses a tenant-scoped outbox with deduplication, worker leases, bounded retries and exponential backoff. Immediate dispatch uses Next.js after(); an authenticated worker endpoint supports scheduled retries. The MobiWave SMS endpoint and payload contract must be verified against the provider's documentation before live sending. Bulk/marketing messaging, opt-out handling, provider delivery reports and official WhatsApp integration are not enabled.
+
+## Decision 007 — subscriptions and entitlements
+
+The platform plan catalogue is configurable by a verified platform administrator. Paid plan prices remain unset until MobiWave approves commercial rates. Product and custom-domain quotas are enforced from plan limits; blank limits mean unlimited. Subscription payment is a manual M-Pesa STK flow with monthly renewal, not an automatic recurring mandate.
 
 ## Deployment boundaries
 
-A Next.js storefront deployment alone does not deploy a Medusa backend, database, jobs or webhooks. Production requires a persistent Node.js backend, managed PostgreSQL, secrets, migrations, background work where required, object storage and DNS/domain routing. Deployment is not complete until all these are configured and smoke-tested.
+The Next.js app, Neon database, provider credentials, DNS/TLS and scheduled message worker are separate production dependencies. A preview deployment is not production verification. All migrations must be tested on a disposable Neon branch before production application.

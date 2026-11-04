@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, ClipboardList, Store } from "lucide-react";
 
 type Order = { id:string; order_number:string|number; customer_name:string; customer_email:string|null; customer_phone:string; delivery_address:{address?:string}; status:string; payment_status:string; payment_method:string; currency:string; subtotal_minor:string|number; delivery_fee_minor:string|number; total_minor:string|number; created_at:string };
@@ -14,8 +14,8 @@ export default function OrdersClient({storeId,userName}:{storeId:string;userName
   const [busyId,setBusyId]=useState("");
   const [mpesaBusyId,setMpesaBusyId]=useState("");
   const [notice,setNotice]=useState("");
-  async function load(){setLoading(true);setError("");try{const [ordersRes,storesRes]=await Promise.all([fetch(`/api/stores/${storeId}/orders`,{cache:"no-store"}),fetch("/api/stores",{cache:"no-store"})]);const od=await ordersRes.json();const sd=await storesRes.json();if(!ordersRes.ok)throw new Error(od.error||"Could not load orders");setOrders(od.orders||[]);setStore((sd.stores||[]).find((s:{id:string})=>s.id===storeId)||null);}catch(e){setError(e instanceof Error?e.message:"Could not load orders");}finally{setLoading(false);}}
-  useEffect(()=>{void load();},[storeId]);
+  const load = useCallback(async () => {setLoading(true);setError("");try{const [ordersRes,storesRes]=await Promise.all([fetch(`/api/stores/${storeId}/orders`,{cache:"no-store"}),fetch("/api/stores",{cache:"no-store"})]);const od=await ordersRes.json();const sd=await storesRes.json();if(!ordersRes.ok)throw new Error(od.error||"Could not load orders");setOrders(od.orders||[]);setStore((sd.stores||[]).find((s:{id:string})=>s.id===storeId)||null);}catch(e){setError(e instanceof Error?e.message:"Could not load orders");}finally{setLoading(false);}}, [storeId]);
+  useEffect(() => { void load(); }, [load]);
   async function updateStatus(order:Order,status:string){setBusyId(order.id);setError("");try{const response=await fetch(`/api/stores/${storeId}/orders/${order.id}`,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({status})});const data=await response.json();if(!response.ok)throw new Error(data.error||"Could not update order");setOrders(current=>current.map(o=>o.id===order.id?{...o,status:data.order.status}:o));}catch(e){setError(e instanceof Error?e.message:"Could not update order");}finally{setBusyId("");}}
   async function requestMpesa(order:Order) {
     setMpesaBusyId(order.id);setError("");setNotice("");
