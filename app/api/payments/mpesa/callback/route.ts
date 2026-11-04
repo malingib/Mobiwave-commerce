@@ -123,7 +123,6 @@ async function processSubscriptionCallback(client: PoolClient, attempt: Subscrip
       WHERE id=$3 AND store_id=$4`,
     [attempt.plan_code, receipt, attempt.subscription_id, attempt.store_id],
   );
-  await client.query("COMMIT");
   await enqueueSms(client, {
     storeId: attempt.store_id,
     recipient: attempt.customer_phone,
@@ -131,6 +130,7 @@ async function processSubscriptionCallback(client: PoolClient, attempt: Subscrip
     dedupeKey: `subscription:${attempt.subscription_id}:payment:${attempt.id}`,
     payload: { storeName: attempt.store_name, planName: attempt.plan_code },
   });
+  await client.query("COMMIT");
   after(() => processQueuedSmsBatch());
   return NextResponse.json({ ResultCode: 0, ResultDesc: "Subscription payment recorded" });
 }
@@ -190,15 +190,15 @@ export async function POST(request: Request) {
         "UPDATE orders SET payment_status='failed', updated_at=now() WHERE id=$1 AND store_id=$2 AND payment_status NOT IN ('paid','review_required')",
         [attempt.order_id, attempt.store_id],
       );
-      await client.query("COMMIT");
       await enqueueSms(client, {
-    storeId: attempt.store_id,
-    orderId: attempt.order_id,
-    recipient: attempt.customer_phone,
-    templateKey: "order_payment_failed",
-    dedupeKey: `order:${attempt.order_id}:payment_failed:${attempt.id}`,
-    payload: { storeName: attempt.store_name, customerName: attempt.customer_name, orderNumber: attempt.order_number },
-  });
+        storeId: attempt.store_id,
+        orderId: attempt.order_id,
+        recipient: attempt.customer_phone,
+        templateKey: "order_payment_failed",
+        dedupeKey: `order:${attempt.order_id}:payment_failed:${attempt.id}`,
+        payload: { storeName: attempt.store_name, customerName: attempt.customer_name, orderNumber: attempt.order_number },
+      });
+      await client.query("COMMIT");
   after(() => processQueuedSmsBatch());
   return NextResponse.json({ ResultCode: 0, ResultDesc: "Payment failure recorded" });
     }
@@ -265,15 +265,15 @@ export async function POST(request: Request) {
       "UPDATE orders SET payment_status='paid', updated_at=now() WHERE id=$1 AND store_id=$2 AND payment_status <> 'paid'",
       [attempt.order_id, attempt.store_id],
     );
-    await client.query("COMMIT");
     await enqueueSms(client, {
-    storeId: attempt.store_id,
-    orderId: attempt.order_id,
-    recipient: attempt.customer_phone,
-    templateKey: "order_payment_received",
-    dedupeKey: `order:${attempt.order_id}:payment_received`,
-    payload: { storeName: attempt.store_name, customerName: attempt.customer_name, orderNumber: attempt.order_number, receipt },
-  });
+      storeId: attempt.store_id,
+      orderId: attempt.order_id,
+      recipient: attempt.customer_phone,
+      templateKey: "order_payment_received",
+      dedupeKey: `order:${attempt.order_id}:payment_received`,
+      payload: { storeName: attempt.store_name, customerName: attempt.customer_name, orderNumber: attempt.order_number, receipt },
+    });
+    await client.query("COMMIT");
   after(() => processQueuedSmsBatch());
   return NextResponse.json({ ResultCode: 0, ResultDesc: "Payment recorded" });
   } catch {
