@@ -10,7 +10,7 @@
 ## 2. Neon database
 
 1. Confirm the intended production Neon project and database before applying anything.
-2. Apply db/schema.sql as the initial baseline, then apply db/migrations/0002-auth.sql through 0015-mpesa-platform-order-fallback.sql in numeric order. If the existing database already has earlier migrations, reconcile migration state first; do not replay baseline DDL blindly.
+2. Apply db/schema.sql as the initial baseline, then apply db/migrations/0002-auth.sql through 0016-mpesa-callback-read-policies.sql in numeric order. If the existing database already has earlier migrations, reconcile migration state first; do not replay baseline DDL blindly.
 3. Apply migrations first on a disposable Neon branch and run the tenant/RLS test suite.
 4. The app connection must use the commerce_app login with options=-c%20role%3Dcommerce_runtime. Never put the owner connection string in Vercel.
 5. Verify at runtime that current_user = 'commerce_runtime' and rolbypassrls = false.

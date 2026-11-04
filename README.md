@@ -32,7 +32,7 @@ Never commit .env.local, expose provider secrets through NEXT_PUBLIC_ variables,
 
 ## Database migrations
 
-db/schema.sql is the initial schema baseline. Apply db/migrations/0002-auth.sql through 0015-mpesa-platform-order-fallback.sql in numeric order. Apply and validate migrations on a disposable Neon branch first. Production migrations have not been applied as part of this implementation work.
+db/schema.sql is the initial schema baseline. Apply db/migrations/0002-auth.sql through 0016-mpesa-callback-read-policies.sql in numeric order. Apply and validate migrations on a disposable Neon branch first. Production migrations have not been applied as part of this implementation work.
 
 ## Development
 

@@ -11,7 +11,7 @@
 - [x] Verified-email gate for platform-admin allowlisting.
 - [x] Neon PostgreSQL schema, tenant foreign keys and RLS.
 - [x] Dedicated restricted commerce_runtime role and transaction-local capability flags.
-- [x] Validate migrations 0010–0015 on an isolated Neon branch.
+- [x] Validate migrations 0010–0016 on an isolated Neon branch.
 - [ ] Apply reviewed migrations to the intended production Neon database after release approval.
 
 ## Milestone 2 — merchant and shopper journey
