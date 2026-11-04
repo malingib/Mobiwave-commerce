@@ -63,8 +63,7 @@ export async function POST(request: Request) {
   try {
     await client.query("BEGIN");
     await client.query("SELECT set_config('app.admin', 'true', true)");
-    const table = body.attemptType === "order" ? "payment_attempts" : "subscription_payment_attempts";
-    const selected = body.attemptType === "order"
+      const selected = body.attemptType === "order"
       ? await client.query(
           "SELECT p.id,p.store_id,p.order_id,p.amount_minor,p.currency,p.status,o.customer_phone FROM payment_attempts p JOIN orders o ON o.id=p.order_id AND o.store_id=p.store_id WHERE p.id=$1 AND p.provider='mpesa' FOR UPDATE OF p,o",
           [body.attemptId],

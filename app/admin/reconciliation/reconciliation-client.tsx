@@ -12,7 +12,7 @@ type Attempt = {
 
 export default function ReconciliationClient({ email }: { email: string }) {
   const [attempts, setAttempts] = useState<Attempt[]>([]);
-  const [values, setValues] = useState<Record<string, { receipt: string; phone: string; reason: string }>>({});
+  const [values, setValues] = useState<Record<string, { receipt: string; phone: string; amountKes: string; reason: string }>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -30,12 +30,12 @@ export default function ReconciliationClient({ email }: { email: string }) {
   }
   useEffect(() => { void load(); }, []);
 
-  function update(id: string, patch: Partial<{ receipt: string; phone: string; reason: string }>) {
-    setValues(current => ({ ...current, [id]: { receipt: "", phone: "", reason: "", ...current[id], ...patch } }));
+  function update(id: string, patch: Partial<{ receipt: string; phone: string; amountKes: string; reason: string }>) {
+    setValues(current => ({ ...current, [id]: { receipt: "", phone: "", amountKes: "", reason: "", ...current[id], ...patch } }));
   }
 
   async function reconcile(attempt: Attempt, action: "mark_paid" | "mark_failed") {
-    const value = values[attempt.id] || { receipt: "", phone: "", reason: "" };
+    const value = values[attempt.id] || { receipt: "", phone: "", amountKes: "", reason: "" };
     setBusy(attempt.id); setError(""); setNotice("");
     try {
       const response = await fetch("/api/admin/reconciliation", {
@@ -46,7 +46,7 @@ export default function ReconciliationClient({ email }: { email: string }) {
           attemptId: attempt.id,
           action,
           providerReference: value.receipt,
-          verifiedAmountMinor: Number(attempt.amount_minor),
+          verifiedAmountMinor: Math.round(Number(value.amountKes) * 100),
           verifiedPhone: value.phone,
           reason: value.reason,
         }),
@@ -89,9 +89,10 @@ export default function ReconciliationClient({ email }: { email: string }) {
                   <small>{attempt.attempt_type} · {money(attempt.amount_minor,attempt.currency)} · {attempt.customer_phone}</small>
                   <small>Checkout: {attempt.checkout_request_id || "Not available"} · {new Date(attempt.created_at).toLocaleString("en-KE")}</small>
                   <label>Safaricom receipt number</label><input value={value.receipt} onChange={e=>update(attempt.id,{receipt:e.target.value.toUpperCase()})} placeholder="e.g. QAB12XYZ34"/>
+                  <label>Amount confirmed in Safaricom statement (KES)</label><input type="number" min="0" step="0.01" value={value.amountKes} onChange={e=>update(attempt.id,{amountKes:e.target.value})} placeholder={(Number(attempt.amount_minor)/100).toFixed(2)}/>
                   <label>Verified phone number</label><input value={value.phone} onChange={e=>update(attempt.id,{phone:e.target.value})} placeholder={attempt.customer_phone}/>
                   <label>Reconciliation evidence / reason</label><textarea value={value.reason} onChange={e=>update(attempt.id,{reason:e.target.value})} rows={2} placeholder="Reference the Safaricom statement or query result"/>
-                  <div className="button-row"><button className="button button-dark" disabled={busy===attempt.id || !value.receipt || !value.phone || value.reason.trim().length<12} onClick={()=>void reconcile(attempt,"mark_paid")}>{busy===attempt.id?"Saving…":"Confirm payment"}</button><button className="button button-light" disabled={busy===attempt.id || value.reason.trim().length<12} onClick={()=>void reconcile(attempt,"mark_failed")}>Mark failed</button></div>
+                  <div className="button-row"><button className="button button-dark" disabled={busy===attempt.id || !value.receipt || !value.phone || !value.amountKes || value.reason.trim().length<12} onClick={()=>void reconcile(attempt,"mark_paid")}>{busy===attempt.id?"Saving…":"Confirm payment"}</button><button className="button button-light" disabled={busy===attempt.id || value.reason.trim().length<12} onClick={()=>void reconcile(attempt,"mark_failed")}>Mark failed</button></div>
                 </div>
               </article>;
             })}
