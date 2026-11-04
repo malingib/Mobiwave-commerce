@@ -4,7 +4,21 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { matchesKenyanPhone } from "@/lib/mpesa-utils";
 
-type SubscriptionAttempt = { id: string; store_id: string; subscription_id: string; plan_code: string; amount_minor: string | number; currency: string; status: string; customer_phone: string };
+type CallbackData = {
+  ResultCode: number;
+  ResultDesc?: string;
+  CallbackMetadata?: { Item?: Array<{ Name?: string; Value?: string | number }> };
+};
+type SubscriptionAttempt = {
+  id: string;
+  store_id: string;
+  subscription_id: string;
+  plan_code: string;
+  amount_minor: string | number;
+  currency: string;
+  status: string;
+  customer_phone: string;
+};
 
 export const runtime = "nodejs";
 
@@ -13,6 +27,102 @@ function secureTokenMatch(expected: string, received: string | null) {
   const a = Buffer.from(expected);
   const b = Buffer.from(received);
   return a.length === b.length && timingSafeEqual(a, b);
+}
+
+function getCallbackValue(callback: CallbackData, key: string) {
+  return callback.CallbackMetadata?.Item?.find(item => item.Name === key)?.Value;
+}
+
+function callbackMetadata(callback: CallbackData) {
+  const amount = Number(getCallbackValue(callback, "Amount"));
+  const receipt = getCallbackValue(callback, "MpesaReceiptNumber");
+  const phone = getCallbackValue(callback, "PhoneNumber");
+  const transactionDate = getCallbackValue(callback, "TransactionDate");
+  return { amount, receipt, phone, transactionDate };
+}
+
+async function markSubscriptionReview(client: PoolClient, attempt: SubscriptionAttempt, callback: CallbackData, reason: string) {
+  const { amount, receipt, phone } = callbackMetadata(callback);
+  await client.query(
+    "UPDATE subscription_payment_attempts SET status='review_required', callback_payload=$1::jsonb, updated_at=now() WHERE id=$2",
+    [JSON.stringify({
+      resultCode: callback.ResultCode,
+      amount: Number.isFinite(amount) ? amount : null,
+      receipt: typeof receipt === "string" ? receipt.slice(0, 32) : null,
+      phone: typeof phone === "string" || typeof phone === "number" ? String(phone).slice(0, 20) : null,
+      reason,
+    }), attempt.id],
+  );
+  await client.query("COMMIT");
+  return NextResponse.json({ ResultCode: 0, ResultDesc: "Subscription payment requires reconciliation" });
+}
+
+async function processSubscriptionCallback(client: PoolClient, attempt: SubscriptionAttempt, callback: CallbackData) {
+  if (attempt.status === "paid") {
+    await client.query("COMMIT");
+    return NextResponse.json({ ResultCode: 0, ResultDesc: "Already processed" });
+  }
+  if (callback.ResultCode !== 0) {
+    await client.query(
+      "UPDATE subscription_payment_attempts SET status='failed', callback_payload=$1::jsonb, updated_at=now() WHERE id=$2 AND status <> 'paid'",
+      [JSON.stringify({ resultCode: callback.ResultCode, resultDescription: String(callback.ResultDesc || "").slice(0, 300) }), attempt.id],
+    );
+    await client.query("COMMIT");
+    return NextResponse.json({ ResultCode: 0, ResultDesc: "Subscription payment failure recorded" });
+  }
+
+  const { amount, receipt, phone, transactionDate } = callbackMetadata(callback);
+  const validAmount = Number.isFinite(amount)
+    && Number.isSafeInteger(amount * 100)
+    && amount * 100 === Number(attempt.amount_minor)
+    && attempt.currency === "KES";
+  const validReceipt = typeof receipt === "string" && /^[A-Z0-9]{6,20}$/.test(receipt);
+  const validPhone = (typeof phone === "string" || typeof phone === "number")
+    && matchesKenyanPhone(attempt.customer_phone, String(phone));
+  if (!validAmount || !validReceipt || !validPhone) {
+    return markSubscriptionReview(client, attempt, callback,
+      !validAmount ? "amount_or_currency_mismatch" : !validReceipt ? "invalid_receipt" : "phone_mismatch");
+  }
+
+  const duplicate = await client.query(
+    `SELECT 1 FROM mpesa_receipt_claims WHERE receipt_number=$1
+     UNION ALL SELECT 1 FROM payment_attempts WHERE provider='mpesa' AND provider_reference=$1
+     UNION ALL SELECT 1 FROM subscription_payment_attempts WHERE provider_reference=$1 AND id<>$2
+     LIMIT 1`,
+    [receipt, attempt.id],
+  );
+  if (duplicate.rowCount) return markSubscriptionReview(client, attempt, callback, "receipt_already_used");
+
+  const claim = await client.query(
+    "INSERT INTO mpesa_receipt_claims (receipt_number, payment_type, payment_attempt_id, store_id) VALUES ($1,'subscription',$2,$3) ON CONFLICT DO NOTHING RETURNING receipt_number",
+    [receipt, attempt.id, attempt.store_id],
+  );
+  if (!claim.rowCount) return markSubscriptionReview(client, attempt, callback, "receipt_claim_race");
+
+  await client.query(
+    "UPDATE subscription_payment_attempts SET status='paid', provider_reference=$1, callback_payload=$2::jsonb, updated_at=now() WHERE id=$3",
+    [receipt, JSON.stringify({
+      resultCode: callback.ResultCode,
+      amount,
+      receipt,
+      phone: String(phone).slice(0, 20),
+      transactionDate: typeof transactionDate === "string" || typeof transactionDate === "number" ? String(transactionDate).slice(0, 20) : null,
+    }), attempt.id],
+  );
+  await client.query(
+    `UPDATE subscriptions
+        SET plan_code=$1,
+            status='active',
+            current_period_start=GREATEST(COALESCE(current_period_end, now()), now()),
+            current_period_end=GREATEST(COALESCE(current_period_end, now()), now()) + interval '1 month',
+            provider='mpesa',
+            provider_reference=$2,
+            updated_at=now()
+      WHERE id=$3 AND store_id=$4`,
+    [attempt.plan_code, receipt, attempt.subscription_id, attempt.store_id],
+  );
+  await client.query("COMMIT");
+  return NextResponse.json({ ResultCode: 0, ResultDesc: "Subscription payment recorded" });
 }
 
 export async function POST(request: Request) {
@@ -32,6 +142,15 @@ export async function POST(request: Request) {
   try {
     await client.query("BEGIN");
     await client.query("SELECT set_config('app.mpesa_callback', 'true', true)");
+
+    const subscriptionResult = await client.query(
+      "SELECT id, store_id, subscription_id, plan_code, amount_minor, currency, status, customer_phone FROM subscription_payment_attempts WHERE provider='mpesa' AND checkout_request_id=$1 FOR UPDATE",
+      [checkoutRequestId],
+    );
+    if (subscriptionResult.rowCount) {
+      return await processSubscriptionCallback(client, subscriptionResult.rows[0] as SubscriptionAttempt, callback);
+    }
+
     const result = await client.query(
       `SELECT p.id, p.store_id, p.order_id, p.amount_minor, p.currency, p.status,
               o.customer_phone, o.currency AS order_currency
@@ -64,12 +183,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ResultCode: 0, ResultDesc: "Payment failure recorded" });
     }
 
-    const values = callback.CallbackMetadata?.Item || [];
-    const getValue = (key: string) => values.find(item => item.Name === key)?.Value;
-    const amount = Number(getValue("Amount"));
-    const receipt = getValue("MpesaReceiptNumber");
-    const phone = getValue("PhoneNumber");
-    const transactionDate = getValue("TransactionDate");
+    const { amount, receipt, phone, transactionDate } = callbackMetadata(callback);
     const validAmount = Number.isFinite(amount)
       && Number.isSafeInteger(amount * 100)
       && amount * 100 === Number(attempt.amount_minor)
@@ -79,17 +193,16 @@ export async function POST(request: Request) {
     const validPhone = (typeof phone === "string" || typeof phone === "number")
       && matchesKenyanPhone(attempt.customer_phone, String(phone));
 
-    if (!validAmount || !validReceipt || !validPhone) {
-      const reviewPayload = {
-        resultCode: callback.ResultCode,
-        amount: Number.isFinite(amount) ? amount : null,
-        receipt: typeof receipt === "string" ? receipt.slice(0, 32) : null,
-        phone: typeof phone === "string" || typeof phone === "number" ? String(phone).slice(0, 20) : null,
-        reason: !validAmount ? "amount_or_currency_mismatch" : !validReceipt ? "invalid_receipt" : "phone_mismatch",
-      };
+    const markOrderReview = async (reason: string) => {
       await client.query(
         "UPDATE payment_attempts SET status='review_required', callback_payload=$1::jsonb, updated_at=now() WHERE id=$2",
-        [JSON.stringify(reviewPayload), attempt.id],
+        [JSON.stringify({
+          resultCode: callback.ResultCode,
+          amount: Number.isFinite(amount) ? amount : null,
+          receipt: typeof receipt === "string" ? receipt.slice(0, 32) : null,
+          phone: typeof phone === "string" || typeof phone === "number" ? String(phone).slice(0, 20) : null,
+          reason,
+        }), attempt.id],
       );
       await client.query(
         "UPDATE orders SET payment_status='review_required', updated_at=now() WHERE id=$1 AND store_id=$2 AND payment_status <> 'paid'",
@@ -97,56 +210,37 @@ export async function POST(request: Request) {
       );
       await client.query("COMMIT");
       return NextResponse.json({ ResultCode: 0, ResultDesc: "Payment requires reconciliation" });
+    };
+
+    if (!validAmount || !validReceipt || !validPhone) {
+      return markOrderReview(!validAmount ? "amount_or_currency_mismatch" : !validReceipt ? "invalid_receipt" : "phone_mismatch");
     }
 
     const duplicateReceipt = await client.query(
-      "SELECT id FROM payment_attempts WHERE provider='mpesa' AND provider_reference=$1 AND id<>$2 LIMIT 1",
+      `SELECT 1 FROM mpesa_receipt_claims WHERE receipt_number=$1
+       UNION ALL SELECT 1 FROM payment_attempts WHERE provider='mpesa' AND provider_reference=$1 AND id<>$2
+       UNION ALL SELECT 1 FROM subscription_payment_attempts WHERE provider_reference=$1
+       LIMIT 1`,
       [receipt, attempt.id],
     );
-    if (duplicateReceipt.rowCount) {
-      await client.query(
-        "UPDATE payment_attempts SET status='review_required', callback_payload=$1::jsonb, updated_at=now() WHERE id=$2",
-        [JSON.stringify({ resultCode: callback.ResultCode, amount, receipt, reason: "receipt_already_used" }), attempt.id],
-      );
-      await client.query(
-        "UPDATE orders SET payment_status='review_required', updated_at=now() WHERE id=$1 AND store_id=$2 AND payment_status <> 'paid'",
-        [attempt.order_id, attempt.store_id],
-      );
-      await client.query("COMMIT");
-      return NextResponse.json({ ResultCode: 0, ResultDesc: "Payment requires reconciliation" });
-    }
+    if (duplicateReceipt.rowCount) return markOrderReview("receipt_already_used");
 
-    // The unique receipt index is the final concurrency guard. A separate
-    // SELECT above cannot prevent two different callbacks racing for one receipt.
-    await client.query("SAVEPOINT mpesa_receipt_claim");
-    try {
-      await client.query(
-        "UPDATE payment_attempts SET status='paid', provider_reference=$1, callback_payload=$2::jsonb, updated_at=now() WHERE id=$3",
-        [receipt, JSON.stringify({
-          resultCode: callback.ResultCode,
-          amount,
-          receipt,
-          phone: String(phone).slice(0, 20),
-          transactionDate: typeof transactionDate === "string" || typeof transactionDate === "number" ? String(transactionDate).slice(0, 20) : null,
-        }), attempt.id],
-      );
-      await client.query("RELEASE SAVEPOINT mpesa_receipt_claim");
-    } catch (error) {
-      await client.query("ROLLBACK TO SAVEPOINT mpesa_receipt_claim");
-      await client.query("RELEASE SAVEPOINT mpesa_receipt_claim");
-      if ((error as { code?: string }).code !== "23505") throw error;
-      await client.query(
-        "UPDATE payment_attempts SET status='review_required', callback_payload=$1::jsonb, updated_at=now() WHERE id=$2",
-        [JSON.stringify({ resultCode: callback.ResultCode, amount, receipt, reason: "receipt_claim_race" }), attempt.id],
-      );
-      await client.query(
-        "UPDATE orders SET payment_status='review_required', updated_at=now() WHERE id=$1 AND store_id=$2 AND payment_status <> 'paid'",
-        [attempt.order_id, attempt.store_id],
-      );
-      await client.query("COMMIT");
-      return NextResponse.json({ ResultCode: 0, ResultDesc: "Payment requires reconciliation" });
-    }
+    const claim = await client.query(
+      "INSERT INTO mpesa_receipt_claims (receipt_number, payment_type, payment_attempt_id, store_id) VALUES ($1,'order',$2,$3) ON CONFLICT DO NOTHING RETURNING receipt_number",
+      [receipt, attempt.id, attempt.store_id],
+    );
+    if (!claim.rowCount) return markOrderReview("receipt_claim_race");
 
+    await client.query(
+      "UPDATE payment_attempts SET status='paid', provider_reference=$1, callback_payload=$2::jsonb, updated_at=now() WHERE id=$3",
+      [receipt, JSON.stringify({
+        resultCode: callback.ResultCode,
+        amount,
+        receipt,
+        phone: String(phone).slice(0, 20),
+        transactionDate: typeof transactionDate === "string" || typeof transactionDate === "number" ? String(transactionDate).slice(0, 20) : null,
+      }), attempt.id],
+    );
     await client.query(
       "UPDATE orders SET payment_status='paid', updated_at=now() WHERE id=$1 AND store_id=$2 AND payment_status <> 'paid'",
       [attempt.order_id, attempt.store_id],
