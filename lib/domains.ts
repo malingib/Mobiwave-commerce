@@ -1,6 +1,6 @@
 export function normalizeCustomHostname(input: string, rootDomain: string) {
   const candidate = input.trim().toLowerCase().replace(/\.$/, "");
-  if (!candidate || candidate.length > 253 || /[/:@?#\\s]/.test(candidate)) return null;
+  if (!candidate || candidate.length > 253 || /[/:@?#\s]/.test(candidate)) return null;
   let hostname: string;
   try {
     const parsed = new URL(`https://${candidate}`);

@@ -24,7 +24,7 @@ export async function POST(_request: Request, context: Context) {
       return NextResponse.json({ error: "Store owner or manager access required" }, { status: 403 });
     }
     const result = await client.query(
-      "SELECT id, hostname, verification_token, status FROM store_domains WHERE id=$1 AND store_id=$2 FOR UPDATE",
+      "SELECT id, hostname, verification_token, status, verified_at FROM store_domains WHERE id=$1 AND store_id=$2 FOR UPDATE",
       [domainId, storeId],
     );
     if (!result.rowCount) {
