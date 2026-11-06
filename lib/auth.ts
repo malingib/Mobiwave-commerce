@@ -10,6 +10,8 @@ export function createAuth() {
     throw new Error("Authentication is not configured: set DATABASE_URL and a BETTER_AUTH_SECRET of at least 32 characters.");
   }
 
+  const emailVerificationEnabled = Boolean(process.env.RESEND_API_KEY && process.env.AUTH_EMAIL_FROM);
+
   pool ??= new Pool({
     connectionString,
     // Authentication uses a dedicated least-privilege role, not the Neon owner
@@ -33,12 +35,12 @@ export function createAuth() {
     ],
     emailAndPassword: {
       enabled: true,
-      requireEmailVerification: true,
+      requireEmailVerification: emailVerificationEnabled,
       minPasswordLength: 12,
       maxPasswordLength: 128,
     },
     emailVerification: {
-      sendOnSignUp: true,
+      sendOnSignUp: emailVerificationEnabled,
       autoSignInAfterVerification: true,
       sendVerificationEmail: async ({ user, url }) => {
         const apiKey = process.env.RESEND_API_KEY;
