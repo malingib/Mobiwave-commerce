@@ -18,7 +18,7 @@ export default function SignupPage() {
     try {
       const result = await authClient.signUp.email({ name, email, password, callbackURL: "/dashboard" });
       if (result.error) setError(result.error.message || "Could not create your account.");
-      else setNotice("Your account has been created. Check your email for a verification link before signing in.");
+      else setNotice("Your account has been created. If email verification is enabled, check your inbox for a verification link. Platform administrator access always requires a verified email address.");
     } catch { setError("Unable to create your account right now. Please try again."); }
     finally { setBusy(false); }
   }
