@@ -59,7 +59,7 @@ export function createAuth() {
             from,
             to: [user.email],
             subject: "Verify your MobiWave Commerce account",
-            html: `<p>Hello ${user.name || "there"},</p><p>Verify your email address to activate your MobiWave Commerce account.</p><p><a href="${url}">Verify email address</a></p><p>If you did not create this account, you can ignore this message.</p>`,
+            text: `Verify your MobiWave Commerce email address using this link: ${url}\n\nIf you did not create this account, you can ignore this message.`,
           }),
           cache: "no-store",
         });
