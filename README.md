@@ -4,7 +4,7 @@ MobiWave Commerce is MobiWave-owned commerce SaaS for Kenyan merchants. The init
 
 ## Current implementation
 
-- Email/password sign-up and sign-in using Better Auth, with a minimum 12-character password and email verification before sign-in.
+- Email/password sign-up and sign-in using Better Auth, with a minimum 12-character password; email verification is enabled when the Resend sender is configured.
 - Merchant store creation with unique normalized subdomain slugs.
 - Tenant-aware PostgreSQL tables and row-level security for stores, products, orders, order items, payments, subscriptions, messaging events and audit events.
 - Dedicated `commerce_runtime` role with `NOBYPASSRLS`; the application connection must set this role at connection startup.
@@ -13,7 +13,7 @@ MobiWave Commerce is MobiWave-owned commerce SaaS for Kenyan merchants. The init
 - Public product storefront at `/shop/{slug}`.
 - Customer checkout with server-calculated totals, cash-on-delivery/manual payment selection, transactional order creation and stock decrement for tracked inventory.
 - Merchant order list and validated order-status transitions.
-- Superadmin overview with store suspension/reactivation, plan assignment and audited admin changes; access requires both a verified email and the `SUPERADMIN_EMAILS` allowlist.
+- Superadmin overview with store suspension/reactivation, plan assignment and audited admin changes; access requires both a verified email and the `SUPERADMIN_EMAILS` allowlist, even when merchant sign-in is running without the optional email provider.
 - Hostname routing for free store subdomains (`{slug}.shop.mobiwave.co.ke`) when wildcard DNS and the Vercel domain are verified.
 - Audit events for store/product/order status actions.
 - GitHub Actions CI for unit tests, typecheck, lint and production build.
@@ -33,7 +33,7 @@ Copy `.env.example` to `.env.local` and configure:
 - `RESEND_API_KEY`: server-side Resend API key used to deliver verification email.
 - `AUTH_EMAIL_FROM`: verified sender identity, e.g. `MobiWave Commerce <no-reply@your-verified-domain>`.
 
-Do not commit `.env.local` or put secrets in `NEXT_PUBLIC_*` variables. Authentication and data APIs intentionally fail closed if required secrets are absent. Email verification must be configured before enabling new account registration.
+Do not commit `.env.local` or put secrets in `NEXT_PUBLIC_*` variables. Authentication and data APIs intentionally fail closed if required secrets are absent. Email verification is activated when both Resend variables are configured. Without them, merchant sign-in remains available, but superadmin access still requires an independently verified email address.
 
 ## Development
 
