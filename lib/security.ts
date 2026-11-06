@@ -21,3 +21,12 @@ export function normalizeKenyanPhone(value: string | number | null | undefined):
   if ((digits.startsWith("7") || digits.startsWith("1")) && digits.length === 9) return `254${digits}`;
   return null;
 }
+
+export function matchesKenyanPhone(
+  expected: string | number | null | undefined,
+  received: string | number | null | undefined,
+): boolean {
+  const expectedPhone = normalizeKenyanPhone(expected);
+  const receivedPhone = normalizeKenyanPhone(received);
+  return expectedPhone !== null && receivedPhone !== null && expectedPhone === receivedPhone;
+}
