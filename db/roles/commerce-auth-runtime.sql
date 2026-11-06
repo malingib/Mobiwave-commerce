@@ -21,10 +21,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE
   ON TABLE public."user", public.session, public.account, public.verification
   TO commerce_auth_runtime;
 
-GRANT USAGE, SELECT
-  ON ALL SEQUENCES IN SCHEMA public
-  TO commerce_auth_runtime;
-
+-- Better Auth is configured to generate UUIDs; it does not need sequence privileges.
 -- Verify using the commerce_app login with startup option -c role=commerce_auth_runtime:
 -- SELECT current_user, rolbypassrls FROM pg_roles WHERE rolname = current_user;
 -- Expected: commerce_auth_runtime | false
