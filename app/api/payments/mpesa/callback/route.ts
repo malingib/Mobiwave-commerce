@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { matchesKenyanPhone } from "@/lib/security";
 
 export const runtime = "nodejs";
 
@@ -29,7 +30,11 @@ export async function POST(request: Request) {
     await client.query("BEGIN");
     await client.query("SELECT set_config('app.mpesa_callback', 'true', true)");
     const result = await client.query(
-      "SELECT id, store_id, order_id, amount_minor, status FROM payment_attempts WHERE provider='mpesa' AND checkout_request_id=$1 FOR UPDATE",
+      `SELECT pa.id, pa.store_id, pa.order_id, pa.amount_minor, pa.status, o.customer_phone
+       FROM payment_attempts pa
+       JOIN orders o ON o.id = pa.order_id AND o.store_id = pa.store_id
+       WHERE pa.provider='mpesa' AND pa.checkout_request_id=$1
+       FOR UPDATE OF pa`,
       [checkoutRequestId],
     );
     if (!result.rowCount) {
@@ -59,17 +64,19 @@ export async function POST(request: Request) {
     const getValue = (key: string) => values.find(item => item.Name === key)?.Value;
     const amount = Number(getValue("Amount"));
     const receipt = getValue("MpesaReceiptNumber");
-    const validAmount = Number.isFinite(amount) && Number.isSafeInteger(amount * 100) && amount * 100 === Number(attempt.amount_minor);
-    const validReceipt = typeof receipt === "string" && /^[A-Z0-9]{6,20}$/.test(receipt);
     const phone = getValue("PhoneNumber");
     const transactionDate = getValue("TransactionDate");
+    const validAmount = Number.isFinite(amount) && Number.isSafeInteger(amount * 100) && amount * 100 === Number(attempt.amount_minor);
+    const validReceipt = typeof receipt === "string" && /^[A-Z0-9]{6,20}$/.test(receipt);
+    const validPhone = matchesKenyanPhone(attempt.customer_phone, phone);
 
-    if (!validAmount || !validReceipt) {
+    if (!validAmount || !validReceipt || !validPhone) {
       const reviewPayload = {
         resultCode: callback.ResultCode,
         amount: Number.isFinite(amount) ? amount : null,
         receipt: typeof receipt === "string" ? receipt.slice(0, 32) : null,
-        reason: !validAmount ? "amount_mismatch" : "invalid_receipt",
+        phone: typeof phone === "string" || typeof phone === "number" ? String(phone).slice(0, 20) : null,
+        reason: !validAmount ? "amount_mismatch" : !validReceipt ? "invalid_receipt" : "phone_mismatch",
       };
       await client.query(
         "UPDATE payment_attempts SET status='review_required', callback_payload=$1::jsonb, updated_at=now() WHERE id=$2",
@@ -106,7 +113,7 @@ export async function POST(request: Request) {
         resultCode: callback.ResultCode,
         amount,
         receipt,
-        phone: typeof phone === "string" || typeof phone === "number" ? String(phone).slice(0, 20) : null,
+        phone: String(phone),
         transactionDate: typeof transactionDate === "string" || typeof transactionDate === "number" ? String(transactionDate).slice(0, 20) : null,
       }), attempt.id],
     );
