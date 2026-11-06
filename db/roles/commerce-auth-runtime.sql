@@ -12,8 +12,9 @@ BEGIN
     CREATE ROLE commerce_auth_runtime NOLOGIN NOBYPASSRLS;
   END IF;
 END
-$$;
+$;
 
+ALTER ROLE commerce_auth_runtime NOLOGIN NOBYPASSRLS;
 GRANT commerce_auth_runtime TO commerce_app;
 GRANT USAGE ON SCHEMA public TO commerce_auth_runtime;
 
