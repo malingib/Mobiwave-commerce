@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getRequestUser } from "@/lib/request-user";
 import { decryptCredential } from "@/lib/mpesa-config";
+import { formatDarajaTimestamp } from "@/lib/mpesa-time";
 
 export const runtime = "nodejs";
 
@@ -13,11 +14,6 @@ function normalizePhone(value: string) {
   if (digits.startsWith("7") && digits.length === 9) return `254${digits}`;
   if (digits.startsWith("1") && digits.length === 9) return `254${digits}`;
   return null;
-}
-
-function timestamp() {
-  const d = new Date();
-  return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}${String(d.getHours()).padStart(2,"0")}${String(d.getMinutes()).padStart(2,"0")}${String(d.getSeconds()).padStart(2,"0")}`;
 }
 
 export async function POST(request: Request, context: { params: Promise<{ storeId: string; orderId: string }> }) {
@@ -94,7 +90,7 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
     const authData = await authResponse.json() as { access_token?: string };
     if (!authData.access_token) throw new Error("M-Pesa did not return an access token");
 
-    const time = timestamp();
+    const time = formatDarajaTimestamp();
     const password = Buffer.from(`${shortcode}${passkey}${time}`).toString("base64");
     stkRequestStarted = true;
     const stkResponse = await fetch(`${baseUrl}/mpesa/stkpush/v1/processrequest`, {
