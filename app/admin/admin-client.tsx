@@ -12,7 +12,7 @@ export default function AdminClient({email}:{email:string}){
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState("");
   const [busy,setBusy]=useState("");
-  async function load(){setLoading(true);setError("");try{const response=await fetch("/api/admin/overview",{cache:"no-store"});const data=await response.json();if(!response.ok)throw new Error(data.error||"Could not load platform data");setStores(data.stores||[]);setTotals(data.totals||{store_count:0,active_stores:0,suspended_stores:0});}catch(e){setError(e instanceof Error?e.message:"Could not load platform data");}finally{setLoading(false);}}
+  async function load(){try{const response=await fetch("/api/admin/overview",{cache:"no-store"});const data=await response.json();if(!response.ok)throw new Error(data.error||"Could not load platform data");setStores(data.stores||[]);setTotals(data.totals||{store_count:0,active_stores:0,suspended_stores:0});}catch(e){setError(e instanceof Error?e.message:"Could not load platform data");}finally{setLoading(false);}}
   useEffect(()=>{void load();},[]);
   async function update(store:StoreRow,change:{status?:string;planCode?:string}){setBusy(store.id);setError("");try{const response=await fetch(`/api/admin/stores/${store.id}`,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify(change)});const data=await response.json();if(!response.ok)throw new Error(data.error||"Update failed");await load();}catch(e){setError(e instanceof Error?e.message:"Update failed");}finally{setBusy("");}}
   const money=(minor:string|number,currency:string)=>new Intl.NumberFormat("en-KE",{style:"currency",currency:currency||"KES",maximumFractionDigits:0}).format(Number(minor)/100);
