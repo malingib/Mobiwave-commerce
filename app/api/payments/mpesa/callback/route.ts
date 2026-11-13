@@ -142,11 +142,17 @@ export async function POST(request: Request) {
   }
   let body: { Body?: { stkCallback?: { CheckoutRequestID?: string; ResultCode?: number; ResultDesc?: string; CallbackMetadata?: { Item?: Array<{ Name?: string; Value?: string | number }> } } } };
   try { body = await request.json(); } catch { return NextResponse.json({ ResultCode: 1, ResultDesc: "Invalid callback body" }, { status: 400 }); }
-  const callback = body.Body?.stkCallback;
-  const checkoutRequestId = callback?.CheckoutRequestID;
-  if (!checkoutRequestId || typeof callback?.ResultCode !== "number") {
+  const callbackData = body.Body?.stkCallback;
+  const checkoutRequestId = callbackData?.CheckoutRequestID;
+  const resultCode = callbackData?.ResultCode;
+  if (!callbackData || !checkoutRequestId || typeof resultCode !== "number") {
     return NextResponse.json({ ResultCode: 1, ResultDesc: "Missing checkout result" }, { status: 400 });
   }
+  const callback: CallbackData = {
+    ResultCode: resultCode,
+    ResultDesc: callbackData.ResultDesc,
+    CallbackMetadata: callbackData.CallbackMetadata,
+  };
 
   const client = await db.connect();
   try {
@@ -199,8 +205,8 @@ export async function POST(request: Request) {
         payload: { storeName: attempt.store_name, customerName: attempt.customer_name, orderNumber: attempt.order_number },
       });
       await client.query("COMMIT");
-  after(() => processQueuedSmsBatch());
-  return NextResponse.json({ ResultCode: 0, ResultDesc: "Payment failure recorded" });
+      after(() => processQueuedSmsBatch());
+      return NextResponse.json({ ResultCode: 0, ResultDesc: "Payment failure recorded" });
     }
 
     const { amount, receipt, phone, transactionDate } = callbackMetadata(callback);
@@ -274,8 +280,8 @@ export async function POST(request: Request) {
       payload: { storeName: attempt.store_name, customerName: attempt.customer_name, orderNumber: attempt.order_number, receipt },
     });
     await client.query("COMMIT");
-  after(() => processQueuedSmsBatch());
-  return NextResponse.json({ ResultCode: 0, ResultDesc: "Payment recorded" });
+    after(() => processQueuedSmsBatch());
+    return NextResponse.json({ ResultCode: 0, ResultDesc: "Payment recorded" });
   } catch {
     await client.query("ROLLBACK").catch(() => undefined);
     return NextResponse.json({ ResultCode: 1, ResultDesc: "Callback processing failed" }, { status: 500 });
