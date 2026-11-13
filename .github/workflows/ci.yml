@@ -24,10 +24,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Generate lockfile
-        run: npm install --package-lock-only
-      - name: Install locked dependencies
-        run: npm ci
+      - name: Resolve dependencies and generate lockfile
+        run: npm install --no-audit --no-fund
+      - name: Install from generated lockfile
+        run: npm ci --no-audit --no-fund
       - name: Dependency security audit
         run: npm audit --audit-level=high
       - name: Unit tests
