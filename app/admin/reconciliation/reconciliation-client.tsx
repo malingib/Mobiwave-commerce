@@ -19,7 +19,6 @@ export default function ReconciliationClient({ email }: { email: string }) {
   const [notice, setNotice] = useState("");
 
   async function load() {
-    setLoading(true); setError("");
     try {
       const response = await fetch("/api/admin/reconciliation", { cache: "no-store" });
       const data = await response.json();
