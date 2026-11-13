@@ -14,7 +14,7 @@ type Plan = {
 };
 type Payment = { id: string; plan_code: string; amount_minor: number | string; currency: string; status: string; created_at: string } | null;
 
-export default function BillingClient({ storeId, userName }: { storeId: string; userName: string }) {
+export default function BillingClient({ storeId, userName, now }: { storeId: string; userName: string; now: number }) {
   const [billing, setBilling] = useState<Billing | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [latestPayment, setLatestPayment] = useState<Payment>(null);
@@ -26,7 +26,6 @@ export default function BillingClient({ storeId, userName }: { storeId: string; 
   const [notice, setNotice] = useState("");
 
   const load = useCallback(async () => {
-    setLoading(true); setError("");
     try {
       const response = await fetch(`/api/stores/${storeId}/billing`, { cache: "no-store" });
       const data = await response.json();
@@ -56,7 +55,7 @@ export default function BillingClient({ storeId, userName }: { storeId: string; 
     finally { setBusy(""); }
   }
 
-  const renewalDue = Boolean(billing && billing.plan_code !== "free" && billing.current_period_end && new Date(billing.current_period_end).getTime() <= Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const renewalDue = Boolean(billing && billing.plan_code !== "free" && billing.current_period_end && new Date(billing.current_period_end).getTime() <= now + 7 * 24 * 60 * 60 * 1000);
 
   const money = (minor: number | string | null, currency = "KES") => minor === null
     ? "Pricing being finalized"
