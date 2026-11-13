@@ -22,11 +22,13 @@ export function createAuth() {
     throw new Error("Authentication is not configured: set DATABASE_URL and a BETTER_AUTH_SECRET of at least 32 characters.");
   }
 
+  const emailVerificationEnabled = Boolean(process.env.BREVO_API_KEY && process.env.BREVO_SENDER_EMAIL);
+
   pool ??= new Pool({
     connectionString,
-    // Auth and application queries must use the same restricted role. The
-    // commerce_app login has BYPASSRLS; never leave this pool on that role.
-    options: "-c role=commerce_runtime",
+    // Better Auth has a separate least-privilege role; never use the Neon owner
+    // or commerce application role for authentication table access.
+    options: "-c role=commerce_auth_runtime",
     max: process.env.NODE_ENV === "production" ? 5 : 2,
     connectionTimeoutMillis: 5_000,
     ssl: connectionString.includes("localhost") ? undefined : { rejectUnauthorized: true },
@@ -47,7 +49,7 @@ export function createAuth() {
     ],
     emailAndPassword: {
       enabled: true,
-      requireEmailVerification: true,
+      requireEmailVerification: emailVerificationEnabled,
       minPasswordLength: 12,
       maxPasswordLength: 128,
     },
@@ -64,8 +66,8 @@ export function createAuth() {
           outro: "This verification link expires after one hour. If you did not create this account, you can ignore this email.",
         });
       },
-      sendOnSignUp: true,
-      sendOnSignIn: true,
+      sendOnSignUp: emailVerificationEnabled,
+      sendOnSignIn: emailVerificationEnabled,
       autoSignInAfterVerification: true,
       expiresIn: 60 * 60,
     },
