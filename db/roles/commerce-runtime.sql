@@ -15,10 +15,13 @@ GRANT commerce_runtime TO commerce_app;
 GRANT USAGE ON SCHEMA public TO commerce_runtime;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO commerce_runtime;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO commerce_runtime;
+
+-- Do not automatically grant future tables to the commerce runtime role.
+-- Each application migration must grant only the privileges its new objects need.
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
-  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO commerce_runtime;
+  REVOKE ALL ON TABLES FROM commerce_runtime;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
-  GRANT USAGE, SELECT ON SEQUENCES TO commerce_runtime;
+  REVOKE ALL ON SEQUENCES FROM commerce_runtime;
 
 -- Keep Better Auth's identity/session tables out of the commerce data role.
 REVOKE ALL ON TABLE public."user", public.session, public.account, public.verification
