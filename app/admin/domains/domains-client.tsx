@@ -24,7 +24,6 @@ export default function AdminDomainsClient({ email }: { email: string }) {
   const [notice, setNotice] = useState("");
 
   async function load() {
-    setLoading(true); setError("");
     try {
       const response = await fetch("/api/admin/domains", { cache: "no-store" });
       const data = await response.json();
