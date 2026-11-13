@@ -19,7 +19,6 @@ export default function ProductsClient({ storeId, userName }: { storeId: string;
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    setLoading(true); setError("");
     try {
       const [productResponse, storeResponse] = await Promise.all([
         fetch(`/api/stores/${storeId}/products`, { cache: "no-store" }),
