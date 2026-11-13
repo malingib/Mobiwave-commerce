@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Package, Plus, Store } from "lucide-react";
 
 type Product = { id: string; name: string; slug: string; description: string; sku: string | null; price_minor: number; currency: string; stock_quantity: number | null; status: string };
@@ -42,7 +42,7 @@ export default function ProductsClient({ storeId, userName }: { storeId: string;
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not update product.");
       setProducts(current=>current.map(item=>item.id===product.id?{...item,status}:item));
-    } catch(e) { setError(e instanceof Error?e.message:"Could not update product."); }
+    } catch(e) { setError(e instanceof Error ? e.message : "Could not update product."); }
   }
 
   async function addProduct(event: FormEvent<HTMLFormElement>) {
