@@ -12,10 +12,14 @@
 1. Confirm the intended production Neon project and database before applying anything.
 2. Apply db/schema.sql as the initial baseline, then apply db/migrations/0002-auth.sql through 0016-mpesa-callback-read-policies.sql in numeric order. If the existing database already has earlier migrations, reconcile migration state first; do not replay baseline DDL blindly.
 3. Apply migrations first on a disposable Neon branch and run the tenant/RLS test suite.
-4. The app connection must use the commerce_app login with options=-c%20role%3Dcommerce_runtime. Never put the owner connection string in Vercel.
-5. Verify at runtime that current_user = 'commerce_runtime' and rolbypassrls = false.
-6. Verify two separate merchant users cannot read each other's orders, payment attempts, configuration, domains or messages.
-7. Verify callback, checkout, worker and admin capability flags are set only inside their intended server-side transactions.
+4. Create the commerce_app login role through Neon. DATABASE_URL must use that login and must not use the Neon owner connection string.
+5. After the schema and Better Auth tables exist, run db/roles/commerce-runtime.sql and db/roles/commerce-auth-runtime.sql as the Neon project owner.
+6. The application creates separate pools: commerce queries use commerce_runtime; Better Auth uses commerce_auth_runtime. Both roles must be NOLOGIN and NOBYPASSRLS.
+7. Verify each role reports rolbypassrls=false. Verify commerce_runtime cannot read Better Auth identity/session tables and commerce_auth_runtime cannot read stores, orders or payment data.
+8. Verify two separate merchant users cannot read each other's orders, payment attempts, configuration, domains or messages.
+9. Verify callback, checkout, worker and admin capability flags are set only inside their intended server-side transactions.
+
+Do not grant future tables to commerce_runtime by default. Each application migration must explicitly grant the required table/sequence privileges to that role.
 
 ## 3. Vercel environment variables
 
@@ -39,7 +43,7 @@ Set these as server-side Vercel environment variables for Preview and Production
 
 Generate a 32-byte encryption key with openssl rand -base64 32. Generate a strong callback/worker secret with openssl rand -hex 32. Keep the M-Pesa encryption key stable; rotating it without re-encrypting stored credentials makes the saved Daraja configuration unreadable.
 
-Use a verified Brevo sender. Email verification and password recovery must work before opening registration to customers.
+Use a verified Brevo sender. When Brevo is configured, account verification is required. Platform-admin access always requires a verified email and membership in SUPERADMIN_EMAILS; never disable that check to work around missing email delivery.
 
 ## 4. M-Pesa configuration and tests
 
@@ -61,11 +65,11 @@ Use a verified Brevo sender. Email verification and password recovery must work 
 5. Platform administrator activates the domain at /admin/domains.
 6. Verify that only active, verified domains route to the intended store.
 
-Free subdomains require wildcard DNS and TLS for the configured NEXT_PUBLIC_ROOT_DOMAIN.
+Free subdomains require wildcard DNS and TLS for the configured NEXT_PUBLIC_ROOT_DOMAIN. The platform root, root-domain hostname and wildcard hostname must each be verified on the Vercel project.
 
 ## 6. Transactional SMS
 
-The outbox is enabled in code, but live provider delivery requires the exact MobiWave API endpoint, bearer key and sender ID. The current adapter posts JSON with to, message, senderId and clientReference; confirm these names and endpoint against the live API documentation before enabling production sends.
+The outbox is enabled in code, but live provider delivery requires the exact MobiWave API endpoint, bearer key and sender ID. The current adapter posts JSON with to, message, senderId and clientReference. Public service documentation confirms bearer-token REST authentication but does not expose the precise endpoint/payload contract; confirm those details against the developer API reference before enabling production sends.
 
 Set MOBIWAVE_SMS_API_URL, MOBIWAVE_SMS_API_KEY, MOBIWAVE_SMS_SENDER_ID and CRON_SECRET in Vercel. Add GitHub repository secrets:
 
@@ -78,8 +82,9 @@ The GitHub scheduled workflow calls POST /api/internal/messages/process every fi
 
 - [ ] Confirm target Vercel project and production domain.
 - [ ] Confirm all CI jobs pass on the exact merge commit.
-- [ ] Apply reviewed migrations to the intended Neon production branch.
-- [ ] Verify runtime role and effective RLS.
+- [ ] Commit the generated npm lockfile and use npm ci for deployment.
+- [ ] Apply reviewed migrations to the intended Neon production branch only after disposable-branch verification.
+- [ ] Verify both runtime roles and effective RLS.
 - [ ] Verify signup, email verification, login and superadmin allowlist.
 - [ ] Run two-merchant isolation tests.
 - [ ] Run product, inventory, checkout and order fulfilment tests.
