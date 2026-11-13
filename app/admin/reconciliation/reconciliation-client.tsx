@@ -31,7 +31,18 @@ export default function ReconciliationClient({ email }: { email: string }) {
   useEffect(() => { void load(); }, []);
 
   function update(id: string, patch: Partial<{ receipt: string; phone: string; amountKes: string; reason: string }>) {
-    setValues(current => ({ ...current, [id]: { receipt: "", phone: "", amountKes: "", reason: "", ...current[id], ...patch } }));
+    setValues(current => {
+      const previous = current[id];
+      return {
+        ...current,
+        [id]: {
+          receipt: patch.receipt ?? previous?.receipt ?? "",
+          phone: patch.phone ?? previous?.phone ?? "",
+          amountKes: patch.amountKes ?? previous?.amountKes ?? "",
+          reason: patch.reason ?? previous?.reason ?? "",
+        },
+      };
+    });
   }
 
   async function reconcile(attempt: Attempt, action: "mark_paid" | "mark_failed") {
@@ -81,7 +92,7 @@ export default function ReconciliationClient({ email }: { email: string }) {
           <div className="panel-heading"><div><h3>Uncertain M-Pesa payments</h3><p>Only reconcile against the actual Safaricom transaction record. All decisions are audited.</p></div><CheckCircle2 size={20}/></div>
           {loading ? <p className="empty-state">Loading payments…</p> : attempts.length === 0 ? <p className="empty-state">No payments currently require reconciliation.</p> : <div className="admin-store-list">
             {attempts.map(attempt => {
-              const value = values[attempt.id] || { receipt: "", phone: "", reason: "" };
+              const value = values[attempt.id] || { receipt: "", phone: "", amountKes: "", reason: "" };
               return <article className="admin-store-row" key={attempt.id} style={{alignItems:"flex-start"}}>
                 <div className="store-avatar"><CreditCard size={18}/></div>
                 <div className="admin-store-info" style={{flex:1,minWidth:200}}>
