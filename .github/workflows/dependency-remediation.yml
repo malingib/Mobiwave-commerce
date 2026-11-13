@@ -20,10 +20,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
       - name: Generate and safely update dependency lockfile
         run: |
-          npm install --package-lock-only --ignore-scripts
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
           npm audit fix
       - name: Commit lockfile and compatible dependency updates
         run: |
