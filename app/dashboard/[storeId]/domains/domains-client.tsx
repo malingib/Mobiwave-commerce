@@ -24,7 +24,6 @@ export default function DomainsClient({ storeId, userName }: { storeId: string; 
   const [notice, setNotice] = useState("");
 
   const load = useCallback(async () => {
-    setLoading(true); setError("");
     try {
       const response = await fetch(`/api/stores/${storeId}/domains`, { cache: "no-store" });
       const data = await response.json();
