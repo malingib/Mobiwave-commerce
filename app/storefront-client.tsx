@@ -22,7 +22,7 @@ export default function StorefrontClient({ slug }: { slug: string }) {
   const [checkoutKey,setCheckoutKey]=useState("");
   const [order,setOrder]=useState<{orderNumber:string|number;totalMinor:number;currency:string}|null>(null);
 
-  useEffect(()=>{if(!slug)return;let active=true;setLoading(true);fetch(`/api/public/stores/${encodeURIComponent(slug)}`).then(async r=>{const data=await r.json();if(!r.ok)throw new Error(data.error||"Store not found");if(active){setStore(data.store);setProducts(data.products||[]);}}).catch(e=>{if(active)setError(e instanceof Error?e.message:"Store not found");}).finally(()=>{if(active)setLoading(false);});return()=>{active=false;};},[slug]);
+  useEffect(()=>{if(!slug)return;let active=true;fetch(`/api/public/stores/${encodeURIComponent(slug)}`).then(async r=>{const data=await r.json();if(!r.ok)throw new Error(data.error||"Store not found");if(active){setStore(data.store);setProducts(data.products||[]);}}).catch(e=>{if(active)setError(e instanceof Error?e.message:"Store not found");}).finally(()=>{if(active)setLoading(false);});return()=>{active=false;};},[slug]);
   const cartItems=useMemo(()=>products.filter(p=>cart[p.id]>0).map(p=>({...p,quantity:cart[p.id]})),[products,cart]);
   const total=cartItems.reduce((sum,p)=>sum+Number(p.price_minor)*p.quantity,0);
   const formatMoney=(minor:number)=>new Intl.NumberFormat("en-KE",{style:"currency",currency:store?.currency||"KES",maximumFractionDigits:2}).format(minor/100);
