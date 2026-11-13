@@ -17,7 +17,6 @@ export default function DashboardClient({ name, email }: { name: string; email: 
   const [busy, setBusy] = useState(false);
 
   async function loadStores() {
-    setLoading(true);
     try {
       const response = await fetch("/api/stores", { cache: "no-store" });
       const data = await response.json();
