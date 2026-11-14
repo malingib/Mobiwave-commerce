@@ -32,7 +32,18 @@ export default function DomainsClient({ storeId, userName }: { storeId: string; 
     } catch (e) { setError(e instanceof Error ? e.message : "Could not load domains"); }
     finally { setLoading(false); }
   }, [storeId]);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    let active = true;
+    fetch(`/api/stores/${storeId}/domains`, { cache: "no-store" })
+      .then(async response => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Could not load domains");
+        if (active) setDomains(data.domains || []);
+      })
+      .catch(error => { if (active) setError(error instanceof Error ? error.message : "Could not load domains"); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [storeId]);
 
   async function addDomain(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy("add"); setError(""); setNotice("");
