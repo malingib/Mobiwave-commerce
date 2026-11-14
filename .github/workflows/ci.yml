@@ -17,6 +17,20 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: commerce_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d commerce_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -28,6 +42,10 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Install from generated lockfile
         run: npm ci --no-audit --no-fund
+      - name: Database roles and tenant isolation
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/commerce_test
+        run: npm run test:db-security
       - name: Dependency security audit
         run: npm audit --audit-level=high
       - name: Unit tests
