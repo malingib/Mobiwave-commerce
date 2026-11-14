@@ -25,7 +25,18 @@ export default function DashboardClient({ name, email }: { name: string; email: 
     } catch { setError("Unable to connect to the platform."); }
     finally { setLoading(false); }
   }
-  useEffect(() => { void loadStores(); }, []);
+  useEffect(() => {
+    let active = true;
+    fetch("/api/stores", { cache: "no-store" })
+      .then(async response => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Could not load stores.");
+        if (active) setStores(data.stores || []);
+      })
+      .catch(error => { if (active) setError(error instanceof Error ? error.message : "Unable to connect to the platform."); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
 
   async function createStore(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(""); setBusy(true);
