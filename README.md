@@ -20,9 +20,11 @@ MobiWave Commerce is MobiWave-owned, multi-tenant B2C commerce SaaS for Kenyan m
 
 DATABASE_URL must connect as the Neon commerce_app login role, without embedding an application role-switch option. The application creates separate PostgreSQL pools: lib/db.ts switches each commerce query to commerce_runtime, while Better Auth switches to commerce_auth_runtime. Both are non-login, NOBYPASSRLS roles. Never use the Neon owner connection string in the application.
 
-After applying the base schema and migrations, run both role scripts as the Neon project owner:
+After creating the commerce_app login role, run db/roles/commerce-runtime-bootstrap.sql as the Neon project owner before applying migrations; migration 0009 grants privileges to commerce_runtime. After applying the base schema and migrations, run both role scripts as the Neon project owner:
 - db/roles/commerce-runtime.sql
 - db/roles/commerce-auth-runtime.sql
+
+CI runs db/roles/commerce-runtime-bootstrap.sql, the full migration sequence, both role scripts and cross-tenant/least-privilege checks against PostgreSQL 17.
 
 The first role receives only the commerce data privileges explicitly granted by the migrations. The second role receives access only to Better Auth's public."user", session, account and verification tables. Verify both roles report rolbypassrls=false and that commerce_auth_runtime cannot read stores.
 
