@@ -32,7 +32,25 @@ export default function ProductsClient({ storeId, userName }: { storeId: string;
     } catch (e) { setError(e instanceof Error ? e.message : "Could not load this store."); }
     finally { setLoading(false); }
   }, [storeId]);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      fetch(`/api/stores/${storeId}/products`, { cache: "no-store" }),
+      fetch("/api/stores", { cache: "no-store" }),
+    ])
+      .then(async ([productResponse, storeResponse]) => {
+        const productData = await productResponse.json();
+        const storeData = await storeResponse.json();
+        if (!productResponse.ok) throw new Error(productData.error || "Could not load products.");
+        if (active) {
+          setProducts(productData.products || []);
+          setStore((storeData.stores || []).find((item: { id: string }) => item.id === storeId) || null);
+        }
+      })
+      .catch(error => { if (active) setError(error instanceof Error ? error.message : "Could not load this store."); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [storeId]);
 
   async function setProductStatus(product: Product, status: "active" | "draft" | "archived") {
     setError("");
