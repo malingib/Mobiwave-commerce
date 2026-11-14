@@ -27,7 +27,18 @@ export default function ReconciliationClient({ email }: { email: string }) {
     } catch (e) { setError(e instanceof Error ? e.message : "Could not load reconciliation queue"); }
     finally { setLoading(false); }
   }
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    let active = true;
+    fetch("/api/admin/reconciliation", { cache: "no-store" })
+      .then(async response => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Could not load reconciliation queue");
+        if (active) setAttempts(data.attempts || []);
+      })
+      .catch(error => { if (active) setError(error instanceof Error ? error.message : "Could not load reconciliation queue"); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
 
   function update(id: string, patch: Partial<{ receipt: string; phone: string; amountKes: string; reason: string }>) {
     setValues(current => {
