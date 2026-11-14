@@ -13,11 +13,12 @@
 2. Apply db/schema.sql as the initial baseline, then apply db/migrations/0002-auth.sql through 0016-mpesa-callback-read-policies.sql in numeric order. If the existing database already has earlier migrations, reconcile migration state first; do not replay baseline DDL blindly.
 3. Apply migrations first on a disposable Neon branch and run the tenant/RLS test suite.
 4. Create the commerce_app login role through Neon. DATABASE_URL must use that login and must not use the Neon owner connection string.
-5. After the schema and Better Auth tables exist, run db/roles/commerce-runtime.sql and db/roles/commerce-auth-runtime.sql as the Neon project owner.
-6. The application creates separate pools: commerce queries use commerce_runtime; Better Auth uses commerce_auth_runtime. Both roles must be NOLOGIN and NOBYPASSRLS.
-7. Verify each role reports rolbypassrls=false. Verify commerce_runtime cannot read Better Auth identity/session tables and commerce_auth_runtime cannot read stores, orders or payment data.
-8. Verify two separate merchant users cannot read each other's orders, payment attempts, configuration, domains or messages.
-9. Verify callback, checkout, worker and admin capability flags are set only inside their intended server-side transactions.
+5. Before applying migrations, run db/roles/commerce-runtime-bootstrap.sql as the Neon project owner. Migration 0009 grants privileges to commerce_runtime and therefore requires this role to exist.
+6. After the schema and Better Auth tables exist, run db/roles/commerce-runtime.sql and db/roles/commerce-auth-runtime.sql as the Neon project owner.
+7. The application creates separate pools: commerce queries use commerce_runtime; Better Auth uses commerce_auth_runtime. Both roles must be NOLOGIN and NOBYPASSRLS.
+8. Verify each role reports rolbypassrls=false. Verify commerce_runtime cannot read Better Auth identity/session tables and commerce_auth_runtime cannot read stores, orders or payment data.
+9. Verify two separate merchant users cannot read each other's orders, payment attempts, configuration, domains or messages.
+10. Verify callback, checkout, worker and admin capability flags are set only inside their intended server-side transactions.
 
 Do not grant future tables to commerce_runtime by default. Each application migration must explicitly grant the required table/sequence privileges to that role.
 
