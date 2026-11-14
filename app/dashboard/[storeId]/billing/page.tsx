@@ -8,5 +8,5 @@ export default async function BillingPage({ params }: { params: Promise<{ storeI
   const user = await getRequestUser();
   if (!user) redirect("/login");
   const { storeId } = await params;
-  return <BillingClient storeId={storeId} userName={user.name} now={Date.now()} />;
+  return <BillingClient storeId={storeId} userName={user.name} />;
 }
