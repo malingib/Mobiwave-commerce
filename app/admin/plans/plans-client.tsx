@@ -32,7 +32,18 @@ export default function PlansClient({ email }: { email: string }) {
     } catch (e) { setError(e instanceof Error ? e.message : "Could not load plans"); }
     finally { setLoading(false); }
   }
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    let active = true;
+    fetch("/api/admin/plans", { cache: "no-store" })
+      .then(async response => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Could not load plans");
+        if (active) setPlans(data.plans || []);
+      })
+      .catch(error => { if (active) setError(error instanceof Error ? error.message : "Could not load plans"); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
 
   function updatePlan(code: string, patch: Partial<Plan>) {
     setPlans(current => current.map(plan => plan.code === code ? { ...plan, ...patch } : plan));
