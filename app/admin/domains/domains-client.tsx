@@ -32,7 +32,18 @@ export default function AdminDomainsClient({ email }: { email: string }) {
     } catch (e) { setError(e instanceof Error ? e.message : "Could not load domains"); }
     finally { setLoading(false); }
   }
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    let active = true;
+    fetch("/api/admin/domains", { cache: "no-store" })
+      .then(async response => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Could not load domains");
+        if (active) setDomains(data.domains || []);
+      })
+      .catch(error => { if (active) setError(error instanceof Error ? error.message : "Could not load domains"); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
 
   async function setStatus(domain: DomainRow, status: "active" | "disabled") {
     setBusy(domain.id); setError(""); setNotice("");
