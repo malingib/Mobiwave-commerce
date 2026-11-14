@@ -27,6 +27,7 @@ const migrationPaths = [
   "db/migrations/0014-payment-reconciliation-admin.sql",
   "db/migrations/0015-mpesa-platform-order-fallback.sql",
   "db/migrations/0016-mpesa-callback-read-policies.sql",
+  "db/migrations/0017-commerce-hardening.sql",
 ];
 
 const appUrl = new URL(databaseUrl);
