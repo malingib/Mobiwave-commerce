@@ -14,11 +14,12 @@ type Plan = {
 };
 type Payment = { id: string; plan_code: string; amount_minor: number | string; currency: string; status: string; created_at: string } | null;
 
-export default function BillingClient({ storeId, userName, now }: { storeId: string; userName: string; now: number }) {
+export default function BillingClient({ storeId, userName }: { storeId: string; userName: string }) {
   const [billing, setBilling] = useState<Billing | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [latestPayment, setLatestPayment] = useState<Payment>(null);
   const [platformPaymentsEnabled, setPlatformPaymentsEnabled] = useState(false);
+  const [renewalDue, setRenewalDue] = useState(false);
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
@@ -30,6 +31,8 @@ export default function BillingClient({ storeId, userName, now }: { storeId: str
       const response = await fetch(`/api/stores/${storeId}/billing`, { cache: "no-store" });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not load billing");
+      const serverTime = Date.parse(response.headers.get("date") || "");
+      setRenewalDue(Boolean(data.billing && data.billing.plan_code !== "free" && data.billing.current_period_end && Number.isFinite(serverTime) && Date.parse(data.billing.current_period_end) <= serverTime + 7 * 24 * 60 * 60 * 1000));
       setBilling(data.billing);
       setPlans(data.plans || []);
       setPlatformPaymentsEnabled(Boolean(data.platformPaymentsEnabled));
@@ -37,7 +40,24 @@ export default function BillingClient({ storeId, userName, now }: { storeId: str
     } catch (e) { setError(e instanceof Error ? e.message : "Could not load billing"); }
     finally { setLoading(false); }
   }, [storeId]);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    let active = true;
+    fetch(`/api/stores/${storeId}/billing`, { cache: "no-store" })
+      .then(async response => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Could not load billing");
+        if (!active) return;
+        const serverTime = Date.parse(response.headers.get("date") || "");
+        setRenewalDue(Boolean(data.billing && data.billing.plan_code !== "free" && data.billing.current_period_end && Number.isFinite(serverTime) && Date.parse(data.billing.current_period_end) <= serverTime + 7 * 24 * 60 * 60 * 1000));
+        setBilling(data.billing);
+        setPlans(data.plans || []);
+        setPlatformPaymentsEnabled(Boolean(data.platformPaymentsEnabled));
+        setLatestPayment(data.latestPayment || null);
+      })
+      .catch(error => { if (active) setError(error instanceof Error ? error.message : "Could not load billing"); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [storeId]);
 
   async function requestUpgrade(plan: Plan) {
     setBusy(plan.code); setError(""); setNotice("");
@@ -55,7 +75,7 @@ export default function BillingClient({ storeId, userName, now }: { storeId: str
     finally { setBusy(""); }
   }
 
-  const renewalDue = Boolean(billing && billing.plan_code !== "free" && billing.current_period_end && new Date(billing.current_period_end).getTime() <= now + 7 * 24 * 60 * 60 * 1000);
+
 
   const money = (minor: number | string | null, currency = "KES") => minor === null
     ? "Pricing being finalized"
