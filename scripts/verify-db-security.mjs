@@ -38,7 +38,7 @@ let authPool;
 
 try {
   await owner.query("CREATE ROLE commerce_app LOGIN BYPASSRLS PASSWORD 'commerce-test-only'");
-  await owner.query("CREATE ROLE commerce_runtime NOLOGIN NOBYPASSRLS");
+  await owner.query(await readFile(join(root, "db/roles/commerce-runtime-bootstrap.sql"), "utf8"));
   await owner.query(await readFile(join(root, "db/schema.sql"), "utf8"));
   for (const path of migrationPaths) {
     await owner.query(await readFile(join(root, path), "utf8"));
