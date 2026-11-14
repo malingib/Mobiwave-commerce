@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
+import { enqueueSms, processQueuedSmsBatch } from "@/lib/message-outbox";
 import { db } from "@/lib/db";
 import { normalizeStoreSlug } from "@/lib/tenant";
 import { clientAddress, consumeRateLimit, rateLimitKey } from "@/lib/rate-limit";
@@ -61,7 +62,7 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
   try {
     await client.query("BEGIN");
     await client.query("SELECT set_config('app.checkout', 'true', true)");
-    const storeResult = await client.query("SELECT id, currency FROM stores WHERE slug=$1 AND status='active' LIMIT 1", [normalized.slug]);
+    const storeResult = await client.query("SELECT id, name, currency FROM stores WHERE slug=$1 AND status='active' LIMIT 1", [normalized.slug]);
     if (!storeResult.rowCount) { await client.query("ROLLBACK"); return NextResponse.json({ error: "Store not found" }, { status: 404 }); }
     const store = storeResult.rows[0];
 
@@ -120,7 +121,16 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
         if (updated.rowCount !== 1) throw new Error("Stock changed during checkout");
       }
     }
+    await enqueueSms(client, {
+      storeId: store.id,
+      orderId: order.id,
+      recipient: customerPhone,
+      templateKey: "order_received",
+      dedupeKey: `order:${order.id}:received`,
+      payload: { storeName: store.name, customerName, orderNumber: order.order_number, totalMinor: Number(order.total_minor), currency: order.currency },
+    });
     await client.query("COMMIT");
+    after(() => processQueuedSmsBatch());
     return NextResponse.json({ order: { id: order.id, orderNumber: order.order_number, totalMinor: Number(order.total_minor), currency: order.currency, status: order.status, createdAt: order.created_at } }, { status: 201 });
   } catch (error) {
     await client.query("ROLLBACK").catch(() => undefined);

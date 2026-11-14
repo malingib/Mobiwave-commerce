@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
+import { enqueueSms, processQueuedSmsBatch } from "@/lib/message-outbox";
 import { db } from "@/lib/db";
 import { getRequestUser } from "@/lib/request-user";
 
@@ -26,7 +27,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ store
     await client.query("BEGIN");
     await client.query("SELECT set_config('app.user_id', $1, true)", [user.id]);
     const current = await client.query(
-      "SELECT id, status, payment_status, payment_method FROM orders WHERE id=$1 AND store_id=$2 FOR UPDATE",
+      "SELECT id, status, payment_status, payment_method, customer_name, customer_phone, order_number FROM orders WHERE id=$1 AND store_id=$2 FOR UPDATE",
       [orderId, storeId],
     );
     if (!current.rowCount) { await client.query("ROLLBACK"); return NextResponse.json({ error: "Order not found or access denied" }, { status: 404 }); }
@@ -49,7 +50,17 @@ export async function PATCH(request: Request, context: { params: Promise<{ store
       "INSERT INTO audit_events (store_id, actor_user_id, action, resource_type, resource_id, metadata) VALUES ($1,$2,$3,'order',$4,$5::jsonb)",
       [storeId, user.id, `order.${status}`, orderId, JSON.stringify({ previousStatus: order.status, previousPaymentStatus: order.payment_status, paymentStatus: updated.rows[0].payment_status })],
     );
+    const store = await client.query("SELECT name FROM stores WHERE id=$1", [storeId]);
+    await enqueueSms(client, {
+      storeId,
+      orderId,
+      recipient: order.customer_phone,
+      templateKey: "order_status",
+      dedupeKey: `order:${orderId}:status:${status}`,
+      payload: { storeName: store.rows[0]?.name || "the store", customerName: order.customer_name, orderNumber: updated.rows[0].order_number, status },
+    });
     await client.query("COMMIT");
+    after(() => processQueuedSmsBatch());
     return NextResponse.json({ order: updated.rows[0] });
   } catch {
     await client.query("ROLLBACK").catch(() => undefined);

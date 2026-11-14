@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Package, Plus, Store } from "lucide-react";
 
 type Product = { id: string; name: string; slug: string; description: string; sku: string | null; price_minor: number; currency: string; stock_quantity: number | null; status: string };
@@ -18,8 +18,7 @@ export default function ProductsClient({ storeId, userName }: { storeId: string;
   const [stock, setStock] = useState("");
   const [busy, setBusy] = useState(false);
 
-  async function load() {
-    setLoading(true); setError("");
+  const load = useCallback(async () => {
     try {
       const [productResponse, storeResponse] = await Promise.all([
         fetch(`/api/stores/${storeId}/products`, { cache: "no-store" }),
@@ -32,8 +31,26 @@ export default function ProductsClient({ storeId, userName }: { storeId: string;
       setStore((storeData.stores || []).find((item: {id:string})=>item.id===storeId) || null);
     } catch (e) { setError(e instanceof Error ? e.message : "Could not load this store."); }
     finally { setLoading(false); }
-  }
-  useEffect(()=>{void load();},[storeId]);
+  }, [storeId]);
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      fetch(`/api/stores/${storeId}/products`, { cache: "no-store" }),
+      fetch("/api/stores", { cache: "no-store" }),
+    ])
+      .then(async ([productResponse, storeResponse]) => {
+        const productData = await productResponse.json();
+        const storeData = await storeResponse.json();
+        if (!productResponse.ok) throw new Error(productData.error || "Could not load products.");
+        if (active) {
+          setProducts(productData.products || []);
+          setStore((storeData.stores || []).find((item: { id: string }) => item.id === storeId) || null);
+        }
+      })
+      .catch(error => { if (active) setError(error instanceof Error ? error.message : "Could not load this store."); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [storeId]);
 
   async function setProductStatus(product: Product, status: "active" | "draft" | "archived") {
     setError("");
@@ -42,7 +59,7 @@ export default function ProductsClient({ storeId, userName }: { storeId: string;
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not update product.");
       setProducts(current=>current.map(item=>item.id===product.id?{...item,status}:item));
-    } catch(e) { setError(e instanceof Error?e.message:"Could not update product."); }
+    } catch(e) { setError(e instanceof Error ? e.message : "Could not update product."); }
   }
 
   async function addProduct(event: FormEvent<HTMLFormElement>) {
