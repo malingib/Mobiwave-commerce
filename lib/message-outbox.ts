@@ -62,7 +62,8 @@ export async function sendMobiWaveSms(recipient: string, message: string, refere
   if (url.protocol !== "https:" && url.hostname !== "localhost") {
     throw new Error("sms_provider_requires_https");
   }
-  const path = url.pathname.replace(/\\/+$/, "");
+  while (url.pathname.endsWith("/")) url.pathname = url.pathname.slice(0, -1);
+  const path = url.pathname;
   url.pathname = path.endsWith("/sms/send") ? path : `${path}/sms/send`;
 
   const response = await fetch(url, {
