@@ -83,7 +83,7 @@ Free subdomains require wildcard DNS and TLS for the configured NEXT_PUBLIC_ROOT
 
 ## 6. Transactional SMS
 
-The outbox is enabled in code, but live provider delivery requires the exact MobiWave API endpoint, bearer key and sender ID. The current adapter posts JSON with to, message, senderId and clientReference. Public service documentation confirms bearer-token REST authentication but does not expose the precise endpoint/payload contract; confirm those details against the developer API reference before enabling production sends.
+The outbox sends through the MobiWave v3 API. The default base URL is https://sms.mobiwave.co.ke/api/v3 and the adapter posts to /sms/send using Bearer authentication and JSON fields recipient, sender_id, type=plain and message. The API response must contain status=success; the returned data.uid is stored as the provider reference. The sender ID is limited to 11 characters. Provider documentation does not guarantee idempotency-key support or publish the delivery-webhook payload/signature contract, so confirm duplicate-send behavior and delivery callback details before enabling production retries or marking messages delivered.
 
 Set MOBIWAVE_SMS_API_URL, MOBIWAVE_SMS_API_KEY, MOBIWAVE_SMS_SENDER_ID and CRON_SECRET in Vercel. Add GitHub repository secrets:
 
