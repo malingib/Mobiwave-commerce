@@ -51,34 +51,52 @@ export function renderCommerceSms(templateKey: SmsEventInput["templateKey"], pay
   }
 }
 
-async function sendMobiWaveSms(recipient: string, message: string, reference: string) {
-  const endpoint = process.env.MOBIWAVE_SMS_API_URL;
+export async function sendMobiWaveSms(recipient: string, message: string, reference: string) {
+  const configuredUrl = process.env.MOBIWAVE_SMS_API_URL || "https://sms.mobiwave.co.ke/api/v3";
   const apiKey = process.env.MOBIWAVE_SMS_API_KEY;
   const senderId = process.env.MOBIWAVE_SMS_SENDER_ID;
-  if (!endpoint || !apiKey || !senderId) throw new Error("sms_provider_not_configured");
-  const url = new URL(endpoint);
-  if (url.protocol !== "https:" && url.hostname !== "localhost") throw new Error("sms_provider_requires_https");
+  if (!apiKey || !senderId) throw new Error("sms_provider_not_configured");
+  if (senderId.length > 11) throw new Error("sms_sender_id_too_long");
+
+  const url = new URL(configuredUrl);
+  if (url.protocol !== "https:" && url.hostname !== "localhost") {
+    throw new Error("sms_provider_requires_https");
+  }
+  const path = url.pathname.replace(/\\/+$/, "");
+  url.pathname = path.endsWith("/sms/send") ? path : `${path}/sms/send`;
 
   const response = await fetch(url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
+      Accept: "application/json",
+      // Best-effort reference for gateways that support request deduplication.
+      // The provider's published API contract does not guarantee idempotency.
       "Idempotency-Key": reference,
     },
-    body: JSON.stringify({ to: recipient, message, senderId, clientReference: reference }),
+    body: JSON.stringify({
+      recipient,
+      sender_id: senderId,
+      type: "plain",
+      message,
+    }),
     cache: "no-store",
     signal: AbortSignal.timeout(10_000),
   });
+
   if (!response.ok) throw new Error(`sms_provider_http_${response.status}`);
-  const data = await response.json().catch(() => ({})) as {
-    id?: string; messageId?: string; reference?: string; data?: { id?: string; messageId?: string };
-  };
-  return data.messageId || data.id || data.reference || data.data?.messageId || data.data?.id || reference;
+  const data = await response.json().catch(() => null) as
+    | { status?: string; message?: string; data?: { uid?: string } }
+    | null;
+  if (!data || data.status !== "success") {
+    throw new Error("sms_provider_rejected");
+  }
+  return data.data?.uid || reference;
 }
 
 export async function processQueuedSmsBatch(batchSize = 20) {
-  if (!process.env.MOBIWAVE_SMS_API_URL || !process.env.MOBIWAVE_SMS_API_KEY || !process.env.MOBIWAVE_SMS_SENDER_ID) {
+  if (!process.env.MOBIWAVE_SMS_API_KEY || !process.env.MOBIWAVE_SMS_SENDER_ID) {
     return { claimed: 0, sent: 0, retried: 0, failed: 0, skipped: "sms_provider_not_configured" as const };
   }
 
