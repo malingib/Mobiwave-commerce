@@ -1,6 +1,6 @@
--- Run once as the Neon project owner after creating commerce_app and Better Auth tables.
--- Better Auth connects with AUTH_DATABASE_URL as commerce_auth_app. This login
--- inherits only commerce_auth_runtime privileges; it must not use startup role options.
+-- Run once as the Neon project owner after the Better Auth tables exist.
+-- AUTH_DATABASE_URL must authenticate as commerce_auth_app, a dedicated LOGIN
+-- role inheriting only commerce_auth_runtime. Do not use startup role options.
 
 DO $$
 BEGIN
@@ -14,14 +14,11 @@ END
 $$;
 
 ALTER ROLE commerce_auth_runtime NOLOGIN NOBYPASSRLS;
-ALTER ROLE commerce_auth_app LOGIN INHERIT NOBYPASSRLS;
 GRANT commerce_auth_runtime TO commerce_auth_app;
 GRANT USAGE ON SCHEMA public TO commerce_auth_runtime;
-GRANT SELECT, INSERT, UPDATE, DELETE
-  ON TABLE public."user", public.session, public.account, public.verification
-  TO commerce_auth_runtime;
 
--- Keep commerce data out of the Better Auth role.
+-- Keep commerce data out of the Better Auth role, including privileges that
+-- may have been granted by earlier migrations.
 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM commerce_auth_runtime;
 GRANT SELECT, INSERT, UPDATE, DELETE
   ON TABLE public."user", public.session, public.account, public.verification
