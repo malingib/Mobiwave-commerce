@@ -33,12 +33,16 @@ const migrationPaths = [
 const appUrl = new URL(databaseUrl);
 appUrl.username = "commerce_app";
 appUrl.password = "commerce-test-only";
+const authAppUrl = new URL(databaseUrl);
+authAppUrl.username = "commerce_auth_app";
+authAppUrl.password = "commerce-auth-test-only";
 
 let runtimePool;
 let authPool;
 
 try {
-  await owner.query("CREATE ROLE commerce_app LOGIN BYPASSRLS PASSWORD 'commerce-test-only'");
+  await owner.query("CREATE ROLE commerce_app LOGIN NOBYPASSRLS PASSWORD 'commerce-test-only'");
+  await owner.query("CREATE ROLE commerce_auth_app LOGIN NOBYPASSRLS PASSWORD 'commerce-auth-test-only'");
   await owner.query(await readFile(join(root, "db/roles/commerce-runtime-bootstrap.sql"), "utf8"));
   await owner.query(await readFile(join(root, "db/schema.sql"), "utf8"));
   for (const path of migrationPaths) {
@@ -50,13 +54,14 @@ try {
   const roleChecks = await owner.query(`
     SELECT rolname, rolcanlogin, rolbypassrls
     FROM pg_roles
-    WHERE rolname IN ('commerce_app', 'commerce_runtime', 'commerce_auth_runtime')
+    WHERE rolname IN ('commerce_app', 'commerce_auth_app', 'commerce_runtime', 'commerce_auth_runtime')
     ORDER BY rolname
   `);
   assert.deepEqual(
     roleChecks.rows.map(({ rolname, rolcanlogin, rolbypassrls }) => ({ rolname, rolcanlogin, rolbypassrls })),
     [
-      { rolname: "commerce_app", rolcanlogin: true, rolbypassrls: true },
+      { rolname: "commerce_app", rolcanlogin: true, rolbypassrls: false },
+      { rolname: "commerce_auth_app", rolcanlogin: true, rolbypassrls: false },
       { rolname: "commerce_auth_runtime", rolcanlogin: false, rolbypassrls: false },
       { rolname: "commerce_runtime", rolcanlogin: false, rolbypassrls: false },
     ],
@@ -64,10 +69,10 @@ try {
 
   const privilegeChecks = await owner.query(`
     SELECT
-      has_table_privilege('commerce_runtime', 'public."user"', 'SELECT') AS runtime_reads_auth,
-      has_table_privilege('commerce_runtime', 'public.orders', 'SELECT') AS runtime_reads_orders,
-      has_table_privilege('commerce_auth_runtime', 'public.stores', 'SELECT') AS auth_reads_stores,
-      has_table_privilege('commerce_auth_runtime', 'public."user"', 'SELECT') AS auth_reads_users
+      has_table_privilege('commerce_app', 'public."user"', 'SELECT') AS runtime_reads_auth,
+      has_table_privilege('commerce_app', 'public.orders', 'SELECT') AS runtime_reads_orders,
+      has_table_privilege('commerce_auth_app', 'public.stores', 'SELECT') AS auth_reads_stores,
+      has_table_privilege('commerce_auth_app', 'public."user"', 'SELECT') AS auth_reads_users
   `);
   assert.deepEqual(privilegeChecks.rows[0], {
     runtime_reads_auth: false,
@@ -132,12 +137,10 @@ try {
 
   runtimePool = new Pool({
     connectionString: appUrl.toString(),
-    options: "-c role=commerce_runtime",
     max: 2,
   });
   authPool = new Pool({
-    connectionString: appUrl.toString(),
-    options: "-c role=commerce_auth_runtime",
+    connectionString: authAppUrl.toString(),
     max: 1,
   });
 
@@ -147,7 +150,7 @@ try {
     const identity = await runtime.query(
       "SELECT current_user AS role, (SELECT rolbypassrls FROM pg_roles WHERE rolname=current_user) AS bypassrls",
     );
-    assert.deepEqual(identity.rows[0], { role: "commerce_runtime", bypassrls: false });
+    assert.deepEqual(identity.rows[0], { role: "commerce_app", bypassrls: false });
     await runtime.query("SELECT set_config('app.user_id',$1,true)", [userA]);
 
     const tenantTables = [
@@ -191,7 +194,7 @@ try {
   const authIdentity = await authPool.query(
     "SELECT current_user AS role, (SELECT rolbypassrls FROM pg_roles WHERE rolname=current_user) AS bypassrls",
   );
-  assert.deepEqual(authIdentity.rows[0], { role: "commerce_auth_runtime", bypassrls: false });
+  assert.deepEqual(authIdentity.rows[0], { role: "commerce_auth_app", bypassrls: false });
   await authPool.query('SELECT count(*) FROM public."user"');
   await assert.rejects(
     authPool.query("SELECT count(*) FROM public.stores"),
