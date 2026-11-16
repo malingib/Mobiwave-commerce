@@ -10,7 +10,7 @@
 ## 2. Neon database
 
 1. Confirm the intended production Neon project and database before applying anything.
-2. Apply db/schema.sql as the initial baseline, then apply db/migrations/0002-auth.sql through 0016-mpesa-callback-read-policies.sql in numeric order. If the existing database already has earlier migrations, reconcile migration state first; do not replay baseline DDL blindly.
+2. Apply db/schema.sql as the initial baseline, then apply db/migrations/0002-auth.sql through 0017-commerce-hardening.sql in numeric order. If the existing database already has earlier migrations, reconcile migration state first; do not replay baseline DDL blindly.
 3. Apply migrations first on a disposable Neon branch and run the tenant/RLS test suite.
 4. Create the commerce_app login role through Neon. DATABASE_URL must use that login and must not use the Neon owner connection string.
 5. Before applying migrations, run db/roles/commerce-runtime-bootstrap.sql as the Neon project owner. Migration 0009 grants privileges to commerce_runtime and therefore requires this role to exist.
@@ -21,6 +21,20 @@
 10. Verify callback, checkout, worker and admin capability flags are set only inside their intended server-side transactions.
 
 Do not grant future tables to commerce_runtime by default. Each application migration must explicitly grant the required table/sequence privileges to that role.
+
+### Existing-database signup repair
+
+A database created before the dedicated Better Auth role was provisioned will fail every `/api/auth/*` request because the Better Auth pool starts with `-c role=commerce_auth_runtime`. Creating only `commerce_runtime` is not sufficient.
+
+On a disposable Neon branch, run the complete `db/roles/commerce-auth-runtime.sql` script as the database owner after the Better Auth tables and `commerce_app` login role exist. Verify that:
+
+- `commerce_auth_runtime` exists, is NOLOGIN and NOBYPASSRLS.
+- `commerce_app` is a member of `commerce_auth_runtime`.
+- `commerce_auth_runtime` can read/write the Better Auth tables but cannot read commerce tables.
+- `commerce_runtime` cannot read Better Auth identity/session tables.
+- `/api/health` returns HTTP 200 and a disposable test registration succeeds.
+
+Do not run this against the production branch until the target Neon project/branch is confirmed and a backup/rollback point is recorded.
 
 ## 3. Vercel environment variables
 
