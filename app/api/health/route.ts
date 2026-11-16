@@ -25,7 +25,7 @@ export async function GET() {
         ), false) AS auth_runtime_secure,
         CASE
           WHEN EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'commerce_runtime')
-          THEN pg_has_role('commerce_app', 'commerce_runtime', 'MEMBER')
+          THEN pg_has_role('commerce_runtime_app', 'commerce_runtime', 'MEMBER')
           ELSE false
         END AS commerce_role_granted,
         CASE
@@ -48,7 +48,7 @@ export async function GET() {
           THEN NOT has_table_privilege('commerce_auth_app', 'public.stores', 'SELECT')
           ELSE false
         END AS auth_role_isolated,
-        NOT has_table_privilege('commerce_app', 'public."user"', 'SELECT') AS commerce_role_isolated
+        NOT has_table_privilege('commerce_runtime_app', 'public."user"', 'SELECT') AS commerce_role_isolated
     `);
     const state = result.rows[0] as {
       role_name: string;
@@ -66,7 +66,7 @@ export async function GET() {
     };
 
     const ready =
-      state.role_name === "commerce_app" &&
+      state.role_name === "commerce_runtime_app" &&
       !state.bypass_rls &&
       state.commerce_schema_ready &&
       state.auth_schema_ready &&
