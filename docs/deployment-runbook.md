@@ -72,6 +72,14 @@ Use a verified Brevo sender. When Brevo is configured, account verification is r
 
 ## 5. Custom domains
 
+The Vercel project currently has the following domains attached but awaiting TXT ownership verification. Add all three TXT values at the same owner name, `_vercel.mobiwave.co.ke`, in the authoritative DNS zone:
+
+- `vc-domain-verify=commerce.mobiwave.co.ke,9f97ccf6453c15e4cbad`
+- `vc-domain-verify=shop.mobiwave.co.ke,c4b220763e84b89efea1`
+- `vc-domain-verify=*.shop.mobiwave.co.ke,3b28d4da8c28435b247e`
+
+The configured tenant root domain is `shop.mobiwave.co.ke`; the platform URL is `commerce.mobiwave.co.ke`. Verify each domain in Vercel after DNS propagation. Once the platform domain is verified and the production release is approved, update production `BETTER_AUTH_URL` and `NEXT_PUBLIC_APP_URL` to `https://commerce.mobiwave.co.ke`.
+
 1. Merchant registers the hostname in the store dashboard.
 2. Merchant creates the TXT record shown by the app: host _mobiwave-commerce.<hostname>, value mobiwave-commerce-verification=<token>.
 3. Merchant verifies DNS ownership in the dashboard.
