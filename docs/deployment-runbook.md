@@ -12,11 +12,11 @@
 1. Confirm the intended production Neon project and database before applying anything.
 2. Apply db/schema.sql as the initial baseline, then apply db/migrations/0002-auth.sql through 0017-commerce-hardening.sql in numeric order. If the existing database already has earlier migrations, reconcile migration state first; do not replay baseline DDL blindly.
 3. Apply migrations first on a disposable Neon branch and run the tenant/RLS test suite.
-4. Create the commerce_app login role through Neon. DATABASE_URL must use that login and must not use the Neon owner connection string.
+4. Create the commerce_app login role through Neon. DATABASE_URL must use that login and must not use the Neon owner connection string. The login must be NOBYPASSRLS and inherit commerce_runtime privileges.
 5. Before applying migrations, run db/roles/commerce-runtime-bootstrap.sql as the Neon project owner. Migration 0009 grants privileges to commerce_runtime and therefore requires this role to exist.
-6. After the schema and Better Auth tables exist, run db/roles/commerce-runtime.sql and db/roles/commerce-auth-runtime.sql as the Neon project owner.
-7. The application creates separate pools: commerce queries use commerce_runtime; Better Auth uses commerce_auth_runtime. Both roles must be NOLOGIN and NOBYPASSRLS.
-8. Verify each role reports rolbypassrls=false. Verify commerce_runtime cannot read Better Auth identity/session tables and commerce_auth_runtime cannot read stores, orders or payment data.
+6. After the schema and Better Auth tables exist, run db/roles/commerce-runtime.sql and db/roles/commerce-auth-runtime.sql as the Neon project owner. The auth script creates commerce_auth_app; set a strong password for it in Neon and configure AUTH_DATABASE_URL with that login.
+7. The application creates separate pools: DATABASE_URL authenticates as commerce_app (NOBYPASSRLS, inheriting commerce_runtime); AUTH_DATABASE_URL authenticates as commerce_auth_app (NOBYPASSRLS, inheriting commerce_auth_runtime). The two inherited runtime roles must be NOLOGIN and NOBYPASSRLS. Do not pass role startup options: Neon pooled endpoints reject them.
+8. Verify both login roles report rolbypassrls=false. Verify commerce_app cannot read Better Auth identity/session tables and commerce_auth_app cannot read stores, orders or payment data.
 9. Verify two separate merchant users cannot read each other's orders, payment attempts, configuration, domains or messages.
 10. Verify callback, checkout, worker and admin capability flags are set only inside their intended server-side transactions.
 
@@ -38,9 +38,10 @@ Do not run this against the production branch until the target Neon project/bran
 
 ## 3. Vercel environment variables
 
-Set these as server-side Vercel environment variables for Preview and Production as appropriate:
+Set these as server-side Vercel environment variables for Preview and Production as appropriate. DATABASE_URL and AUTH_DATABASE_URL must be separate role-specific connection strings:
 
 - DATABASE_URL
+- AUTH_DATABASE_URL
 - BETTER_AUTH_SECRET
 - BETTER_AUTH_URL
 - NEXT_PUBLIC_APP_URL
