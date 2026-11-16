@@ -37,7 +37,7 @@ describe("MobiWave v3 SMS adapter", () => {
     vi.stubEnv("MOBIWAVE_SMS_API_KEY", "test-api-token");
     vi.stubEnv("MOBIWAVE_SMS_SENDER_ID", "MOBIWAVE");
 
-    const fetchMock = vi.fn(async () =>
+    const fetchMock = vi.fn<typeof fetch>(async () =>
       new Response(JSON.stringify({ status: "success", data: { uid: "sms_123" } }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
@@ -63,7 +63,7 @@ describe("MobiWave v3 SMS adapter", () => {
   it("rejects provider-level failures even when the HTTP request succeeds", async () => {
     vi.stubEnv("MOBIWAVE_SMS_API_KEY", "test-api-token");
     vi.stubEnv("MOBIWAVE_SMS_SENDER_ID", "MOBIWAVE");
-    const fetchMock = vi.fn(async () =>
+    const fetchMock = vi.fn<typeof fetch>(async () =>
       new Response(JSON.stringify({ status: "error", message: "Invalid sender ID" }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
