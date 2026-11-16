@@ -1,18 +1,21 @@
--- Run once as the Neon project owner after creating the login role "commerce_app".
--- commerce_app must remain a NOBYPASSRLS login and inherit the commerce_runtime
--- role's grants. Do not depend on SET ROLE startup parameters: Neon poolers reject
--- custom startup options such as "-c role=commerce_runtime".
+-- Run once as the Neon project owner.
+-- DATABASE_URL must authenticate as commerce_runtime_app, a dedicated LOGIN role
+-- inheriting commerce_runtime. Do not use a BYPASSRLS Neon owner/admin login.
+-- Do not depend on SET ROLE startup parameters: Neon poolers reject custom
+-- startup options such as "-c role=commerce_runtime".
 
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'commerce_runtime') THEN
     CREATE ROLE commerce_runtime NOLOGIN NOBYPASSRLS;
   END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'commerce_runtime_app') THEN
+    CREATE ROLE commerce_runtime_app LOGIN INHERIT NOBYPASSRLS;
+  END IF;
 END
 $$;
 ALTER ROLE commerce_runtime NOLOGIN NOBYPASSRLS;
-ALTER ROLE commerce_app LOGIN INHERIT NOBYPASSRLS;
-GRANT commerce_runtime TO commerce_app;
+GRANT commerce_runtime TO commerce_runtime_app;
 GRANT USAGE ON SCHEMA public TO commerce_runtime;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO commerce_runtime;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO commerce_runtime;
@@ -28,7 +31,8 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public
 REVOKE ALL ON TABLE public."user", public.session, public.account, public.verification
   FROM commerce_runtime;
 
--- Verify as commerce_app (without SET ROLE):
+-- Set a strong password for commerce_runtime_app in Neon and use its connection
+-- string as DATABASE_URL. Verify as commerce_runtime_app:
 -- SELECT current_user, (SELECT rolbypassrls FROM pg_roles WHERE rolname = current_user);
--- Expected: commerce_app | false
--- Verify commerce_app can read orders but cannot read Better Auth identity/session tables.
+-- Expected: commerce_runtime_app | false
+-- It must read commerce tables but not Better Auth identity/session tables.
