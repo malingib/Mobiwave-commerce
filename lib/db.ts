@@ -10,7 +10,7 @@ function getPool(): Pool {
   if (!connectionString) throw new Error("DATABASE_URL is not configured");
   localPool = new Pool({
     connectionString,
-    // DATABASE_URL must authenticate as commerce_app: a NOBYPASSRLS login
+    // DATABASE_URL must authenticate as commerce_runtime_app: a NOBYPASSRLS login
     // inheriting commerce_runtime privileges. Neon poolers reject startup
     // options such as "-c role=...", so never set the role in connection options.
     max: process.env.NODE_ENV === "production" ? 5 : 3,
