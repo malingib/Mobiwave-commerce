@@ -60,10 +60,10 @@ try {
   assert.deepEqual(
     roleChecks.rows.map(({ rolname, rolcanlogin, rolbypassrls }) => ({ rolname, rolcanlogin, rolbypassrls })),
     [
-      { rolname: "commerce_runtime_app", rolcanlogin: true, rolbypassrls: false },
       { rolname: "commerce_auth_app", rolcanlogin: true, rolbypassrls: false },
       { rolname: "commerce_auth_runtime", rolcanlogin: false, rolbypassrls: false },
       { rolname: "commerce_runtime", rolcanlogin: false, rolbypassrls: false },
+      { rolname: "commerce_runtime_app", rolcanlogin: true, rolbypassrls: false },
     ],
   );
 
