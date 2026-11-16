@@ -17,44 +17,64 @@ export async function GET() {
         to_regclass('public.session') IS NOT NULL AS auth_schema_ready,
         COALESCE((
           SELECT NOT rolcanlogin AND NOT rolbypassrls
+          FROM pg_roles WHERE rolname = 'commerce_runtime'
+        ), false) AS commerce_runtime_secure,
+        COALESCE((
+          SELECT NOT rolcanlogin AND NOT rolbypassrls
           FROM pg_roles WHERE rolname = 'commerce_auth_runtime'
-        ), false) AS auth_role_secure,
+        ), false) AS auth_runtime_secure,
+        CASE
+          WHEN EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'commerce_runtime')
+          THEN pg_has_role('commerce_app', 'commerce_runtime', 'MEMBER')
+          ELSE false
+        END AS commerce_role_granted,
         CASE
           WHEN EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'commerce_auth_runtime')
-          THEN pg_has_role('commerce_app', 'commerce_auth_runtime', 'MEMBER')
+          THEN pg_has_role('commerce_auth_app', 'commerce_auth_runtime', 'MEMBER')
           ELSE false
         END AS auth_role_granted,
         CASE
-          WHEN EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'commerce_auth_runtime')
-          THEN has_table_privilege('commerce_auth_runtime', 'public."user"', 'SELECT')
+          WHEN EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'commerce_auth_app')
+          THEN NOT (SELECT rolbypassrls FROM pg_roles WHERE rolname = 'commerce_auth_app')
+          ELSE false
+        END AS auth_login_isolated,
+        CASE
+          WHEN EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'commerce_auth_app')
+          THEN has_table_privilege('commerce_auth_app', 'public."user"', 'SELECT')
           ELSE false
         END AS auth_role_can_read_users,
         CASE
-          WHEN EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'commerce_auth_runtime')
-          THEN NOT has_table_privilege('commerce_auth_runtime', 'public.stores', 'SELECT')
+          WHEN EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'commerce_auth_app')
+          THEN NOT has_table_privilege('commerce_auth_app', 'public.stores', 'SELECT')
           ELSE false
         END AS auth_role_isolated,
-        NOT has_table_privilege('commerce_runtime', 'public."user"', 'SELECT') AS commerce_role_isolated
+        NOT has_table_privilege('commerce_app', 'public."user"', 'SELECT') AS commerce_role_isolated
     `);
     const state = result.rows[0] as {
       role_name: string;
       bypass_rls: boolean;
       commerce_schema_ready: boolean;
       auth_schema_ready: boolean;
-      auth_role_secure: boolean;
+      commerce_runtime_secure: boolean;
+      auth_runtime_secure: boolean;
+      commerce_role_granted: boolean;
       auth_role_granted: boolean;
+      auth_login_isolated: boolean;
       auth_role_can_read_users: boolean;
       auth_role_isolated: boolean;
       commerce_role_isolated: boolean;
     };
 
     const ready =
-      state.role_name === "commerce_runtime" &&
+      state.role_name === "commerce_app" &&
       !state.bypass_rls &&
       state.commerce_schema_ready &&
       state.auth_schema_ready &&
-      state.auth_role_secure &&
+      state.commerce_runtime_secure &&
+      state.auth_runtime_secure &&
+      state.commerce_role_granted &&
       state.auth_role_granted &&
+      state.auth_login_isolated &&
       state.auth_role_can_read_users &&
       state.auth_role_isolated &&
       state.commerce_role_isolated;
@@ -63,10 +83,13 @@ export async function GET() {
       console.error("[health] Database role/schema readiness check failed", {
         commerceSchema: state.commerce_schema_ready,
         authSchema: state.auth_schema_ready,
-        commerceRole: state.role_name,
+        commerceLogin: state.role_name,
         commerceBypassRls: state.bypass_rls,
-        authRoleSecure: state.auth_role_secure,
+        commerceRuntimeSecure: state.commerce_runtime_secure,
+        authRuntimeSecure: state.auth_runtime_secure,
+        commerceRoleGranted: state.commerce_role_granted,
         authRoleGranted: state.auth_role_granted,
+        authLoginIsolated: state.auth_login_isolated,
         authRoleCanReadUsers: state.auth_role_can_read_users,
         authRoleIsolated: state.auth_role_isolated,
         commerceRoleIsolated: state.commerce_role_isolated,
