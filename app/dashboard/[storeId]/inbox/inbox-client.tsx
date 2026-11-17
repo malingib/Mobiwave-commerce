@@ -52,7 +52,7 @@ export default function InboxClient({ storeId, userId, userName }: { storeId: st
   const [draft,setDraft] = useState("");
   const [noteDraft,setNoteDraft] = useState("");
   const [loading,setLoading] = useState(true);
-  const [detailLoading,setDetailLoading] = useState(false);
+  const [detailLoading,setDetailLoading] = useState(true);
   const [sending,setSending] = useState(false);
   const [saving,setSaving] = useState(false);
   const [addingNote,setAddingNote] = useState(false);
@@ -239,10 +239,10 @@ export default function InboxClient({ storeId, userId, userName }: { storeId: st
           <div className="inbox-toolbar">
             <div><h2>Conversations</h2><p>WhatsApp and Instagram messages in one workspace.</p></div>
             <div className="inbox-filters">
-              <select value={status} onChange={e=>setStatus(e.target.value)} aria-label="Filter conversation status">
+              <select value={status} onChange={e=>{setSelectedId("");setDetail(null);setDetailLoading(true);setStatus(e.target.value);}} aria-label="Filter conversation status">
                 <option value="all">All statuses</option><option value="open">Open</option><option value="pending">Pending</option><option value="resolved">Resolved</option><option value="archived">Archived</option>
               </select>
-              <select value={channel} onChange={e=>setChannel(e.target.value)} aria-label="Filter channel">
+              <select value={channel} onChange={e=>{setSelectedId("");setDetail(null);setDetailLoading(true);setChannel(e.target.value);}} aria-label="Filter channel">
                 <option value="all">All channels</option><option value="whatsapp">WhatsApp</option><option value="instagram">Instagram</option>
               </select>
             </div>
