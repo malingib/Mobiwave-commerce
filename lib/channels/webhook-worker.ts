@@ -64,7 +64,7 @@ export function extractProviderMessageText(item: JsonObject, channel: "whatsapp"
 }
 
 function normalizedPhone(externalId: string) {
-  return /^\d{8,15}$/.test(externalId) ? \`+\${externalId}\` : null;
+  return /^\d{8,15}$/.test(externalId) ? `+${externalId}` : null;
 }
 
 function whatsappDisplayName(value: JsonObject, externalId: string) {
@@ -86,7 +86,7 @@ async function getOrCreateIdentity(
 ) {
   const phone = channel === "whatsapp" ? normalizedPhone(externalUserId) : null;
   const result = await client.query(
-    \`INSERT INTO channel_identities
+    `INSERT INTO channel_identities
        (store_id, channel, external_user_id, display_name, phone_e164, profile)
      VALUES ($1,$2,$3,$4,$5,$6::jsonb)
      ON CONFLICT (store_id, channel, external_user_id)
@@ -94,7 +94,7 @@ async function getOrCreateIdentity(
        display_name = COALESCE(EXCLUDED.display_name, channel_identities.display_name),
        phone_e164 = COALESCE(EXCLUDED.phone_e164, channel_identities.phone_e164),
        updated_at = now()
-     RETURNING id\`,
+     RETURNING id`,
     [storeId, channel, externalUserId, displayName, phone, JSON.stringify(displayName ? { name: displayName } : {})],
   );
   return String(result.rows[0].id);
@@ -109,12 +109,12 @@ async function getOrCreateConversation(
   externalThreadId: string,
 ) {
   const result = await client.query(
-    \`INSERT INTO conversations
+    `INSERT INTO conversations
        (store_id, connection_id, identity_id, channel, external_thread_id)
      VALUES ($1,$2,$3,$4,$5)
      ON CONFLICT (connection_id, external_thread_id) WHERE external_thread_id IS NOT NULL
      DO UPDATE SET updated_at = now()
-     RETURNING id\`,
+     RETURNING id`,
     [storeId, connectionId, identityId, channel, externalThreadId],
   );
   return String(result.rows[0].id);
@@ -146,12 +146,12 @@ async function persistMessage(
   const occurredAt = normalizeProviderTimestamp(item.timestamp);
   const content = extractProviderMessageText(message, channel);
   const inserted = await client.query(
-    \`INSERT INTO conversation_messages
+    `INSERT INTO conversation_messages
        (store_id, conversation_id, connection_id, provider_message_id, direction,
         message_type, content, provider_status, provider_timestamp, raw_metadata)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb)
      ON CONFLICT DO NOTHING
-     RETURNING id\`,
+     RETURNING id`,
     [
       event.store_id, conversationId, event.connection_id, providerMessageId, direction,
       messageType, content, direction === "outbound" ? "sent" : "received",
@@ -162,13 +162,13 @@ async function persistMessage(
   // A provider retry must not create a second message or increment unread count.
   if (inserted.rowCount) {
     await client.query(
-      \`UPDATE conversations
+      `UPDATE conversations
           SET last_message_at = GREATEST(COALESCE(last_message_at, '-infinity'::timestamptz), COALESCE($1::timestamptz, now())),
               unread_count = unread_count + $2,
               status = CASE WHEN $3::boolean AND status IN ('resolved','archived') THEN 'open' ELSE status END,
               resolved_at = CASE WHEN $3::boolean AND status IN ('resolved','archived') THEN NULL ELSE resolved_at END,
               updated_at = now()
-        WHERE store_id = $4 AND id = $5\`,
+        WHERE store_id = $4 AND id = $5`,
       [occurredAt, direction === "inbound" ? 1 : 0, direction === "inbound", event.store_id, conversationId],
     );
   }
@@ -183,7 +183,7 @@ async function updateProviderMessageStatus(
   errorCode: string | null,
 ) {
   const result = await client.query(
-    \`UPDATE conversation_messages
+    `UPDATE conversation_messages
         SET provider_status = CASE
               WHEN provider_status = 'read' THEN 'read'
               WHEN provider_status = 'failed' THEN 'failed'
@@ -195,7 +195,7 @@ async function updateProviderMessageStatus(
             delivered_at = CASE WHEN $1 = 'delivered' THEN COALESCE(delivered_at, $2::timestamptz) ELSE delivered_at END,
             read_at = CASE WHEN $1 = 'read' THEN COALESCE(read_at, $2::timestamptz) ELSE read_at END,
             provider_error_code = COALESCE($3, provider_error_code)
-      WHERE connection_id = $4 AND provider_message_id = $5\`,
+      WHERE connection_id = $4 AND provider_message_id = $5`,
     [status, occurredAt, errorCode, connectionId, providerMessageId],
   );
   if (!result.rowCount) throw new Error("provider_message_not_found");
@@ -335,12 +335,12 @@ async function recordFailure(event: ClaimedWebhook, error: unknown) {
     await client.query("BEGIN");
     await client.query("SELECT set_config('app.channel_worker','true',true)");
     await client.query(
-      \`UPDATE channel_webhook_events
+      `UPDATE channel_webhook_events
           SET processing_status=$1,
               next_attempt_at=CASE WHEN $2::boolean THEN 'infinity'::timestamptz ELSE now()+($3 * interval '1 minute') END,
               locked_at=NULL, locked_by=NULL, last_error_code=$4,
               processed_at=CASE WHEN $1='ignored' THEN now() ELSE processed_at END
-        WHERE id=$5 AND processing_status='processing'\`,
+        WHERE id=$5 AND processing_status='processing'`,
       [permanent ? "ignored" : "failed", exhausted, delayMinutes, code, event.id],
     );
     await client.query("COMMIT");
@@ -362,7 +362,7 @@ export async function processMetaWebhookBatch(batchSize = 25) {
     await claimClient.query("BEGIN");
     await claimClient.query("SELECT set_config('app.channel_worker','true',true)");
     const due = await claimClient.query(
-      \`SELECT id, store_id, connection_id, event_type, payload, attempt_count
+      `SELECT id, store_id, connection_id, event_type, payload, attempt_count
          FROM channel_webhook_events
         WHERE (
           (processing_status IN ('received','failed') AND next_attempt_at <= now())
@@ -370,16 +370,16 @@ export async function processMetaWebhookBatch(batchSize = 25) {
         )
         ORDER BY received_at ASC
         LIMIT $1
-        FOR UPDATE SKIP LOCKED\`,
+        FOR UPDATE SKIP LOCKED`,
       [limit],
     );
     for (const row of due.rows as ClaimedWebhook[]) {
       const updated = await claimClient.query(
-        \`UPDATE channel_webhook_events
+        `UPDATE channel_webhook_events
             SET processing_status='processing', attempt_count=attempt_count+1,
                 locked_at=now(), locked_by=$1
           WHERE id=$2
-          RETURNING attempt_count\`,
+          RETURNING attempt_count`,
         [workerId, row.id],
       );
       claimed.push({ ...row, attempt_count: Number(updated.rows[0]?.attempt_count || row.attempt_count + 1) });
