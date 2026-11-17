@@ -21,10 +21,6 @@ CREATE INDEX message_outbox_lease_idx
 -- channel connections or persist inbound identities, conversations and messages.
 -- Keep provider connection access read-only; worker writes are limited to
 -- normalized messaging tables and the durable outbox.
-CREATE POLICY channel_connections_worker_read ON channel_connections
-  FOR SELECT
-  USING (current_setting('app.channel_worker', true) = 'true');
-
 CREATE POLICY channel_identities_worker_access ON channel_identities
   FOR ALL
   USING (current_setting('app.channel_worker', true) = 'true')
