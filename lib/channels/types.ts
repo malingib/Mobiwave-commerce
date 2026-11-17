@@ -3,6 +3,7 @@ export type ChannelName = "whatsapp" | "instagram" | "website";
 export type NormalizedProviderEvent = {
   channel: "whatsapp" | "instagram";
   providerAccountId: string;
+  providerAddressId: string | null;
   providerEventId: string;
   eventType: string;
   occurredAt: string | null;
