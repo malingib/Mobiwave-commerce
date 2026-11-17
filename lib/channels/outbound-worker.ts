@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { decryptChannelCredential } from "@/lib/channels/credentials";
-import { sendMetaTemplateMessage, sendMetaTextMessage } from "@/lib/channels/meta-send";
+import { sendMetaTextMessage } from "@/lib/channels/meta-send";
+import { sendMetaTemplateMessage } from "@/lib/channels/meta-template-send";
 
 type ClaimedMessage = {
   id: string;
