@@ -55,7 +55,7 @@ describe("Meta onboarding clients", () => {
   });
 
   it("verifies that the selected WhatsApp phone number belongs to the returned WABA", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    const fetchMock = vi.fn().mockImplementation(async () => new Response(JSON.stringify({
       data: [
         { id: "phone-1", display_phone_number: "+254700000001", verified_name: "Merchant One" },
       ],
