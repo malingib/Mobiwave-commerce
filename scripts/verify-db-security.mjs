@@ -28,6 +28,7 @@ const migrationPaths = [
   "db/migrations/0015-mpesa-platform-order-fallback.sql",
   "db/migrations/0016-mpesa-callback-read-policies.sql",
   "db/migrations/0017-commerce-hardening.sql",
+  "db/migrations/0018-social-commerce-foundation.sql",
 ];
 
 const appUrl = new URL(databaseUrl);
@@ -163,6 +164,13 @@ try {
       "message_events",
       "store_domains",
       "audit_events",
+      "channel_connections",
+      "channel_identities",
+      "conversations",
+      "conversation_messages",
+      "conversation_attachments",
+      "conversation_notes",
+      "message_outbox",
     ];
     for (const table of tenantTables) {
       const result = await runtime.query(`SELECT count(*)::int AS count FROM ${table}`);
