@@ -113,10 +113,7 @@ async function getOrCreateConversation(
        (store_id, connection_id, identity_id, channel, external_thread_id)
      VALUES ($1,$2,$3,$4,$5)
      ON CONFLICT (connection_id, external_thread_id) WHERE external_thread_id IS NOT NULL
-     DO UPDATE SET
-       status = CASE WHEN conversations.status IN ('resolved','archived') THEN 'open' ELSE conversations.status END,
-       resolved_at = CASE WHEN conversations.status IN ('resolved','archived') THEN NULL ELSE conversations.resolved_at END,
-       updated_at = now()
+     DO UPDATE SET updated_at = now()
      RETURNING id\`,
     [storeId, connectionId, identityId, channel, externalThreadId],
   );
@@ -187,7 +184,13 @@ async function updateProviderMessageStatus(
 ) {
   const result = await client.query(
     \`UPDATE conversation_messages
-        SET provider_status = $1,
+        SET provider_status = CASE
+              WHEN provider_status = 'read' THEN 'read'
+              WHEN provider_status = 'failed' THEN 'failed'
+              WHEN $1 = 'failed' THEN 'failed'
+              WHEN provider_status = 'delivered' AND $1 = 'sent' THEN 'delivered'
+              ELSE $1
+            END,
             sent_at = CASE WHEN $1 = 'sent' THEN COALESCE(sent_at, $2::timestamptz) ELSE sent_at END,
             delivered_at = CASE WHEN $1 = 'delivered' THEN COALESCE(delivered_at, $2::timestamptz) ELSE delivered_at END,
             read_at = CASE WHEN $1 = 'read' THEN COALESCE(read_at, $2::timestamptz) ELSE read_at END,
