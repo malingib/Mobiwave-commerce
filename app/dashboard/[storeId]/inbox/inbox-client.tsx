@@ -138,6 +138,8 @@ export default function InboxClient({ storeId, userId, userName }: { storeId: st
         }
       } catch (e) {
         if (active) setError(e instanceof Error ? e.message : "Could not load conversation");
+      } finally {
+        if (active) setDetailLoading(false);
       }
     };
     void run();
@@ -253,7 +255,7 @@ export default function InboxClient({ storeId, userId, userName }: { storeId: st
               <div className="inbox-list-head"><span>{visible.length} CONVERSATIONS</span><button onClick={()=>void loadConversations()} aria-label="Refresh conversations"><RefreshCw size={14}/></button></div>
               <div className="inbox-list-scroll">
                 {loading ? <div className="inbox-empty">Loading conversations…</div> : visible.length===0 ? <div className="inbox-empty"><MessageCircle size={24}/><b>No conversations found</b><span>Incoming WhatsApp and Instagram messages will appear here.</span></div> : visible.map(row=>(
-                  <button key={row.id} className={"inbox-conversation " + (selectedId===row.id?"selected":"")} onClick={()=>setSelectedId(row.id)}>
+                  <button key={row.id} className={"inbox-conversation " + (selectedId===row.id?"selected":"")} onClick={()=>{setDetail(null);setDetailLoading(true);setSelectedId(row.id);}}>
                     <span className={"channel-avatar " + row.channel}>{row.channel==="instagram"?<Instagram size={17}/>:<MessageCircle size={17}/>}</span>
                     <span className="inbox-row-main">
                       <span className="inbox-row-top"><b>{row.customer_name || row.phone_e164 || row.external_user_id}</b><time>{timeLabel(row.last_message_at || row.last_message_created_at)}</time></span>
@@ -268,7 +270,7 @@ export default function InboxClient({ storeId, userId, userName }: { storeId: st
             <section className="inbox-detail-panel" aria-label="Conversation detail">
               {!selectedId ? <div className="inbox-detail-empty"><MessageCircle size={32}/><b>Select a conversation</b><p>Choose a customer conversation to view its history and reply.</p></div> :
                 detailLoading && !detail ? <div className="inbox-detail-empty">Loading conversation…</div> :
-                !detail ? <div className="inbox-detail-empty">Conversation unavailable.</div> :
+                !detail ? <div className="inbox-detail-empty">{detailLoading?"Loading conversation…":"Conversation unavailable."}</div> :
                 <>
                   <div className="conversation-header">
                     <div className="conversation-person">
