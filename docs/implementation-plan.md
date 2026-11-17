@@ -68,7 +68,8 @@
 - [x] Build official WhatsApp/Instagram text-send adapters and durable outbound worker.
 - [x] Add tenant-scoped idempotency keys and request fingerprints; reject key reuse with different content.
 - [x] Enforce the 24-hour free-form messaging window and conservative delivery-unknown handling; never auto-retry ambiguous sends.
-- [x] Add queued approved WhatsApp template sends with live Meta template approval checks, language matching and idempotent request fingerprints.\n- [ ] Add media and explicit delivery reconciliation.
+- [x] Add queued approved WhatsApp template sends with live Meta template approval checks, language matching and idempotent request fingerprints.
+- [ ] Add media and explicit delivery reconciliation.
 - [x] Build unified merchant inbox with conversation list, channel/status filters, customer history, reply composer, assignment-to-self, internal notes, priority and status controls.
 - [ ] Add richer team assignment, labels, saved views and browser-level workflow acceptance.
 
