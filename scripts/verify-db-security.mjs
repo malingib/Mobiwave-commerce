@@ -100,6 +100,8 @@ try {
   const conversationB = "70000000-0000-4000-8000-000000000002";
   const messageA = "80000000-0000-4000-8000-000000000001";
   const messageB = "80000000-0000-4000-8000-000000000002";
+  const credentialA = "90000000-0000-4000-8000-000000000001";
+  const credentialB = "90000000-0000-4000-8000-000000000002";
 
   await owner.query(
     "INSERT INTO stores (id,name,slug,status) VALUES ($1,'Tenant A','tenant-a','active'),($2,'Tenant B','tenant-b','active')",
@@ -151,6 +153,19 @@ try {
      VALUES ($1,$2,'whatsapp','merchant_owned','merchant','wa-tenant-a','connected',$3),
             ($4,$5,'whatsapp','mobiwave_managed','merchant','wa-tenant-b','connected',$6)`,
     [connectionA,storeA,userA,connectionB,storeB,userB],
+  );
+  await owner.query(
+    `INSERT INTO channel_credentials (id,store_id,connection_id,token_ciphertext,token_type)
+     VALUES ($1,$2,$3,'cipher-a','bearer'),($4,$5,$6,'cipher-b','bearer')`,
+    [credentialA,storeA,connectionA,credentialB,storeB,connectionB],
+  );
+  await owner.query("UPDATE channel_connections SET credential_ref=$1 WHERE id=$2", [credentialA,connectionA]);
+  await owner.query("UPDATE channel_connections SET credential_ref=$1 WHERE id=$2", [credentialB,connectionB]);
+  await owner.query(
+    `INSERT INTO channel_oauth_states (state_hash,store_id,user_id,channel,ownership_mode,asset_owner_type,expires_at)
+     VALUES ($1,$2,$3,'whatsapp','merchant_owned','merchant',now()+interval '5 minutes'),
+            ($4,$5,$6,'instagram','mobiwave_managed','merchant',now()+interval '5 minutes')`,
+    ['a'.repeat(64),storeA,userA,'b'.repeat(64),storeB,userB],
   );
   await owner.query(
     `INSERT INTO channel_webhook_events
