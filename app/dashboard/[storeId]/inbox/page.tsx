@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { getRequestUser } from "@/lib/request-user";
 import { db } from "@/lib/db";
 import InboxClient from "./inbox-client";
