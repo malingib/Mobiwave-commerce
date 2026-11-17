@@ -38,6 +38,7 @@ CREATE TABLE channel_oauth_states (
   user_id uuid NOT NULL,
   channel text NOT NULL CHECK (channel IN ('whatsapp', 'instagram')),
   ownership_mode text NOT NULL CHECK (ownership_mode IN ('merchant_owned', 'mobiwave_managed')),
+  asset_owner_type text NOT NULL CHECK (asset_owner_type IN ('merchant', 'mobiwave')),
   expires_at timestamptz NOT NULL,
   consumed_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
