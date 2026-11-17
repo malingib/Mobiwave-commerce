@@ -26,6 +26,7 @@ CREATE TABLE channel_connections (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (store_id, id),
+  UNIQUE (store_id, id, channel),
   FOREIGN KEY (store_id, connected_by)
     REFERENCES store_memberships(store_id, user_id) ON DELETE SET NULL (connected_by),
   CHECK (credential_ref IS NULL OR length(credential_ref) <= 512)
@@ -93,6 +94,7 @@ CREATE TABLE channel_identities (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (store_id, id),
+  UNIQUE (store_id, id, channel),
   UNIQUE (store_id, channel, external_user_id)
 );
 CREATE INDEX channel_identities_phone_idx ON channel_identities(store_id, phone_e164)
@@ -118,10 +120,11 @@ CREATE TABLE conversations (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (store_id, id),
-  FOREIGN KEY (store_id, connection_id)
-    REFERENCES channel_connections(store_id, id) ON DELETE RESTRICT,
-  FOREIGN KEY (store_id, identity_id)
-    REFERENCES channel_identities(store_id, id) ON DELETE RESTRICT,
+  UNIQUE (store_id, id, connection_id),
+  FOREIGN KEY (store_id, connection_id, channel)
+    REFERENCES channel_connections(store_id, id, channel) ON DELETE RESTRICT,
+  FOREIGN KEY (store_id, identity_id, channel)
+    REFERENCES channel_identities(store_id, id, channel) ON DELETE RESTRICT,
   FOREIGN KEY (store_id, assigned_to)
     REFERENCES store_memberships(store_id, user_id) ON DELETE SET NULL (assigned_to)
 );
@@ -154,15 +157,15 @@ CREATE TABLE conversation_messages (
   read_at timestamptz,
   raw_metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
-  FOREIGN KEY (store_id, conversation_id)
-    REFERENCES conversations(store_id, id) ON DELETE CASCADE,
-  FOREIGN KEY (store_id, connection_id)
-    REFERENCES channel_connections(store_id, id) ON DELETE RESTRICT,
+  FOREIGN KEY (store_id, conversation_id, connection_id)
+    REFERENCES conversations(store_id, id, connection_id) ON DELETE CASCADE,
   FOREIGN KEY (store_id, reply_to_message_id)
     REFERENCES conversation_messages(store_id, id) ON DELETE SET NULL (reply_to_message_id),
   FOREIGN KEY (store_id, sender_user_id)
     REFERENCES store_memberships(store_id, user_id) ON DELETE SET NULL (sender_user_id),
-  UNIQUE (store_id, id)
+  UNIQUE (store_id, id),
+  UNIQUE (store_id, id, connection_id),
+  UNIQUE (store_id, conversation_id, id, connection_id)
 );
 CREATE UNIQUE INDEX conversation_messages_provider_id_uq
   ON conversation_messages(connection_id, provider_message_id)
@@ -218,12 +221,10 @@ CREATE TABLE message_outbox (
   last_error_code text,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  FOREIGN KEY (store_id, connection_id)
-    REFERENCES channel_connections(store_id, id) ON DELETE RESTRICT,
-  FOREIGN KEY (store_id, conversation_id)
-    REFERENCES conversations(store_id, id) ON DELETE CASCADE,
-  FOREIGN KEY (store_id, message_id)
-    REFERENCES conversation_messages(store_id, id) ON DELETE CASCADE,
+  FOREIGN KEY (store_id, conversation_id, connection_id)
+    REFERENCES conversations(store_id, id, connection_id) ON DELETE CASCADE,
+  FOREIGN KEY (store_id, conversation_id, message_id, connection_id)
+    REFERENCES conversation_messages(store_id, conversation_id, id, connection_id) ON DELETE CASCADE,
   UNIQUE (store_id, idempotency_key)
 );
 CREATE INDEX message_outbox_due_idx
