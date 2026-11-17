@@ -59,7 +59,7 @@ export default function MetaChannelsClient({
     setBusy("whatsapp");
     setNotice("Verifying your WhatsApp Business Account and saving its secure connection…");
     try {
-      const response = await fetch(\`/api/stores/\${encodeURIComponent(storeId)}/channels/meta/whatsapp/complete\`, {
+      const response = await fetch(`/api/stores/${encodeURIComponent(storeId)}/channels/meta/whatsapp/complete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -121,7 +121,7 @@ export default function MetaChannelsClient({
     setBusy("whatsapp");
     setNotice("Preparing secure WhatsApp onboarding…");
     try {
-      const start = await fetch(\`/api/stores/\${encodeURIComponent(storeId)}/channels/meta/whatsapp/start\`, {
+      const start = await fetch(`/api/stores/${encodeURIComponent(storeId)}/channels/meta/whatsapp/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ownershipMode, assetOwnerType }),
@@ -159,7 +159,7 @@ export default function MetaChannelsClient({
     setBusy("instagram");
     setNotice("Preparing secure Instagram authorization…");
     try {
-      const response = await fetch(\`/api/stores/\${encodeURIComponent(storeId)}/channels/meta/instagram/start\`, {
+      const response = await fetch(`/api/stores/${encodeURIComponent(storeId)}/channels/meta/instagram/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ownershipMode, assetOwnerType }),
@@ -244,7 +244,7 @@ export default function MetaChannelsClient({
           <tbody>{connections.map(connection => <tr key={connection.id}>
             <td>{connection.channel === "whatsapp" ? "WhatsApp" : "Instagram"}</td>
             <td><b>{connection.display_name || "Business account"}</b><small>{connection.id}</small></td>
-            <td><span className={\`order-status-pill status-\${connection.status === "connected" ? "completed" : "cancelled"}\`}>{connection.status.replaceAll("_", " ")}</span></td>
+            <td><span className={`order-status-pill status-${connection.status === "connected" ? "completed" : "cancelled"}`}>{connection.status.replaceAll("_", " ")}</span></td>
             <td>{connection.ownership_mode === "mobiwave_managed" ? "MobiWave managed" : "Merchant managed"}</td>
             <td>{connection.asset_owner_type === "mobiwave" ? "MobiWave" : "Merchant"}</td>
             <td>{connection.connected_at ? new Date(connection.connected_at).toLocaleDateString() : "—"}</td>
