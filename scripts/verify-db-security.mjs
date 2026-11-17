@@ -268,11 +268,11 @@ try {
       [10],
     );
     assert.equal(claimedWebhooks.rowCount, 2, "worker must be able to claim due webhook events with SKIP LOCKED");
+    const workerCredentials = await runtime.query("SELECT count(*)::int AS count FROM channel_credentials");
+    assert.equal(workerCredentials.rows[0].count, 2, "authenticated channel worker must resolve encrypted provider credentials");
     await runtime.query("SELECT set_config('app.channel_worker','false',true)");
     const merchantConnections = await runtime.query("SELECT count(*)::int AS count FROM channel_connections");
     assert.equal(merchantConnections.rows[0].count, 1, "worker capability must be transaction-local and revocable");
-    const workerCredentials = await runtime.query("SELECT count(*)::int AS count FROM channel_credentials");
-    assert.equal(workerCredentials.rows[0].count, 2, "authenticated channel worker must resolve encrypted provider credentials");
     const workerCannotReadOAuth = await runtime.query("SELECT count(*)::int AS count FROM channel_oauth_states");
     assert.equal(workerCannotReadOAuth.rows[0].count, 0, "channel worker must not access OAuth transaction state");
     await runtime.query("SELECT set_config($1,$2,true)", ["app.channel_oauth","true"]);
