@@ -33,7 +33,7 @@ export async function POST(
          JOIN channel_credentials cred
            ON cred.store_id=c.store_id AND cred.id=c.credential_ref
         WHERE c.store_id=$1 AND c.id=$2
-        LIMIT 1`,
+        LIMIT 1 FOR UPDATE OF cred`,
       [storeId, connectionId],
     );
     if (!result.rowCount) {
@@ -53,12 +53,17 @@ export async function POST(
       await client.query("ROLLBACK");
       return NextResponse.json({ error: "Instagram token can be refreshed after it is at least 24 hours old" }, { status: 409 });
     }
+    if (credential.last_validated_at && new Date(credential.last_validated_at).getTime() > Date.now() - 60_000) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "A token refresh is already in progress or just completed" }, { status: 409 });
+    }
     if (!credential.expires_at || new Date(credential.expires_at).getTime() <= Date.now()) {
       await client.query("ROLLBACK");
       return NextResponse.json({ error: "Instagram token has expired. Reconnect the account." }, { status: 409 });
     }
     const encrypted = String(credential.token_ciphertext);
     const credentialId = String(credential.credential_id);
+    await client.query("UPDATE channel_credentials SET last_validated_at=now() WHERE store_id=$1 AND id=$2", [storeId, credentialId]);
     await client.query("COMMIT");
 
     const token = await refreshInstagramLongLivedToken(decryptChannelCredential(encrypted));
