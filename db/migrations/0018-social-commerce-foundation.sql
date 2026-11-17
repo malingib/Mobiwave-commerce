@@ -332,6 +332,18 @@ CREATE POLICY conversation_notes_member_access ON conversation_notes
     WHERE m.store_id = conversation_notes.store_id
       AND m.user_id = nullif(current_setting('app.user_id', true), '')::uuid
   ));
+CREATE POLICY message_outbox_member_read ON message_outbox
+  FOR SELECT USING (EXISTS (
+    SELECT 1 FROM store_memberships m
+    WHERE m.store_id = message_outbox.store_id
+      AND m.user_id = nullif(current_setting('app.user_id', true), '')::uuid
+  ));
+CREATE POLICY message_outbox_member_enqueue ON message_outbox
+  FOR INSERT WITH CHECK (EXISTS (
+    SELECT 1 FROM store_memberships m
+    WHERE m.store_id = message_outbox.store_id
+      AND m.user_id = nullif(current_setting('app.user_id', true), '')::uuid
+  ));
 CREATE POLICY message_outbox_worker_access ON message_outbox
   FOR ALL USING (current_setting('app.channel_worker', true) = 'true')
   WITH CHECK (current_setting('app.channel_worker', true) = 'true');
