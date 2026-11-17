@@ -15,8 +15,23 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
   }
   let body: Record<string, unknown>;
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Invalid request body" }, { status: 400 }); }
+  const type = body.type === "template" ? "template" : "text";
   const messageText = typeof body.text === "string" ? body.text.trim() : "";
-  if (!messageText || messageText.length > 4096) return NextResponse.json({ error: "Message text must contain 1–4096 characters" }, { status: 400 });
+  let templatePayload: { name: string; language: string; parameters: string[] } | null = null;
+  let content = messageText;
+  if (type === "template") {
+    const name = typeof body.templateName === "string" ? body.templateName.trim() : "";
+    const language = typeof body.language === "string" ? body.language.trim() : "";
+    const parameters = Array.isArray(body.parameters) ? body.parameters : [];
+    if (!/^[a-z0-9_]{1,512}$/.test(name) || !/^[a-z]{2,3}_[A-Za-z]{2,4}$/.test(language) ||
+        parameters.length > 10 || parameters.some(value => typeof value !== "string" || !value.trim() || value.length > 1024)) {
+      return NextResponse.json({ error: "A valid approved WhatsApp template and its text parameters are required" }, { status: 400 });
+    }
+    templatePayload = { name, language, parameters: parameters as string[] };
+    content = "Template: " + name;
+  } else if (!messageText || messageText.length > 4096) {
+    return NextResponse.json({ error: "Message text must contain 1–4096 characters" }, { status: 400 });
+  }
 
   const client = await db.connect();
   try {
@@ -43,11 +58,17 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
       return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
     }
     const item = conversation.rows[0];
-    if (item.channel === "instagram" && messageText.length > 1000) {
+    if (type === "template" && item.channel !== "whatsapp") {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "Approved templates are currently supported only for WhatsApp" }, { status: 409 });
+    }
+    if (type === "text" && item.channel === "instagram" && messageText.length > 1000) {
       await client.query("ROLLBACK");
       return NextResponse.json({ error: "Instagram text messages are limited to 1,000 characters" }, { status: 400 });
     }
-    const requestHash = createHash("sha256").update(JSON.stringify({ channel: item.channel, conversationId, text: messageText })).digest("hex");
+    const requestHash = createHash("sha256").update(JSON.stringify({
+      channel: item.channel, conversationId, type, text: type === "text" ? messageText : null, template: templatePayload,
+    })).digest("hex");
     const existing = await client.query(
       "SELECT id,message_id,status,request_hash FROM message_outbox WHERE store_id=$1 AND idempotency_key=$2 LIMIT 1",
       [storeId, idempotencyKey],
@@ -58,21 +79,24 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
       if (row.request_hash !== requestHash) return NextResponse.json({ error: "Idempotency key was already used for a different message" }, { status: 409 });
       return NextResponse.json({ ok: true, duplicate: true, outboxId: row.id, messageId: row.message_id, status: row.status }, { status: 202, headers: { "Cache-Control": "no-store" } });
     }
-
     if (!["whatsapp","instagram"].includes(String(item.channel)) || item.connection_status !== "connected") {
       await client.query("ROLLBACK");
       return NextResponse.json({ error: "This channel is not connected for outbound messaging" }, { status: 409 });
     }
-    const lastInbound = item.last_inbound_at ? new Date(item.last_inbound_at).getTime() : 0;
-    if (!lastInbound || !Number.isFinite(lastInbound) || Date.now() - lastInbound > 24 * 60 * 60 * 1000) {
-      await client.query("ROLLBACK");
-      return NextResponse.json({ error: "The customer messaging window has expired. Approved template messaging is not yet enabled." }, { status: 409 });
+    if (type === "text") {
+      const lastInbound = item.last_inbound_at ? new Date(item.last_inbound_at).getTime() : 0;
+      if (!lastInbound || !Number.isFinite(lastInbound) || Date.now() - lastInbound > 24 * 60 * 60 * 1000) {
+        await client.query("ROLLBACK");
+        return NextResponse.json({ error: "The customer messaging window has expired. Send an approved WhatsApp template instead." }, { status: 409 });
+      }
     }
 
+    const metadata = templatePayload ? { template: templatePayload } : {};
     const message = await client.query(
-      `INSERT INTO conversation_messages (store_id,conversation_id,connection_id,direction,message_type,content,provider_status,sender_user_id)
-       VALUES ($1,$2,$3,'outbound','text',$4,'queued',$5) RETURNING id`,
-      [storeId, conversationId, item.connection_id, messageText, user.id],
+      `INSERT INTO conversation_messages
+        (store_id,conversation_id,connection_id,direction,message_type,content,provider_status,sender_user_id,raw_metadata)
+       VALUES ($1,$2,$3,'outbound',$4,$5,'queued',$6,$7::jsonb) RETURNING id`,
+      [storeId, conversationId, item.connection_id, type, content, user.id, JSON.stringify(metadata)],
     );
     const messageId = String(message.rows[0].id);
     const queued = await client.query(
