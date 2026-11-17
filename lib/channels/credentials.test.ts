@@ -20,7 +20,7 @@ describe("Meta channel credential vault", () => {
     process.env.CHANNEL_CREDENTIALS_ENCRYPTION_KEY = Buffer.alloc(32, 9).toString("base64");
     const encrypted = encryptChannelCredential("secret-token");
     const [iv, tag, cipher] = encrypted.split(".");
-    const tampered = [iv, tag, \`\${cipher.slice(0, -1)}A\`].join(".");
+    const tampered = [iv, tag, cipher.slice(0, -1) + "A"].join(".");
     expect(() => decryptChannelCredential(tampered)).toThrow();
     expect(() => decryptChannelCredential("not-a-ciphertext")).toThrow();
   });
