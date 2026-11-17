@@ -75,7 +75,8 @@
 ## Milestone 7 — release hardening
 - [x] Add focused unit tests for plan limits, domain validation, Daraja utilities and SMS templates.
 - [x] Add dependency audit to CI.
-- [ ] Complete all current CI runs and resolve failures.
+- [x] Complete Phase 6 CI and merge the unified inbox; main CI passed after the merge.
+- [ ] Configure the existing message-outbox worker secrets and verify a real processing cycle.
 - [ ] Verify latest Vercel preview after deployment quota/rate-limit clears.
 - [ ] Verify production Neon role, RLS, backups and restore procedure.
 - [ ] Run browser accessibility, mobile, concurrency and cross-tenant E2E.
@@ -83,4 +84,4 @@
 
 ## Current honest status
 
-Core commerce workflows are implemented. Social Commerce Phases 1–5 are merged to main. Migration 0021 passed CI database roles, forced-RLS and cross-tenant worker-write verification; disposable Neon validation covered its policy and outbox schema. Phase 6 unified inbox is under CI. Production Neon and production deployment have not been changed. Real Daraja and MobiWave SMS credentials remain unverified for live testing. The platform is not yet production-ready.
+Core commerce workflows and Social Commerce Phases 1–6 are merged to main. The Phase 6 PR CI passed and the post-merge main CI passed. The separate scheduled Message outbox workflow currently fails fast because COMMERCE_BASE_URL and COMMERCE_CRON_SECRET are not configured in GitHub Actions; this is a missing deployment configuration, not a code-test failure. Production Neon and production deployment have not been changed. Live Meta test-asset acceptance, real Daraja sandbox/live acceptance, MobiWave SMS credentials and provider delivery, browser E2E, and release operations remain outstanding. The platform is not yet production-ready.
