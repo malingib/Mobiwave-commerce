@@ -56,7 +56,11 @@
 - [x] Verify migration 0018 on a disposable Neon branch; production database unchanged.
 - [x] Add Meta WhatsApp/Instagram webhook signature verification and event normalization.
 - [ ] Verify migration 0019 and webhook worker RLS in CI and on a disposable Neon branch.
-- [ ] Build provider connection lifecycle and Meta Embedded Signup / Instagram authorization.
+- [x] Add tenant-bound, single-use OAuth state and encrypted provider-token vault.
+- [x] Add WhatsApp Embedded Signup v4 code exchange, WABA/phone verification and webhook subscription.
+- [x] Add Instagram Login, long-lived token exchange, profile verification and messaging webhook subscription.
+- [x] Add local channel disconnect and Instagram long-lived token refresh controls.
+- [ ] Complete live Meta test-asset onboarding and permission/App Review acceptance.
 - [x] Build durable inbound event processor and replay-safe conversation/message creation.
 - [x] Add authenticated worker endpoint and scheduled processing workflow.
 - [x] Process WhatsApp status and Instagram delivery/read receipts without status regression.
@@ -74,4 +78,4 @@
 
 ## Current honest status
 
-Core commerce workflows are implemented. Social Commerce Phase 1 is merged to main; migration 0018 has been applied successfully to a disposable Neon branch and forced RLS was confirmed. Phase 2 Meta webhook ingress is merged. Migration 0019 was validated on a disposable Neon branch. Phase 3 inbound event processing is on a feature branch pending CI and disposable-branch runtime validation. Production Neon and production deployment have not been changed. Real Daraja and MobiWave SMS credentials remain unverified for live testing. The platform is not yet production-ready.
+Core commerce workflows are implemented. Social Commerce Phases 1–3 are merged to main. Migrations 0018 and 0019 were validated on disposable Neon branches. Phase 4 Meta onboarding and migration 0020 are on a feature branch pending CI and disposable Neon validation. Production Neon and production deployment have not been changed. Real Daraja and MobiWave SMS credentials remain unverified for live testing. The platform is not yet production-ready.
