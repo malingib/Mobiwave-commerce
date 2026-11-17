@@ -29,10 +29,8 @@ export default async function MerchantChannelsPage({ params }: Context) {
     if (allowed) {
       const result = await client.query(
         `SELECT c.id,c.channel,c.display_name,c.status,c.ownership_mode,c.asset_owner_type,
-                c.connected_at,cred.expires_at
+                c.connected_at
            FROM channel_connections c
-           LEFT JOIN channel_credentials cred
-             ON cred.store_id=c.store_id AND cred.id=c.credential_ref AND cred.revoked_at IS NULL
           WHERE c.store_id=$1 AND c.channel IN ('whatsapp','instagram')
           ORDER BY c.created_at DESC`,
         [storeId],
@@ -42,7 +40,6 @@ export default async function MerchantChannelsPage({ params }: Context) {
         id: String(row.id),
         channel: row.channel as "whatsapp" | "instagram",
         connected_at: row.connected_at ? new Date(row.connected_at).toISOString() : null,
-        expires_at: row.expires_at ? new Date(row.expires_at).toISOString() : null,
       }));
     }
     await client.query("COMMIT");
