@@ -218,16 +218,39 @@ async function processStatusEvent(client: PoolClient, event: ClaimedWebhook, con
 async function processInstagramStatusEvent(client: PoolClient, event: ClaimedWebhook, connectionId: string) {
   const delivery = nestedObject(event.payload, "delivery");
   const read = nestedObject(event.payload, "read");
-  const status = delivery ? "delivered" : read ? "read" : null;
-  const ids = delivery && Array.isArray(delivery.mids)
-    ? delivery.mids
-    : read && typeof read.mid === "string" ? [read.mid] : [];
-  if (!status || !ids.length) throw new Error("invalid_instagram_status_payload");
   const occurredAt = normalizeProviderTimestamp(event.payload.timestamp);
-  for (const id of ids) {
-    if (typeof id !== "string" || !id) continue;
-    await updateProviderMessageStatus(client, connectionId, id, status, occurredAt, null);
+
+  if (delivery && Array.isArray(delivery.mids) && delivery.mids.length) {
+    for (const id of delivery.mids) {
+      if (typeof id !== "string" || !id) continue;
+      await updateProviderMessageStatus(client, connectionId, id, "delivered", occurredAt, null);
+    }
+    return;
   }
+
+  // Instagram read receipts use a conversation watermark rather than message IDs.
+  if (read && read.watermark !== undefined) {
+    const sender = nestedObject(event.payload, "sender");
+    const customerId = typeof sender?.id === "string" ? sender.id : "";
+    const watermark = normalizeProviderTimestamp(read.watermark);
+    if (!customerId || !watermark) throw new Error("invalid_instagram_read_payload");
+    const conversation = await client.query(
+      "SELECT id FROM conversations WHERE connection_id=$1 AND external_thread_id=$2 LIMIT 1",
+      [connectionId, customerId],
+    );
+    if (!conversation.rowCount) throw new Error("provider_conversation_not_found");
+    await client.query(
+      `UPDATE conversation_messages
+          SET provider_status = CASE WHEN provider_status IN ('read','failed') THEN provider_status ELSE 'read' END,
+              read_at = COALESCE(read_at, $1::timestamptz)
+        WHERE connection_id=$2 AND conversation_id=$3
+          AND direction='outbound' AND provider_timestamp <= $1::timestamptz`,
+      [watermark, connectionId, conversation.rows[0].id],
+    );
+    return;
+  }
+
+  throw new Error("invalid_instagram_status_payload");
 }
 
 async function processEventPayload(client: PoolClient, event: ClaimedWebhook, channel: string): Promise<ProcessResult> {
@@ -299,7 +322,7 @@ async function processClaimedEvent(event: ClaimedWebhook) {
 async function recordFailure(event: ClaimedWebhook, error: unknown) {
   const permanentCodes = new Set([
     "invalid_customer_identity", "invalid_status_payload", "unsupported_status_payload",
-    "invalid_instagram_status_payload", "invalid_whatsapp_message_payload",
+    "invalid_instagram_status_payload", "invalid_instagram_read_payload", "invalid_whatsapp_message_payload",
     "invalid_instagram_message_payload",
   ]);
   const rawCode = error instanceof Error ? error.message : "webhook_processing_failed";
