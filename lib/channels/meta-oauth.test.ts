@@ -49,7 +49,7 @@ describe("Meta onboarding clients", () => {
     const token = await exchangeWhatsAppEmbeddedSignupCode("one-time-code");
     expect(token.accessToken).toBe("server-access-token");
     expect(token.expiresIn).toBe(3600);
-    const requested = new URL(String(fetchMock.mock.calls[0][0]));
+    const requested = new URL(String(fetchMock.mock.calls[0]?.[0]));
     expect(requested.searchParams.get("client_secret")).toBe("server-only-secret");
     expect(requested.searchParams.get("code")).toBe("one-time-code");
   });
