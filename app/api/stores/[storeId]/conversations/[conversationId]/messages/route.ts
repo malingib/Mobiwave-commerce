@@ -43,16 +43,6 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
       return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
     }
     const item = conversation.rows[0];
-    if (!["whatsapp","instagram"].includes(String(item.channel)) || item.connection_status !== "connected") {
-      await client.query("ROLLBACK");
-      return NextResponse.json({ error: "This channel is not connected for outbound messaging" }, { status: 409 });
-    }
-    const lastInbound = item.last_inbound_at ? new Date(item.last_inbound_at).getTime() : 0;
-    if (!lastInbound || !Number.isFinite(lastInbound) || Date.now() - lastInbound > 24 * 60 * 60 * 1000) {
-      await client.query("ROLLBACK");
-      return NextResponse.json({ error: "The customer messaging window has expired. Approved template messaging is not yet enabled." }, { status: 409 });
-    }
-
     const requestHash = createHash("sha256").update(JSON.stringify({ channel: item.channel, conversationId, text: messageText })).digest("hex");
     const existing = await client.query(
       "SELECT id,message_id,status,request_hash FROM message_outbox WHERE store_id=$1 AND idempotency_key=$2 LIMIT 1",
@@ -63,6 +53,16 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
       await client.query("COMMIT");
       if (row.request_hash !== requestHash) return NextResponse.json({ error: "Idempotency key was already used for a different message" }, { status: 409 });
       return NextResponse.json({ ok: true, duplicate: true, outboxId: row.id, messageId: row.message_id, status: row.status }, { status: 202, headers: { "Cache-Control": "no-store" } });
+    }
+
+    if (!["whatsapp","instagram"].includes(String(item.channel)) || item.connection_status !== "connected") {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "This channel is not connected for outbound messaging" }, { status: 409 });
+    }
+    const lastInbound = item.last_inbound_at ? new Date(item.last_inbound_at).getTime() : 0;
+    if (!lastInbound || !Number.isFinite(lastInbound) || Date.now() - lastInbound > 24 * 60 * 60 * 1000) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "The customer messaging window has expired. Approved template messaging is not yet enabled." }, { status: 409 });
     }
 
     const message = await client.query(
