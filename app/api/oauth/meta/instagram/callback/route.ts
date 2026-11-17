@@ -15,8 +15,8 @@ export const dynamic = "force-dynamic";
 
 function redirectTo(request: Request, storeId: string | null, result: string) {
   const path = storeId
-    ? \`/dashboard/\${encodeURIComponent(storeId)}/integrations/channels?instagram=\${encodeURIComponent(result)}\`
-    : \`/dashboard?instagram=\${encodeURIComponent(result)}\`;
+    ? `/dashboard/${encodeURIComponent(storeId)}/integrations/channels?instagram=${encodeURIComponent(result)}`
+    : `/dashboard?instagram=${encodeURIComponent(result)}`;
   return NextResponse.redirect(new URL(path, request.url));
 }
 
@@ -65,11 +65,11 @@ export async function GET(request: Request) {
       ownershipMode: onboarding.ownershipMode,
       assetOwnerType: onboarding.assetOwnerType,
       providerAccountId: profile.id,
-      displayName: profile.username ? \`@\${profile.username}\` : "Instagram Business",
+      displayName: profile.username ? `@${profile.username}` : "Instagram Business",
       metadata: { username: profile.username, loginType: "instagram_login" },
       token: { ...token, scopes: token.scopes.length ? token.scopes : ["instagram_business_basic", "instagram_business_manage_messages"] },
     });
-    return redirectTo(request, onboarding.storeId, \`connected:\${connection.id}\`);
+    return redirectTo(request, onboarding.storeId, `connected:${connection.id}`);
   } catch (error) {
     const code = error instanceof Error && /^[a-z0-9_]{1,80}$/.test(error.message)
       ? error.message
