@@ -36,7 +36,9 @@ async function readProviderResponse(response: Response): Promise<JsonObject> {
   try { payload = asObject(await response.json()); }
   catch { throw new Error("Meta returned an invalid response"); }
   if (!response.ok || payload.error) {
-    const error = asObject(payload.error || {});
+    const error = payload.error && typeof payload.error === "object" && !Array.isArray(payload.error)
+      ? payload.error as JsonObject
+      : {};
     const code = typeof error.code === "number" ? String(error.code) : "provider_error";
     throw new Error(`meta_api_${code}`);
   }
