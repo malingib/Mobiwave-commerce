@@ -88,8 +88,8 @@ export async function POST(
       [storeId, connectionId],
     );
     await client.query(
-      "INSERT INTO channel_connection_events (store_id,connection_id,event_type,actor_user_id,details) VALUES ($1,$2,'health_check',$3,'{"tokenRefreshed":true}'::jsonb)",
-      [storeId, connectionId, user.id],
+      "INSERT INTO channel_connection_events (store_id,connection_id,event_type,actor_user_id,details) VALUES ($1,$2,'health_check',$3,$4::jsonb)",
+      [storeId, connectionId, user.id, JSON.stringify({ tokenRefreshed: true })],
     );
     await client.query("COMMIT");
     return NextResponse.json({ ok: true, expiresAt }, { headers: { "Cache-Control": "no-store" } });
