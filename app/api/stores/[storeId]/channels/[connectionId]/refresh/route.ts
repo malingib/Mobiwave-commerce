@@ -74,6 +74,7 @@ export async function POST(
     await client.query("BEGIN");
     await client.query("SELECT set_config('app.user_id',$1,true)", [user.id]);
     await client.query("SELECT set_config('app.channel_oauth','true',true)");
+    await client.query("SELECT set_config('app.channel_worker','true',true)");
     await client.query(
       `UPDATE channel_credentials
           SET token_ciphertext=$1,expires_at=$2,last_validated_at=now(),updated_at=now()
@@ -85,6 +86,10 @@ export async function POST(
           SET status='connected',last_verified_at=now(),last_error_code=NULL,updated_at=now()
         WHERE store_id=$1 AND id=$2`,
       [storeId, connectionId],
+    );
+    await client.query(
+      "INSERT INTO channel_connection_events (store_id,connection_id,event_type,actor_user_id,details) VALUES ($1,$2,'health_check',$3,'{"tokenRefreshed":true}'::jsonb)",
+      [storeId, connectionId, user.id],
     );
     await client.query("COMMIT");
     return NextResponse.json({ ok: true, expiresAt }, { headers: { "Cache-Control": "no-store" } });
