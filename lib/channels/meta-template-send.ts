@@ -13,7 +13,7 @@ export type WhatsAppTemplatePayload = {
 
 function graphVersion() {
   const version = process.env.META_GRAPH_API_VERSION || "v27.0";
-  if (!/^v\\d+\\.\\d+$/.test(version)) throw new Error("invalid_meta_graph_version");
+  if (!/^v\d+\.\d+$/.test(version)) throw new Error("invalid_meta_graph_version");
   return version;
 }
 
