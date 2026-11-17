@@ -14,8 +14,8 @@ jobs:
           COMMERCE_CRON_SECRET: ${{ secrets.COMMERCE_CRON_SECRET }}
         run: |
           if [ -z "$COMMERCE_BASE_URL" ] || [ -z "$COMMERCE_CRON_SECRET" ]; then
-            echo "Message outbox secrets are not configured; skipping."
-            exit 0
+            echo "::error::Message outbox secrets are not configured. Set COMMERCE_BASE_URL and COMMERCE_CRON_SECRET."
+            exit 1
           fi
           curl --fail --silent --show-error --max-time 45 \
             -X POST "${COMMERCE_BASE_URL%/}/api/internal/messages/process" \

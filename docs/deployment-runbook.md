@@ -9,24 +9,37 @@
 
 ## 2. Neon database
 
-1. Confirm the intended production Neon project and database before applying anything.
-2. Apply db/schema.sql as the initial baseline, then apply db/migrations/0002-auth.sql through 0016-mpesa-callback-read-policies.sql in numeric order. If the existing database already has earlier migrations, reconcile migration state first; do not replay baseline DDL blindly.
-3. Apply migrations first on a disposable Neon branch and run the tenant/RLS test suite.
-4. Create the commerce_app login role through Neon. DATABASE_URL must use that login and must not use the Neon owner connection string.
-5. Before applying migrations, run db/roles/commerce-runtime-bootstrap.sql as the Neon project owner. Migration 0009 grants privileges to commerce_runtime and therefore requires this role to exist.
-6. After the schema and Better Auth tables exist, run db/roles/commerce-runtime.sql and db/roles/commerce-auth-runtime.sql as the Neon project owner.
-7. The application creates separate pools: commerce queries use commerce_runtime; Better Auth uses commerce_auth_runtime. Both roles must be NOLOGIN and NOBYPASSRLS.
-8. Verify each role reports rolbypassrls=false. Verify commerce_runtime cannot read Better Auth identity/session tables and commerce_auth_runtime cannot read stores, orders or payment data.
-9. Verify two separate merchant users cannot read each other's orders, payment attempts, configuration, domains or messages.
-10. Verify callback, checkout, worker and admin capability flags are set only inside their intended server-side transactions.
+1. Confirm the intended production Neon project, database and branch before applying anything.
+2. On a disposable Neon branch, apply `db/schema.sql` as the initial baseline, then apply `db/migrations/0002-auth.sql` through `0017-commerce-hardening.sql` in numeric order. If the database already has earlier migrations, reconcile migration state first; do not replay baseline DDL blindly.
+3. Before applying migration 0009, run `db/roles/commerce-runtime-bootstrap.sql` as the Neon project owner. Migration 0009 grants privileges to `commerce_runtime` and therefore requires this role to exist.
+4. After all schema migrations are applied, run `db/roles/commerce-runtime.sql` and `db/roles/commerce-auth-runtime.sql` as the Neon project owner.
+5. Set strong passwords for the generated login roles `commerce_runtime_app` and `commerce_auth_app` in Neon. Configure `DATABASE_URL` with the `commerce_runtime_app` connection string and `AUTH_DATABASE_URL` with the separate `commerce_auth_app` connection string. Never use the Neon owner or a BYPASSRLS login for either application pool.
+6. The application uses separate pools without PostgreSQL startup role options: `commerce_runtime_app` is NOBYPASSRLS and inherits `commerce_runtime`; `commerce_auth_app` is NOBYPASSRLS and inherits `commerce_auth_runtime`. Both inherited runtime roles must be NOLOGIN and NOBYPASSRLS. Neon pooled endpoints reject custom startup options such as `-c role=...`.
+7. Verify `commerce_runtime_app` can read commerce tables but cannot read Better Auth identity/session tables. Verify `commerce_auth_app` can read/write Better Auth tables but cannot read stores, orders or payment data. Verify both login roles report `rolbypassrls=false`.
+8. Verify two separate merchant users cannot read each other's orders, payment attempts, configuration, domains or messages.
+9. Verify callback, checkout, worker and admin capability flags are set only inside their intended server-side transactions.
 
-Do not grant future tables to commerce_runtime by default. Each application migration must explicitly grant the required table/sequence privileges to that role.
+Do not grant future tables to `commerce_runtime` by default. Each application migration must explicitly grant the required table/sequence privileges to that role.
+
+### Existing-database signup repair
+
+The previous pool configuration passed `-c role=commerce_runtime` and `-c role=commerce_auth_runtime` as PostgreSQL startup options. Neon pooled endpoints reject the `role` startup parameter, causing database connection failures before Better Auth can validate its schema. The fix is to use two dedicated NOBYPASSRLS login roles and omit startup role options entirely.
+
+On a disposable Neon branch, run both role scripts as the database owner, set passwords for the two login roles, and test the application using the corresponding separate connection strings. Verify:
+
+- `commerce_runtime_app` is a member of `commerce_runtime`, has RLS enabled, and cannot read Better Auth identity/session tables.
+- `commerce_auth_app` is a member of `commerce_auth_runtime`, can read/write Better Auth tables, and cannot read commerce tables.
+- Neither login role has BYPASSRLS; both inherited runtime roles are NOLOGIN/NOBYPASSRLS.
+- `/api/health` returns HTTP 200 and a disposable test registration succeeds.
+
+Only after the target branch and backup/rollback point are confirmed should these role scripts and role-specific connection strings be applied to production. After the new application connections are verified, revoke the legacy `commerce_app` membership in `commerce_runtime` so the old BYPASSRLS login no longer has commerce-table access.
 
 ## 3. Vercel environment variables
 
-Set these as server-side Vercel environment variables for Preview and Production as appropriate:
+Set these as server-side Vercel environment variables for Preview and Production as appropriate. DATABASE_URL and AUTH_DATABASE_URL must be separate role-specific connection strings:
 
 - DATABASE_URL
+- AUTH_DATABASE_URL
 - BETTER_AUTH_SECRET
 - BETTER_AUTH_URL
 - NEXT_PUBLIC_APP_URL
@@ -59,6 +72,14 @@ Use a verified Brevo sender. When Brevo is configured, account verification is r
 
 ## 5. Custom domains
 
+The Vercel project currently has the following domains attached but awaiting TXT ownership verification. Add all three TXT values at the same owner name, `_vercel.mobiwave.co.ke`, in the authoritative DNS zone:
+
+- `vc-domain-verify=commerce.mobiwave.co.ke,9f97ccf6453c15e4cbad`
+- `vc-domain-verify=shop.mobiwave.co.ke,c4b220763e84b89efea1`
+- `vc-domain-verify=*.shop.mobiwave.co.ke,3b28d4da8c28435b247e`
+
+The configured tenant root domain is `shop.mobiwave.co.ke`; the platform URL is `commerce.mobiwave.co.ke`. Verify each domain in Vercel after DNS propagation. Once the platform domain is verified and the production release is approved, update production `BETTER_AUTH_URL` and `NEXT_PUBLIC_APP_URL` to `https://commerce.mobiwave.co.ke`.
+
 1. Merchant registers the hostname in the store dashboard.
 2. Merchant creates the TXT record shown by the app: host _mobiwave-commerce.<hostname>, value mobiwave-commerce-verification=<token>.
 3. Merchant verifies DNS ownership in the dashboard.
@@ -70,7 +91,7 @@ Free subdomains require wildcard DNS and TLS for the configured NEXT_PUBLIC_ROOT
 
 ## 6. Transactional SMS
 
-The outbox is enabled in code, but live provider delivery requires the exact MobiWave API endpoint, bearer key and sender ID. The current adapter posts JSON with to, message, senderId and clientReference. Public service documentation confirms bearer-token REST authentication but does not expose the precise endpoint/payload contract; confirm those details against the developer API reference before enabling production sends.
+The outbox sends through the MobiWave v3 API. The default base URL is https://sms.mobiwave.co.ke/api/v3 and the adapter posts to /sms/send using Bearer authentication and JSON fields recipient, sender_id, type=plain and message. The API response must contain status=success; the returned data.uid is stored as the provider reference. The sender ID is limited to 11 characters. Provider documentation does not guarantee idempotency-key support or publish the delivery-webhook payload/signature contract, so confirm duplicate-send behavior and delivery callback details before enabling production retries or marking messages delivered.
 
 Set MOBIWAVE_SMS_API_URL, MOBIWAVE_SMS_API_KEY, MOBIWAVE_SMS_SENDER_ID and CRON_SECRET in Vercel. Add GitHub repository secrets:
 

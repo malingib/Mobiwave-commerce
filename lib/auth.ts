@@ -16,19 +16,19 @@ function getAuthBaseUrl() {
 }
 
 export function createAuth() {
-  const connectionString = process.env.DATABASE_URL;
+  const connectionString = process.env.AUTH_DATABASE_URL;
   const secret = process.env.BETTER_AUTH_SECRET;
   if (!connectionString || !secret || secret.length < 32) {
-    throw new Error("Authentication is not configured: set DATABASE_URL and a BETTER_AUTH_SECRET of at least 32 characters.");
+    throw new Error("Authentication is not configured: set AUTH_DATABASE_URL and a BETTER_AUTH_SECRET of at least 32 characters.");
   }
 
   const emailVerificationEnabled = Boolean(process.env.BREVO_API_KEY && process.env.BREVO_SENDER_EMAIL);
 
   pool ??= new Pool({
     connectionString,
-    // Better Auth has a separate least-privilege role; never use the Neon owner
-    // or commerce application role for authentication table access.
-    options: "-c role=commerce_auth_runtime",
+    // AUTH_DATABASE_URL must authenticate as commerce_auth_app, a dedicated
+    // NOBYPASSRLS login inheriting only commerce_auth_runtime privileges.
+    // Do not use startup role options: Neon pooled endpoints reject them.
     max: process.env.NODE_ENV === "production" ? 5 : 2,
     connectionTimeoutMillis: 5_000,
     ssl: connectionString.includes("localhost") ? undefined : { rejectUnauthorized: true },
