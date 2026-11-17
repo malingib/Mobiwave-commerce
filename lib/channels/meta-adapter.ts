@@ -13,7 +13,8 @@ function stableEventId(value: unknown) {
 
 function timestamp(value: unknown): string | null {
   if (typeof value !== "string" && typeof value !== "number") return null;
-  const date = new Date(typeof value === "number" ? (value > 100_000_000_000 ? value : value * 1000) : value);
+  const numeric = typeof value === "number" || /^\\d+(?:\\.\\d+)?$/.test(value) ? Number(value) : null;
+  const date = new Date(numeric === null ? value : numeric > 100_000_000_000 ? numeric : numeric * 1000);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
