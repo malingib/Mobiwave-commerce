@@ -15,7 +15,7 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
   const ownershipMode = body.ownershipMode === "mobiwave_managed" ? "mobiwave_managed" : "merchant_owned";
   const assetOwnerType = body.assetOwnerType === "mobiwave" ? "mobiwave" : "merchant";
   const redirectUri = process.env.META_INSTAGRAM_REDIRECT_URI || "";
-  if (!process.env.META_INSTAGRAM_APP_ID || !process.env.META_INSTAGRAM_APP_SECRET ||
+  if (!process.env.META_APP_ID || !process.env.META_APP_SECRET ||
       !redirectUri || !process.env.CHANNEL_CREDENTIALS_ENCRYPTION_KEY) {
     return NextResponse.json({ error: "Instagram onboarding is not configured on the server" }, { status: 503 });
   }
