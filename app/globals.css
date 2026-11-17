@@ -375,3 +375,16 @@ h1 span{color:var(--green)}
 .reply-window-warning{display:flex;align-items:flex-start;gap:7px;padding:8px 9px;margin-bottom:8px;border-radius:5px;background:#fbf5e9;color:#856a35;font-size:10px;line-height:1.5}
 @media(max-width:1050px){.inbox-workspace{grid-template-columns:300px minmax(0,1fr)}.inbox-content{padding:22px 20px}.conversation-header{align-items:flex-start;flex-direction:column}.conversation-actions{justify-content:flex-start}}
 @media(max-width:760px){.inbox-content{padding:18px 12px}.inbox-toolbar{align-items:flex-start;flex-direction:column}.inbox-workspace{grid-template-columns:1fr;max-height:none;min-height:0}.inbox-list-panel{border-right:0;border-bottom:1px solid var(--line);max-height:370px}.inbox-detail-panel{min-height:620px}.conversation-header{flex-direction:row;align-items:center;padding:12px}.conversation-actions{flex-direction:column}.conversation-actions select{max-width:130px}.conversation-subbar{flex-wrap:wrap;padding:8px 12px}.connection-state{margin-left:0}.conversation-timeline{padding:16px 12px}.message-bubble{max-width:88%}.inbox-filters{width:100%}.inbox-filters select{flex:1;min-width:0}}
+
+.reply-mode-select{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+.reply-mode-select label,.template-compose>label{font-size:10px;font-weight:700;color:#65736a}
+.reply-mode-select select,.template-compose>select{height:32px;border:1px solid var(--line);border-radius:5px;background:white;color:var(--ink);font-size:10px;padding:0 9px}
+.template-compose{display:flex;flex-direction:column;gap:8px;margin-bottom:8px}
+.template-compose>select{width:100%;height:36px}
+.template-empty{margin:0;padding:12px;border-radius:6px;background:#f7f8f6;color:#78847b;font-size:10px;line-height:1.6}
+.template-preview{padding:10px 12px;border:1px solid #e3e9e2;border-radius:6px;background:#f7faf6}
+.template-preview>span{font-size:8px;letter-spacing:1px;font-weight:800;color:#879189}
+.template-preview p{font-size:11px;line-height:1.6;white-space:pre-wrap;margin:5px 0;color:var(--ink)}
+.template-preview small{font-size:9px;color:#78847b}
+.template-param{display:flex;flex-direction:column;gap:4px;font-size:9px;font-weight:700;color:#65736a}
+.template-param input{height:33px;border:1px solid var(--line);border-radius:5px;padding:0 9px;font-size:11px;font-weight:400;color:var(--ink)}
