@@ -23,7 +23,7 @@ type Message = {
 };
 type Note = { id: string; author_user_id: string; body: string; created_at: string };
 type Detail = {
-  conversation: Conversation & { email: string | null; connection_status: string; created_at: string; last_inbound_at: string | null };
+  conversation: Conversation & { email: string | null; connection_status: string; created_at: string; last_inbound_at: string | null; reply_window_open: boolean };
   messages: Message[]; notes: Note[];
 };
 
@@ -94,8 +94,56 @@ export default function InboxClient({ storeId, userId, userName }: { storeId: st
     } finally { setDetailLoading(false); }
   }, [storeId]);
 
-  useEffect(() => { void loadConversations(); }, [loadConversations]);
-  useEffect(() => { void loadDetail(selectedId); }, [selectedId,loadDetail]);
+  useEffect(() => {
+    let active = true;
+    const run = async () => {
+      try {
+        const params = new URLSearchParams({ status, channel });
+        const response = await fetch("/api/stores/" + storeId + "/conversations?" + params.toString(), { cache: "no-store" });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Could not load inbox");
+        if (active) {
+          const rows = (data.conversations || []) as Conversation[];
+          setConversations(rows);
+          setSelectedId(current => current && rows.some(row => row.id === current) ? current : rows[0]?.id || "");
+          setError("");
+        }
+      } catch (e) {
+        if (active) setError(e instanceof Error ? e.message : "Could not load inbox");
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    void run();
+    return () => { active = false; };
+  }, [storeId,status,channel]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    let active = true;
+    const run = async () => {
+      try {
+        const response = await fetch("/api/stores/" + storeId + "/conversations/" + selectedId, { cache: "no-store" });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Could not load conversation");
+        if (active) setDetail(data as Detail);
+        if (Number(data.conversation?.unread_count || 0) > 0) {
+          await fetch("/api/stores/" + storeId + "/conversations/" + selectedId, {
+            method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ markRead: true }),
+          });
+          if (active) {
+            setDetail(current => current ? { ...current, conversation: { ...current.conversation, unread_count: 0 } } : current);
+            setConversations(current => current.map(row => row.id === selectedId ? { ...row, unread_count: 0 } : row));
+          }
+        }
+      } catch (e) {
+        if (active) setError(e instanceof Error ? e.message : "Could not load conversation");
+      }
+    };
+    void run();
+    return () => { active = false; };
+  }, [storeId,selectedId]);
+
   useEffect(() => {
     const interval = window.setInterval(() => {
       void loadConversations();
@@ -166,8 +214,7 @@ export default function InboxClient({ storeId, userId, userName }: { storeId: st
   }
 
   const conversation = detail?.conversation;
-  const lastInbound = conversation?.last_inbound_at || null;
-  const canReply = Boolean(conversation && ["whatsapp","instagram"].includes(conversation.channel) && conversation.connection_status === "connected" && lastInbound && Date.now() - new Date(lastInbound).getTime() <= 24 * 60 * 60 * 1000);
+  const canReply = Boolean(conversation && ["whatsapp","instagram"].includes(conversation.channel) && conversation.connection_status === "connected" && conversation.reply_window_open);
 
   return (
     <main className="dashboard-shell">
