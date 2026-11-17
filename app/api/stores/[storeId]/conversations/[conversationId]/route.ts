@@ -79,7 +79,7 @@ export async function PATCH(request: Request, context: Context) {
   const markRead = body.markRead === true;
   if ((status !== null && !["open","pending","resolved","archived"].includes(status)) ||
       (priority !== null && !["low","normal","high","urgent"].includes(priority)) ||
-      (hasAssignee && body.assignedTo !== null && typeof body.assignedTo !== "string")) {
+      (hasAssignee && body.assignedTo !== null && (typeof body.assignedTo !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.assignedTo)))) {
     return NextResponse.json({ error: "Invalid conversation update" }, { status: 400 });
   }
   const client = await db.connect();
