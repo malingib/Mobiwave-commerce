@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  ArrowLeft, Check, CheckCheck, ChevronDown, Clock3, Instagram, MessageCircle,
+  Check, CheckCheck, Clock3, Instagram, MessageCircle,
   RefreshCw, Search, Send, Store, UserRound, AlertCircle,
 } from "lucide-react";
 
@@ -23,7 +23,7 @@ type Message = {
 };
 type Note = { id: string; author_user_id: string; body: string; created_at: string };
 type Detail = {
-  conversation: Conversation & { email: string | null; connection_status: string; created_at: string };
+  conversation: Conversation & { email: string | null; connection_status: string; created_at: string; last_inbound_at: string | null };
   messages: Message[]; notes: Note[];
 };
 
@@ -158,9 +158,8 @@ export default function InboxClient({ storeId, userId, userName }: { storeId: st
     finally { setAddingNote(false); }
   }
 
-  const selected = conversations.find(row => row.id === selectedId) || null;
   const conversation = detail?.conversation;
-  const lastInbound = conversation ? conversations.find(row => row.id === conversation.id)?.last_message_at : null;
+  const lastInbound = conversation?.last_inbound_at || null;
   const canReply = Boolean(conversation && conversation.connection_status === "connected" && lastInbound && Date.now() - new Date(lastInbound).getTime() <= 24 * 60 * 60 * 1000);
 
   return (
