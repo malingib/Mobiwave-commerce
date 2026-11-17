@@ -57,7 +57,9 @@
 - [x] Add Meta WhatsApp/Instagram webhook signature verification and event normalization.
 - [ ] Verify migration 0019 and webhook worker RLS in CI and on a disposable Neon branch.
 - [ ] Build provider connection lifecycle and Meta Embedded Signup / Instagram authorization.
-- [ ] Build durable inbound event processor and replay-safe conversation/message creation.
+- [x] Build durable inbound event processor and replay-safe conversation/message creation.
+- [x] Add authenticated worker endpoint and scheduled processing workflow.
+- [x] Process WhatsApp status and Instagram delivery/read receipts without status regression.
 - [ ] Build outbound WhatsApp/Instagram adapters, delivery-state handling and idempotent sends.
 - [ ] Build unified merchant inbox and assignment/notes/status workflows.
 
@@ -72,4 +74,4 @@
 
 ## Current honest status
 
-Core commerce workflows are implemented. Social Commerce Phase 1 is merged to main; migration 0018 has been applied successfully to a disposable Neon branch and forced RLS was confirmed. Phase 2 Meta webhook ingress is on a feature branch pending CI and migration 0019 validation. Production Neon and production deployment have not been changed. Real Daraja and MobiWave SMS credentials remain unverified for live testing. The platform is not yet production-ready.
+Core commerce workflows are implemented. Social Commerce Phase 1 is merged to main; migration 0018 has been applied successfully to a disposable Neon branch and forced RLS was confirmed. Phase 2 Meta webhook ingress is merged. Migration 0019 was validated on a disposable Neon branch. Phase 3 inbound event processing is on a feature branch pending CI and disposable-branch runtime validation. Production Neon and production deployment have not been changed. Real Daraja and MobiWave SMS credentials remain unverified for live testing. The platform is not yet production-ready.

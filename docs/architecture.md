@@ -49,7 +49,8 @@ The platform plan catalogue is configurable by a verified platform administrator
 - WhatsApp uses the official WhatsApp Cloud API; Instagram uses the official Instagram Messaging API. Unofficial QR or WhatsApp Web automation is prohibited.
 - A shared Meta webhook verifies the exact raw request body with X-Hub-Signature-256 before parsing or persisting events.
 - Provider account IDs resolve to tenant-scoped channel connections. Raw webhook payloads are worker-only; merchant sessions cannot read them.
-- Event ingestion is deduplicated and durable. The webhook route does not send replies or create customer identities; a separate worker owns event processing.
+- Event ingestion is deduplicated and durable. The webhook route does not send replies or create customer identities; a separately authenticated worker owns event processing.
+- The worker creates channel-scoped customer identities and conversations, persists inbound messages idempotently, and applies WhatsApp status/Instagram delivery and watermark-based read receipts. Provider message status transitions cannot regress.
 - Meta app secrets and webhook verification tokens are server-side environment secrets, never database credentials or browser variables.
 
 ## Deployment boundaries

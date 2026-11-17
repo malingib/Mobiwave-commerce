@@ -239,6 +239,15 @@ try {
     const workerWebhookEvents = await runtime.query("SELECT count(*)::int AS count FROM channel_webhook_events");
     assert.equal(workerConnections.rows[0].count, 2, "authenticated channel worker must resolve connections across stores");
     assert.equal(workerWebhookEvents.rows[0].count, 2, "authenticated channel worker must read the private webhook queue");
+    const claimedWebhooks = await runtime.query(
+      `SELECT id FROM channel_webhook_events
+        WHERE processing_status IN ('received','failed')
+          AND next_attempt_at <= now()
+        ORDER BY received_at ASC
+        LIMIT $1 FOR UPDATE SKIP LOCKED`,
+      [10],
+    );
+    assert.equal(claimedWebhooks.rowCount, 2, "worker must be able to claim due webhook events with SKIP LOCKED");
     await runtime.query("SELECT set_config('app.channel_worker','false',true)");
     const merchantConnections = await runtime.query("SELECT count(*)::int AS count FROM channel_connections");
     assert.equal(merchantConnections.rows[0].count, 1, "worker capability must be transaction-local and revocable");
