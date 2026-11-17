@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Package, Plus, Store } from "lucide-react";
+import { ArrowLeft, MessageCircle, Package, Plus, Store } from "lucide-react";
 
 type Product = { id: string; name: string; slug: string; description: string; sku: string | null; price_minor: number; currency: string; stock_quantity: number | null; status: string };
 export default function ProductsClient({ storeId, userName }: { storeId: string; userName: string }) {
