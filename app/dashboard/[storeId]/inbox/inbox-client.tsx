@@ -96,6 +96,13 @@ export default function InboxClient({ storeId, userId, userName }: { storeId: st
 
   useEffect(() => { void loadConversations(); }, [loadConversations]);
   useEffect(() => { void loadDetail(selectedId); }, [selectedId,loadDetail]);
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      void loadConversations();
+      if (selectedId) void loadDetail(selectedId);
+    }, 20_000);
+    return () => window.clearInterval(interval);
+  }, [loadConversations,loadDetail,selectedId]);
 
   const visible = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -160,7 +167,7 @@ export default function InboxClient({ storeId, userId, userName }: { storeId: st
 
   const conversation = detail?.conversation;
   const lastInbound = conversation?.last_inbound_at || null;
-  const canReply = Boolean(conversation && conversation.connection_status === "connected" && lastInbound && Date.now() - new Date(lastInbound).getTime() <= 24 * 60 * 60 * 1000);
+  const canReply = Boolean(conversation && ["whatsapp","instagram"].includes(conversation.channel) && conversation.connection_status === "connected" && lastInbound && Date.now() - new Date(lastInbound).getTime() <= 24 * 60 * 60 * 1000);
 
   return (
     <main className="dashboard-shell">
@@ -254,7 +261,7 @@ export default function InboxClient({ storeId, userId, userName }: { storeId: st
                     </section>
                   </div>
                   <form className="reply-compose" onSubmit={sendReply}>
-                    {!canReply&&<div className="reply-window-warning"><Clock3 size={14}/> Free-form replies are available only within 24 hours of the customer's last message. Approved templates are not enabled yet.</div>}
+                    {!canReply&&<div className="reply-window-warning"><Clock3 size={14}/>{conversation?.channel==="whatsapp"||conversation?.channel==="instagram"?"Free-form replies are available only within 24 hours of the customer’s last message. Approved templates are not enabled yet.":"Outbound replies for this channel are not enabled yet."}</div>}
                     <textarea value={draft} onChange={e=>setDraft(e.target.value)} placeholder={canReply?"Write a reply…":"Customer messaging window closed"} maxLength={conversation?.channel==="instagram"?1000:4096} disabled={!canReply||sending}/>
                     <div className="reply-compose-footer"><span>Text only · {conversation?.channel==="instagram"?"1,000":"4,096"} character limit</span><button className="button button-dark" disabled={!canReply||sending||!draft.trim()}>{sending?"Queueing…":"Send reply"} <Send size={15}/></button></div>
                   </form>
