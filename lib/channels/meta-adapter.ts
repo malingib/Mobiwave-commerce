@@ -50,7 +50,7 @@ export function normalizeMetaWebhook(payload: unknown): NormalizedProviderEvent[
         if (!recognized) {
           const normalized = { field, value };
           events.push({
-            channel, providerAccountId, providerEventId: stableEventId(normalized),
+            channel, providerAccountId, providerAddressId: null, providerEventId: stableEventId(normalized),
             eventType: `whatsapp.${field}`, occurredAt: null, payload: normalized,
           });
           continue;
@@ -62,6 +62,7 @@ export function normalizeMetaWebhook(payload: unknown): NormalizedProviderEvent[
             const state = typeof item.status === "string" ? item.status : group.type;
             events.push({
               channel, providerAccountId,
+              providerAddressId: isObject(value.metadata) && typeof value.metadata.phone_number_id === "string" ? value.metadata.phone_number_id : null,
               providerEventId: `wa:${group.type}:${id}:${String(item.timestamp || "")}:${state}`,
               eventType: `whatsapp.${field}.${group.type}`,
               occurredAt: timestamp(item.timestamp),
@@ -80,7 +81,7 @@ export function normalizeMetaWebhook(payload: unknown): NormalizedProviderEvent[
         const type = message ? "message" : delivery ? "delivery" : read ? "read" : "messaging_event";
         const id = message && typeof message.mid === "string" ? message.mid : stableEventId(itemValue);
         events.push({
-          channel, providerAccountId, providerEventId: `ig:${type}:${id}`,
+          channel, providerAccountId, providerAddressId: null, providerEventId: `ig:${type}:${id}`,
           eventType: `instagram.${type}`,
           occurredAt: timestamp(itemValue.timestamp),
           payload: itemValue,
@@ -91,7 +92,7 @@ export function normalizeMetaWebhook(payload: unknown): NormalizedProviderEvent[
         if (!isObject(changeValue)) continue;
         const normalized = { field: changeValue.field, value: changeValue.value };
         events.push({
-          channel, providerAccountId, providerEventId: `ig:change:${stableEventId(normalized)}`,
+          channel, providerAccountId, providerAddressId: null, providerEventId: `ig:change:${stableEventId(normalized)}`,
           eventType: `instagram.change.${String(changeValue.field || "unknown")}`,
           occurredAt: null, payload: normalized,
         });
