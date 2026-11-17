@@ -36,21 +36,21 @@ export async function DELETE(
     const credentialRef = connection.rows[0].credential_ref;
     if (credentialRef) {
       await client.query(
-        \`UPDATE channel_credentials
+        `UPDATE channel_credentials
             SET token_ciphertext='',refresh_token_ciphertext=NULL,revoked_at=now(),updated_at=now()
-          WHERE store_id=$1 AND id=$2\`,
+          WHERE store_id=$1 AND id=$2`,
         [storeId, credentialRef],
       );
     }
     await client.query(
-      \`UPDATE channel_connections
+      `UPDATE channel_connections
           SET status='disconnected',disconnected_at=now(),credential_ref=NULL,updated_at=now()
-        WHERE store_id=$1 AND id=$2\`,
+        WHERE store_id=$1 AND id=$2`,
       [storeId, connectionId],
     );
     await client.query(
-      \`INSERT INTO channel_connection_events (store_id,connection_id,event_type,actor_user_id,details)
-       VALUES ($1,$2,'disconnected',$3,$4::jsonb)\`,
+      `INSERT INTO channel_connection_events (store_id,connection_id,event_type,actor_user_id,details)
+       VALUES ($1,$2,'disconnected',$3,$4::jsonb)`,
       [storeId, connectionId, user.id, JSON.stringify({ channel: connection.rows[0].channel, localCredentialRevoked: true })],
     );
     await client.query("COMMIT");
