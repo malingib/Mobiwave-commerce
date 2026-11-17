@@ -1,0 +1,24 @@
+name: Channel outbound worker
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send queued Meta messages
+        env:
+          COMMERCE_BASE_URL: ${{ secrets.COMMERCE_BASE_URL }}
+          CHANNEL_WORKER_SECRET: ${{ secrets.CHANNEL_WORKER_SECRET }}
+        run: |
+          if [ -z "$COMMERCE_BASE_URL" ] || [ -z "$CHANNEL_WORKER_SECRET" ]; then
+            echo "::error::Outbound worker secrets are not configured. Set COMMERCE_BASE_URL and CHANNEL_WORKER_SECRET."
+            exit 1
+          fi
+          curl --fail --silent --show-error --max-time 45 \
+            -X POST "${COMMERCE_BASE_URL%/}/api/internal/channels/send?limit=20" \
+            -H "Authorization: Bearer $CHANNEL_WORKER_SECRET" \
+            -H "Content-Type: application/json" \
+            -d '{}'
