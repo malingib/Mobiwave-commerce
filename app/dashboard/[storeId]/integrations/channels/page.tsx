@@ -66,11 +66,9 @@ export default async function MerchantChannelsPage({ params }: Context) {
       </aside>
       <section className="dashboard-main">
         <header className="dashboard-topbar"><div><span className="eyebrow">MERCHANT WORKSPACE</span><h1>Sales channels</h1></div></header>
-        <MetaChannelsClient storeId={storeId} initialConnections={connections} />
+        <MetaChannelsClient storeId={storeId} initialConnections={connections} appId={process.env.META_APP_ID || ""} graphVersion={process.env.META_GRAPH_API_VERSION || "v27.0"} />
         <footer className="dashboard-footer">MobiWave Commerce · Social Commerce</footer>
       </section>
-      <meta name="meta-app-id" content={process.env.META_APP_ID || ""} />
-      <meta name="meta-graph-version" content={process.env.META_GRAPH_API_VERSION || "v27.0"} />
     </main>
   );
 }
