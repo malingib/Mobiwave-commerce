@@ -176,6 +176,7 @@ export default function MetaChannelsClient({
   }
 
   useEffect(() => {
+    if (!appId) return;
     const initialize = () => window.FB?.init({ appId, cookie: true, xfbml: false, version: graphVersion });
     if (window.FB) {
       initialize();
