@@ -341,9 +341,21 @@ export default function InboxClient({ storeId, userId, userName }: { storeId: st
                     </section>
                   </div>
                   <form className="reply-compose" onSubmit={sendReply}>
-                    {!canReply&&<div className="reply-window-warning"><Clock3 size={14}/>{conversation?.channel==="whatsapp"||conversation?.channel==="instagram"?"Free-form replies are available only within 24 hours of the customer’s last message. Approved templates are not enabled yet.":"Outbound replies for this channel are not enabled yet."}</div>}
-                    <textarea value={draft} onChange={e=>setDraft(e.target.value)} placeholder={canReply?"Write a reply…":"Customer messaging window closed"} maxLength={conversation?.channel==="instagram"?1000:4096} disabled={!canReply||sending}/>
-                    <div className="reply-compose-footer"><span>Text only · {conversation?.channel==="instagram"?"1,000":"4,096"} character limit</span><button className="button button-dark" disabled={!canReply||sending||!draft.trim()}>{sending?"Queueing…":"Send reply"} <Send size={15}/></button></div>
+                    {conversation?.channel==="whatsapp"&&<div className="reply-mode-select"><label htmlFor="reply-mode">Message type</label><select id="reply-mode" value={replyMode} onChange={e=>{const mode=e.target.value as "text"|"template";setReplyMode(mode);if(mode==="template"&&conversation.connection_id)void loadTemplates(conversation.connection_id);}}><option value="text">Free-form text</option><option value="template">Approved template</option></select></div>}
+                    {replyMode==="template"&&conversation?.channel==="whatsapp" ? <div className="template-compose">
+                      {templatesLoading?<p className="template-empty">Loading approved templates…</p>:templates.length===0?<p className="template-empty">No supported approved templates were returned for this WhatsApp account. Check the account’s WhatsApp Business permissions and template approvals.</p>:<>
+                        <label htmlFor="approved-template">Approved WhatsApp template</label>
+                        <select id="approved-template" value={selectedTemplateKey} onChange={e=>{const key=e.target.value;const selected=templates.find(item=>item.name+"::"+item.language===key);setSelectedTemplateKey(key);setTemplateParams(Array.from({length:selected?.parameterCount||0},()=> ""));}}>
+                          {templates.map(template=><option key={template.name+"::"+template.language} value={template.name+"::"+template.language}>{template.name} · {template.language} · {template.category||"Template"}</option>)}
+                        </select>
+                        {selectedTemplate&&<div className="template-preview"><span>MESSAGE PREVIEW</span><p>{selectedTemplate.bodyText}</p>{selectedTemplate.parameterCount>0&&<small>Fill {selectedTemplate.parameterCount} text parameter{selectedTemplate.parameterCount===1?"":"s"} below in the order shown.</small>}</div>}
+                        {templateParams.map((value,index)=><label className="template-param" key={index}>Parameter {index+1}<input value={value} maxLength={1024} onChange={e=>setTemplateParams(current=>current.map((item,i)=>i===index?e.target.value:item))} placeholder={"Value for {{"+(index+1)+"}}"}/></label>)}
+                      </>}
+                    </div> : <>
+                      {!canReply&&<div className="reply-window-warning"><Clock3 size={14}/>{conversation?.channel==="whatsapp"||conversation?.channel==="instagram"?"Free-form replies are available only within 24 hours of the customer’s last message. Use an approved WhatsApp template to start a new conversation.":"Outbound replies for this channel are not enabled yet."}</div>}
+                      <textarea value={draft} onChange={e=>setDraft(e.target.value)} placeholder={canReply?"Write a reply…":"Customer messaging window closed"} maxLength={conversation?.channel==="instagram"?1000:4096} disabled={!canReply||sending}/>
+                    </>}
+                    <div className="reply-compose-footer"><span>{replyMode==="template"?"Approved WhatsApp template · Outside-window messaging":"Text only · "+(conversation?.channel==="instagram"?"1,000":"4,096")+" character limit"}</span><button className="button button-dark" disabled={sending||(replyMode==="template"?!canSendTemplate:!canReply||!draft.trim())}>{sending?"Queueing…":replyMode==="template"?"Send template":"Send reply"} <Send size={15}/></button></div>
                   </form>
                 </>
               }
