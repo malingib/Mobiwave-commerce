@@ -55,7 +55,8 @@
 - [x] Add forced RLS, tenant-consistent composite foreign keys and worker-only raw webhook access.
 - [x] Verify migration 0018 on a disposable Neon branch; production database unchanged.
 - [x] Add Meta WhatsApp/Instagram webhook signature verification and event normalization.
-- [ ] Verify migration 0019 and webhook worker RLS in CI and on a disposable Neon branch.
+- [x] Verify migration 0019 and webhook worker access in CI and on a disposable Neon branch.
+- [x] Add worker RLS policies for normalized identities, conversations and messages; test cross-tenant worker writes and merchant isolation in CI.
 - [x] Add tenant-bound, single-use OAuth state and encrypted provider-token vault.
 - [x] Add WhatsApp Embedded Signup v4 code exchange, WABA/phone verification and webhook subscription.
 - [x] Add Instagram Login, long-lived token exchange, profile verification and messaging webhook subscription.
@@ -64,8 +65,12 @@
 - [x] Build durable inbound event processor and replay-safe conversation/message creation.
 - [x] Add authenticated worker endpoint and scheduled processing workflow.
 - [x] Process WhatsApp status and Instagram delivery/read receipts without status regression.
-- [ ] Build outbound WhatsApp/Instagram adapters, delivery-state handling and idempotent sends.
-- [ ] Build unified merchant inbox and assignment/notes/status workflows.
+- [x] Build official WhatsApp/Instagram text-send adapters and durable outbound worker.
+- [x] Add tenant-scoped idempotency keys and request fingerprints; reject key reuse with different content.
+- [x] Enforce the 24-hour free-form messaging window and conservative delivery-unknown handling; never auto-retry ambiguous sends.
+- [ ] Add approved template sends, media and explicit delivery reconciliation.
+- [x] Build unified merchant inbox with conversation list, channel/status filters, customer history, reply composer, assignment-to-self, internal notes, priority and status controls.
+- [ ] Add richer team assignment, labels, saved views and browser-level workflow acceptance.
 
 ## Milestone 7 — release hardening
 - [x] Add focused unit tests for plan limits, domain validation, Daraja utilities and SMS templates.
@@ -78,4 +83,4 @@
 
 ## Current honest status
 
-Core commerce workflows are implemented. Social Commerce Phases 1–4 are merged to main. Migrations 0018–0020 were validated on a disposable Neon branch. Phase 5 outbound messaging and migration 0021 are under CI and disposable-branch verification. Production Neon and production deployment have not been changed. Real Daraja and MobiWave SMS credentials remain unverified for live testing. The platform is not yet production-ready.
+Core commerce workflows are implemented. Social Commerce Phases 1–5 are merged to main. Migration 0021 passed CI database roles, forced-RLS and cross-tenant worker-write verification; disposable Neon validation covered its policy and outbox schema. Phase 6 unified inbox is under CI. Production Neon and production deployment have not been changed. Real Daraja and MobiWave SMS credentials remain unverified for live testing. The platform is not yet production-ready.
