@@ -1,0 +1,24 @@
+name: Channel webhook worker
+on:
+  schedule:
+    - cron: "*/2 * * * *"
+  workflow_dispatch:
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Process queued Meta webhook events
+        env:
+          COMMERCE_BASE_URL: ${{ secrets.COMMERCE_BASE_URL }}
+          CHANNEL_WORKER_SECRET: ${{ secrets.CHANNEL_WORKER_SECRET }}
+        run: |
+          if [ -z "$COMMERCE_BASE_URL" ] || [ -z "$CHANNEL_WORKER_SECRET" ]; then
+            echo "::error::Channel worker secrets are not configured. Set COMMERCE_BASE_URL and CHANNEL_WORKER_SECRET."
+            exit 1
+          fi
+          curl --fail --silent --show-error --max-time 45 \
+            -X POST "${COMMERCE_BASE_URL%/}/api/internal/channels/process?limit=50" \
+            -H "Authorization: Bearer $CHANNEL_WORKER_SECRET" \
+            -H "Content-Type: application/json" \
+            -d '{}'
