@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type Connection = {
   id: string;
@@ -10,7 +10,6 @@ type Connection = {
   ownership_mode: string;
   asset_owner_type: string;
   connected_at: string | null;
-  expires_at: string | null;
 };
 
 type SignupData = { wabaId: string; phoneNumberId: string; businessId?: string };
@@ -45,7 +44,7 @@ export default function MetaChannelsClient({
   appId: string;
   graphVersion: string;
 }) {
-  const [connections, setConnections] = useState(initialConnections);
+  const connections = initialConnections;
   const [ownershipMode, setOwnershipMode] = useState<"merchant_owned" | "mobiwave_managed">("merchant_owned");
   const [assetOwnerType, setAssetOwnerType] = useState<"merchant" | "mobiwave">("merchant");
   const [busy, setBusy] = useState<"whatsapp" | "instagram" | null>(null);
@@ -54,7 +53,7 @@ export default function MetaChannelsClient({
   const [notice, setNotice] = useState("");
   const pending = useRef<PendingSignup | null>(null);
 
-  async function finishWhatsAppIfReady() {
+  const finishWhatsAppIfReady = useCallback(async () => {
     const current = pending.current;
     if (!current || current.completing || !current.code || !current.signup) return;
     current.completing = true;
@@ -83,7 +82,7 @@ export default function MetaChannelsClient({
       setNotice(error instanceof Error ? error.message : "WhatsApp connection failed. Start again.");
       pending.current = null;
     }
-  }
+  }, [storeId]);
 
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
@@ -117,7 +116,7 @@ export default function MetaChannelsClient({
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  });
+  }, [finishWhatsAppIfReady]);
 
   async function connectWhatsApp() {
     setBusy("whatsapp");
