@@ -59,10 +59,10 @@ export async function POST(request: Request) {
     for (const event of events) {
       const connection = await client.query(
         `SELECT id, store_id FROM channel_connections
-          WHERE channel = $1 AND provider_account_id = $2
+          WHERE channel = $1 AND (provider_account_id = $2 OR ($3::text IS NOT NULL AND provider_address_id = $3))
             AND status IN ('connected', 'reauthorization_required')
           LIMIT 1`,
-        [event.channel, event.providerAccountId],
+        [event.channel, event.providerAccountId, event.providerAddressId],
       );
       if (!connection.rowCount) {
         unmatched++;
