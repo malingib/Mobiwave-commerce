@@ -28,14 +28,14 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
       return NextResponse.json({ error: "Store membership required" }, { status: 403 });
     }
     const conversation = await client.query(
-      \`SELECT c.id,c.store_id,c.connection_id,c.channel,cc.status AS connection_status,
+      `SELECT c.id,c.store_id,c.connection_id,c.channel,cc.status AS connection_status,
               (SELECT COALESCE(m.provider_timestamp,m.created_at)
                  FROM conversation_messages m
                 WHERE m.store_id=c.store_id AND m.conversation_id=c.id AND m.direction='inbound'
                 ORDER BY COALESCE(m.provider_timestamp,m.created_at) DESC LIMIT 1) AS last_inbound_at
          FROM conversations c
          JOIN channel_connections cc ON cc.store_id=c.store_id AND cc.id=c.connection_id
-        WHERE c.store_id=$1 AND c.id=$2 LIMIT 1 FOR UPDATE OF c\`,
+        WHERE c.store_id=$1 AND c.id=$2 LIMIT 1 FOR UPDATE OF c`,
       [storeId, conversationId],
     );
     if (!conversation.rowCount) {
@@ -66,14 +66,14 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
     }
 
     const message = await client.query(
-      \`INSERT INTO conversation_messages (store_id,conversation_id,connection_id,direction,message_type,content,provider_status,sender_user_id)
-       VALUES ($1,$2,$3,'outbound','text',$4,'queued',$5) RETURNING id\`,
+      `INSERT INTO conversation_messages (store_id,conversation_id,connection_id,direction,message_type,content,provider_status,sender_user_id)
+       VALUES ($1,$2,$3,'outbound','text',$4,'queued',$5) RETURNING id`,
       [storeId, conversationId, item.connection_id, messageText, user.id],
     );
     const messageId = String(message.rows[0].id);
     const queued = await client.query(
-      \`INSERT INTO message_outbox (store_id,connection_id,conversation_id,message_id,idempotency_key,request_hash,status)
-       VALUES ($1,$2,$3,$4,$5,$6,'queued') ON CONFLICT (store_id,idempotency_key) DO NOTHING RETURNING id,status\`,
+      `INSERT INTO message_outbox (store_id,connection_id,conversation_id,message_id,idempotency_key,request_hash,status)
+       VALUES ($1,$2,$3,$4,$5,$6,'queued') ON CONFLICT (store_id,idempotency_key) DO NOTHING RETURNING id,status`,
       [storeId, item.connection_id, conversationId, messageId, idempotencyKey, requestHash],
     );
     if (!queued.rowCount) {
