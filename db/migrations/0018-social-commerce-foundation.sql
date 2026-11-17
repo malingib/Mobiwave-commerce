@@ -28,8 +28,6 @@ CREATE TABLE channel_connections (
   UNIQUE (store_id, id),
   FOREIGN KEY (store_id, connected_by)
     REFERENCES store_memberships(store_id, user_id) ON DELETE SET NULL (connected_by),
-  CHECK ((ownership_mode = 'merchant_owned' AND asset_owner_type = 'merchant')
-      OR (ownership_mode = 'mobiwave_managed' AND asset_owner_type = 'mobiwave')),
   CHECK (credential_ref IS NULL OR length(credential_ref) <= 512)
 );
 CREATE UNIQUE INDEX channel_connections_provider_account_uq
