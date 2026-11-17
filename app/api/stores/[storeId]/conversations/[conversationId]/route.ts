@@ -21,7 +21,7 @@ export async function GET(_request: Request, context: Context) {
       return NextResponse.json({ error: "Store membership required" }, { status: 403 });
     }
     const conversation = await client.query(
-      `SELECT c.id,c.channel,c.status,c.priority,c.unread_count,c.assigned_to,c.last_message_at,c.created_at,
+      `SELECT c.id,c.connection_id,c.channel,c.status,c.priority,c.unread_count,c.assigned_to,c.last_message_at,c.created_at,
               ci.display_name AS customer_name,ci.phone_e164,ci.email,ci.external_user_id,
               cc.display_name AS channel_name,cc.status AS connection_status,
               inbound.last_inbound_at,
