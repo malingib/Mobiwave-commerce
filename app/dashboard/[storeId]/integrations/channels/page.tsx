@@ -16,7 +16,7 @@ export default async function MerchantChannelsPage({ params }: Context) {
   let connections: Array<{
     id: string; channel: "whatsapp" | "instagram"; display_name: string | null;
     status: string; ownership_mode: string; asset_owner_type: string;
-    connected_at: string | null; expires_at: string | null;
+    connected_at: string | null;
   }> = [];
   try {
     await client.query("BEGIN");
