@@ -23,6 +23,9 @@ CREATE TABLE channel_credentials (
 );
 
 ALTER TABLE channel_connections
+  DROP CONSTRAINT channel_connections_credential_ref_check;
+
+ALTER TABLE channel_connections
   ALTER COLUMN credential_ref TYPE uuid
   USING NULLIF(credential_ref, '')::uuid;
 
