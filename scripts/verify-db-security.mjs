@@ -30,6 +30,7 @@ const migrationPaths = [
   "db/migrations/0017-commerce-hardening.sql",
   "db/migrations/0018-social-commerce-foundation.sql",
   "db/migrations/0019-meta-webhook-worker-access.sql",
+  "db/migrations/0020-meta-channel-onboarding.sql",
 ];
 
 const appUrl = new URL(databaseUrl);
