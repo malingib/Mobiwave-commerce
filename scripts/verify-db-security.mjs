@@ -147,7 +147,7 @@ try {
     `INSERT INTO channel_connections
      (id,store_id,channel,ownership_mode,asset_owner_type,provider_account_id,status,connected_by)
      VALUES ($1,$2,'whatsapp','merchant_owned','merchant','wa-tenant-a','connected',$3),
-            ($4,$5,'whatsapp','merchant_owned','merchant','wa-tenant-b','connected',$6)`,
+            ($4,$5,'whatsapp','mobiwave_managed','merchant','wa-tenant-b','connected',$6)`,
     [connectionA,storeA,userA,connectionB,storeB,userB],
   );
   await owner.query(
