@@ -18,7 +18,7 @@ describe("Meta webhook normalization", () => {
       }],
     });
     expect(events).toHaveLength(2);
-    expect(events[0]).toMatchObject({ channel: "whatsapp", providerAccountId: "waba-1", providerEventId: "wa:message:wamid-1:1794912000:message" });
+    expect(events[0]).toMatchObject({ channel: "whatsapp", providerAccountId: "waba-1", providerAddressId: "phone-1", providerEventId: "wa:message:wamid-1:1794912000:message" });
     expect(events[1]).toMatchObject({ eventType: "whatsapp.messages.status", providerEventId: "wa:status:wamid-2:1794912001:delivered" });
   });
 
