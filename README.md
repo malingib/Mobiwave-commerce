@@ -16,6 +16,7 @@ MobiWave Commerce is MobiWave-owned, multi-tenant B2C commerce SaaS for Kenyan m
 - Transactional SMS outbox, deduplication, lease-based processing, retry/backoff and an authenticated worker endpoint.
 - Official Meta webhook ingress for WhatsApp Cloud API and Instagram Messaging, including raw-body signature verification, account matching, event normalization and deduplicated durable webhook storage.
 - Authenticated inbound event worker that creates channel-scoped identities/conversations, persists inbound messages and applies provider delivery/read statuses with replay-safe writes and bounded retries.
+- Meta WhatsApp Embedded Signup v4 and Instagram Login onboarding foundation, one-time tenant-bound OAuth state, encrypted provider-token vault, asset verification and webhook subscription.
 - GitHub Actions CI for tests, typecheck, lint, dependency audit and production build.
 
 ## Environment and secrets
@@ -39,13 +40,16 @@ Copy .env.example to .env.local and configure:
 - MOBIWAVE_SMS_API_URL, MOBIWAVE_SMS_API_KEY, MOBIWAVE_SMS_SENDER_ID.
 - CRON_SECRET for the authenticated message worker endpoint.
 - CHANNEL_WORKER_SECRET for the authenticated Meta webhook event worker.
-- META_APP_SECRET and META_WEBHOOK_VERIFY_TOKEN for the official Meta webhook endpoint (server-side only).
+- META_APP_ID, META_APP_SECRET, META_WHATSAPP_CONFIG_ID and META_GRAPH_API_VERSION for WhatsApp Embedded Signup v4.
+- META_INSTAGRAM_REDIRECT_URI for Instagram Login; register the exact callback URI in the Meta app.
+- CHANNEL_CREDENTIALS_ENCRYPTION_KEY (base64-encoded 32-byte key) for the encrypted Meta token vault.
+- META_WEBHOOK_VERIFY_TOKEN for the official Meta webhook endpoint (server-side only).
 
-Never commit .env.local, expose provider secrets through NEXT_PUBLIC_ variables, or rotate the M-Pesa encryption key without re-encrypting all stored credentials.
+Never commit .env.local, expose provider secrets through NEXT_PUBLIC_ variables, or rotate either credential-encryption key without re-encrypting all stored credentials.
 
 ## Database migrations
 
-db/schema.sql is the initial schema baseline. Apply db/migrations/0002-auth.sql through 0019-meta-webhook-worker-access.sql in numeric order. Migration 0018 adds the official-channel connection registry, raw webhook inbox, channel identities, conversations, messages, attachments, notes and durable outbound message queue. Migration 0019 grants the authenticated channel worker read access to connection metadata needed to resolve webhook account IDs. The Meta webhook endpoint validates signatures before writing. It stores only a server-side credential reference, never provider access tokens. Apply and validate migrations on a disposable Neon branch first. Production migrations have not been applied as part of this implementation work.
+db/schema.sql is the initial schema baseline. Apply db/migrations/0002-auth.sql through 0020-meta-channel-onboarding.sql in numeric order. Migration 0018 adds the official-channel connection registry, raw webhook inbox, channel identities, conversations, messages, attachments, notes and durable outbound message queue. Migration 0019 grants the authenticated channel worker read access to connection metadata needed to resolve webhook account IDs. Migration 0020 adds a service-only encrypted token vault and one-time, tenant-bound OAuth state. The Meta webhook endpoint validates signatures before writing; raw access tokens are encrypted with CHANNEL_CREDENTIALS_ENCRYPTION_KEY and never exposed to merchant queries. Apply and validate migrations on a disposable Neon branch first. Production migrations have not been applied as part of this implementation work.
 
 ## Development
 
@@ -67,8 +71,8 @@ Platform administration:
 - SMS messages are queued and retried. The adapter currently sends a bearer-authenticated JSON request with to, message, senderId and clientReference. The exact MobiWave SMS endpoint and payload contract must be confirmed against the provider documentation before live sending. No SMS has been sent from this audit.
 - Immediate SMS dispatch uses Next.js after(). The GitHub scheduled worker is available for retries; configure repository secrets COMMERCE_BASE_URL and COMMERCE_CRON_SECRET (same value as Vercel CRON_SECRET) after production deployment.
 - Custom domains require merchant DNS TXT verification, manual attachment to the Vercel project, then platform-admin activation. Production wildcard DNS, Vercel domain attachment and TLS have not been verified.
-- Social Commerce Phases 1 and 2 are merged to main. Migrations 0018 and 0019 were validated on disposable Neon branches; production Neon was not modified. Inbound event processing is under development and awaiting CI verification.
-- Meta webhook ingress and inbound event processing are implemented, but still require end-to-end Meta test assets and runtime verification. Meta OAuth/Embedded Signup, token lifecycle, outbound WhatsApp/Instagram messaging and the unified inbox remain future work. Pesapal/Paystack, email order notifications, automatic recurring card/M-Pesa mandates, and a full subscription usage-metering system remain future work.
+- Social Commerce Phases 1–3 are merged to main. Migrations 0018 and 0019 passed disposable Neon validation; migration 0020 and Meta onboarding are under development on a feature branch. Production Neon was not modified.
+- Meta webhook ingress and inbound event processing are implemented. WhatsApp Embedded Signup v4 and Instagram Login onboarding are in development and require Meta app configuration, App Review/Advanced Access where applicable, disposable Neon migration validation and end-to-end test assets. Outbound messaging and the unified inbox remain future work. Pesapal/Paystack, email order notifications, automatic recurring card/M-Pesa mandates, and a full subscription usage-metering system remain future work.
 
 ## Production readiness
 
