@@ -4,6 +4,10 @@ on:
     - cron: "*/5 * * * *"
   workflow_dispatch:
 
+concurrency:
+  group: commerce-outbound-worker
+  cancel-in-progress: false
+
 jobs:
   send:
     runs-on: ubuntu-latest
@@ -17,8 +21,8 @@ jobs:
             echo "::error::Outbound worker secrets are not configured. Set COMMERCE_BASE_URL and CHANNEL_WORKER_SECRET."
             exit 1
           fi
-          curl --fail --silent --show-error --max-time 45 \
-            -X POST "${COMMERCE_BASE_URL%/}/api/internal/channels/send?limit=20" \
+          curl --fail --silent --show-error --max-time 75 \
+            -X POST "${COMMERCE_BASE_URL%/}/api/internal/channels/send?limit=4" \
             -H "Authorization: Bearer $CHANNEL_WORKER_SECRET" \
             -H "Content-Type: application/json" \
             -d '{}'
