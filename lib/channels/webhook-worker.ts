@@ -338,7 +338,8 @@ async function recordFailure(event: ClaimedWebhook, error: unknown) {
       \`UPDATE channel_webhook_events
           SET processing_status=$1,
               next_attempt_at=CASE WHEN $2::boolean THEN 'infinity'::timestamptz ELSE now()+($3 * interval '1 minute') END,
-              locked_at=NULL, locked_by=NULL, last_error_code=$4
+              locked_at=NULL, locked_by=NULL, last_error_code=$4,
+              processed_at=CASE WHEN $1='ignored' THEN now() ELSE processed_at END
         WHERE id=$5 AND processing_status='processing'\`,
       [permanent ? "ignored" : "failed", exhausted, delayMinutes, code, event.id],
     );
