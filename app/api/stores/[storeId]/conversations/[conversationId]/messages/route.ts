@@ -43,6 +43,10 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
       return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
     }
     const item = conversation.rows[0];
+    if (item.channel === "instagram" && messageText.length > 1000) {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "Instagram text messages are limited to 1,000 characters" }, { status: 400 });
+    }
     const requestHash = createHash("sha256").update(JSON.stringify({ channel: item.channel, conversationId, text: messageText })).digest("hex");
     const existing = await client.query(
       "SELECT id,message_id,status,request_hash FROM message_outbox WHERE store_id=$1 AND idempotency_key=$2 LIMIT 1",
