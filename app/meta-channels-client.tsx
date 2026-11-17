@@ -37,9 +37,13 @@ declare global {
 export default function MetaChannelsClient({
   storeId,
   initialConnections,
+  appId,
+  graphVersion,
 }: {
   storeId: string;
   initialConnections: Connection[];
+  appId: string;
+  graphVersion: string;
 }) {
   const [connections, setConnections] = useState(initialConnections);
   const [ownershipMode, setOwnershipMode] = useState<"merchant_owned" | "mobiwave_managed">("merchant_owned");
@@ -172,21 +176,21 @@ export default function MetaChannelsClient({
   }
 
   useEffect(() => {
-    const scriptId = "mobiwave-meta-sdk";
-    if (document.getElementById(scriptId)) return;
-    window.fbAsyncInit = () => {
-      const appId = document.querySelector<HTMLMetaElement>('meta[name="meta-app-id"]')?.content || "";
-      const version = document.querySelector<HTMLMetaElement>('meta[name="meta-graph-version"]')?.content || "v27.0";
-      if (appId && window.FB) window.FB.init({ appId, cookie: true, xfbml: false, version });
-    };
+    const initialize = () => window.FB?.init({ appId, cookie: true, xfbml: false, version: graphVersion });
+    if (window.FB) {
+      initialize();
+      return;
+    }
+    window.fbAsyncInit = initialize;
+    if (document.getElementById("mobiwave-meta-sdk")) return;
     const script = document.createElement("script");
-    script.id = scriptId;
+    script.id = "mobiwave-meta-sdk";
     script.async = true;
     script.defer = true;
     script.crossOrigin = "anonymous";
     script.src = "https://connect.facebook.net/en_US/sdk.js";
     document.head.appendChild(script);
-  }, []);
+  }, [appId, graphVersion]);
 
   const connected = (channel: string) => connections.filter(item => item.channel === channel && item.status === "connected");
 
