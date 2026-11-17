@@ -78,4 +78,4 @@
 
 ## Current honest status
 
-Core commerce workflows are implemented. Social Commerce Phases 1–3 are merged to main. Migrations 0018 and 0019 were validated on disposable Neon branches. Phase 4 Meta onboarding and migration 0020 are on a feature branch pending CI and disposable Neon validation. Production Neon and production deployment have not been changed. Real Daraja and MobiWave SMS credentials remain unverified for live testing. The platform is not yet production-ready.
+Core commerce workflows are implemented. Social Commerce Phases 1–4 are merged to main. Migrations 0018–0020 were validated on a disposable Neon branch. Phase 5 outbound messaging and migration 0021 are under CI and disposable-branch verification. Production Neon and production deployment have not been changed. Real Daraja and MobiWave SMS credentials remain unverified for live testing. The platform is not yet production-ready.

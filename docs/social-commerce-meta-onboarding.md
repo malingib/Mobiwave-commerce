@@ -54,3 +54,9 @@ The application code cannot complete Meta's partner and compliance prerequisites
 7. Run end-to-end onboarding with test assets, then send/receive test messages before enabling merchants.
 
 The current code is an onboarding foundation. Do not claim a channel is live until the webhook delivery, outbound send, token health and tenant-isolation acceptance tests pass.
+
+## Outbound text messaging
+
+The outbound API is tenant-scoped and requires an `Idempotency-Key` header. It stores a request hash to reject reuse of a key with different content. Free-form text is accepted only while the latest inbound customer message is within the 24-hour customer-care window. Approved template messages and media are not part of this phase.
+
+A separate authenticated worker sends queued text through the official WhatsApp Cloud API or Instagram Messaging API. Provider access tokens are decrypted only in the server worker. Provider timeouts and stale processing leases are marked `delivery_unknown` and are never automatically retried, because Meta may have accepted the message before the connection failed. Delivery receipts update the canonical conversation message through the existing webhook processor.

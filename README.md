@@ -39,7 +39,7 @@ Copy .env.example to .env.local and configure:
 - MPESA_CREDENTIALS_ENCRYPTION_KEY (base64-encoded 32-byte key) and MPESA_CALLBACK_TOKEN.
 - MOBIWAVE_SMS_API_URL, MOBIWAVE_SMS_API_KEY, MOBIWAVE_SMS_SENDER_ID.
 - CRON_SECRET for the authenticated message worker endpoint.
-- CHANNEL_WORKER_SECRET for the authenticated Meta webhook event worker.
+- CHANNEL_WORKER_SECRET for the authenticated Meta webhook and outbound message workers.
 - META_APP_ID, META_APP_SECRET, META_WHATSAPP_CONFIG_ID and META_GRAPH_API_VERSION for WhatsApp Embedded Signup v4.
 - META_INSTAGRAM_REDIRECT_URI for Instagram Login; register the exact callback URI in the Meta app.
 - CHANNEL_CREDENTIALS_ENCRYPTION_KEY (base64-encoded 32-byte key) for the encrypted Meta token vault.
@@ -49,7 +49,7 @@ Never commit .env.local, expose provider secrets through NEXT_PUBLIC_ variables,
 
 ## Database migrations
 
-db/schema.sql is the initial schema baseline. Apply db/migrations/0002-auth.sql through 0020-meta-channel-onboarding.sql in numeric order. Migration 0018 adds the official-channel connection registry, raw webhook inbox, channel identities, conversations, messages, attachments, notes and durable outbound message queue. Migration 0019 grants the authenticated channel worker read access to connection metadata needed to resolve webhook account IDs. Migration 0020 adds a service-only encrypted token vault and one-time, tenant-bound OAuth state. The Meta webhook endpoint validates signatures before writing; raw access tokens are encrypted with CHANNEL_CREDENTIALS_ENCRYPTION_KEY and never exposed to merchant queries. Apply and validate migrations on a disposable Neon branch first. Production migrations have not been applied as part of this implementation work.
+db/schema.sql is the initial schema baseline. Apply db/migrations/0002-auth.sql through 0021-social-commerce-outbound.sql in numeric order. Migration 0018 adds the official-channel connection registry, raw webhook inbox, channel identities, conversations, messages, attachments, notes and durable outbound message queue. Migration 0019 grants the authenticated channel worker read access to connection metadata needed to resolve webhook account IDs. Migration 0020 adds a service-only encrypted token vault and one-time, tenant-bound OAuth state. Migration 0021 adds outbound request fingerprints and the authenticated worker's narrowly scoped RLS access to connections, identities, conversations and messages. The Meta webhook endpoint validates signatures before writing; raw access tokens are encrypted with CHANNEL_CREDENTIALS_ENCRYPTION_KEY and never exposed to merchant queries. Apply and validate migrations on a disposable Neon branch first. Production migrations have not been applied as part of this implementation work.
 
 ## Development
 
@@ -72,7 +72,7 @@ Platform administration:
 - Immediate SMS dispatch uses Next.js after(). The GitHub scheduled worker is available for retries; configure repository secrets COMMERCE_BASE_URL and COMMERCE_CRON_SECRET (same value as Vercel CRON_SECRET) after production deployment.
 - Custom domains require merchant DNS TXT verification, manual attachment to the Vercel project, then platform-admin activation. Production wildcard DNS, Vercel domain attachment and TLS have not been verified.
 - Social Commerce Phases 1–3 are merged to main. Migrations 0018 and 0019 passed disposable Neon validation; migration 0020 and Meta onboarding are under development on a feature branch. Production Neon was not modified.
-- Meta webhook ingress and inbound event processing are implemented. WhatsApp Embedded Signup v4 and Instagram Login onboarding are in development and require Meta app configuration, App Review/Advanced Access where applicable, disposable Neon migration validation and end-to-end test assets. Outbound messaging and the unified inbox remain future work. Pesapal/Paystack, email order notifications, automatic recurring card/M-Pesa mandates, and a full subscription usage-metering system remain future work.
+- Meta webhook ingress, inbound event processing and the Meta onboarding foundation are implemented. Outbound text messaging is under development with idempotent enqueue, a durable worker, a 24-hour customer-care-window guard and conservative handling of ambiguous provider timeouts. Approved template sends, media, live Meta end-to-end verification and the unified inbox remain future work. Pesapal/Paystack, email order notifications, automatic recurring card/M-Pesa mandates, and a full subscription usage-metering system remain future work.
 
 ## Production readiness
 

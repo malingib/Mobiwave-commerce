@@ -31,6 +31,7 @@ const migrationPaths = [
   "db/migrations/0018-social-commerce-foundation.sql",
   "db/migrations/0019-meta-webhook-worker-access.sql",
   "db/migrations/0020-meta-channel-onboarding.sql",
+  "db/migrations/0021-social-commerce-outbound.sql",
 ];
 
 const appUrl = new URL(databaseUrl);
@@ -202,9 +203,9 @@ try {
   );
   await owner.query(
     `INSERT INTO message_outbox
-     (store_id,connection_id,conversation_id,message_id,idempotency_key)
-     VALUES ($1,$2,$3,$4,'tenant-a-outbox'),($5,$6,$7,$8,'tenant-b-outbox')`,
-    [storeA,connectionA,conversationA,messageA,storeB,connectionB,conversationB,messageB],
+     (store_id,connection_id,conversation_id,message_id,idempotency_key,request_hash)
+     VALUES ($1,$2,$3,$4,'tenant-a-outbox',$5),($6,$7,$8,$9,'tenant-b-outbox',$10)`,
+    [storeA,connectionA,conversationA,messageA,"a".repeat(64),storeB,connectionB,conversationB,messageB,"b".repeat(64)],
   );
 
   runtimePool = new Pool({
@@ -268,11 +269,38 @@ try {
       [10],
     );
     assert.equal(claimedWebhooks.rowCount, 2, "worker must be able to claim due webhook events with SKIP LOCKED");
+    const workerIdentityId = "60000000-0000-4000-8000-000000000003";
+    const workerConversationId = "70000000-0000-4000-8000-000000000003";
+    const workerMessageId = "80000000-0000-4000-8000-000000000003";
+    await runtime.query(
+      "INSERT INTO channel_identities (id,store_id,channel,external_user_id) VALUES ($1,$2,'whatsapp','worker-contact')",
+      [workerIdentityId, storeB],
+    );
+    await runtime.query(
+      "INSERT INTO conversations (id,store_id,connection_id,identity_id,channel) VALUES ($1,$2,$3,$4,'whatsapp')",
+      [workerConversationId, storeB, connectionB, workerIdentityId],
+    );
+    await runtime.query(
+      "INSERT INTO conversation_messages (id,store_id,conversation_id,connection_id,direction,content) VALUES ($1,$2,$3,$4,'inbound','worker message')",
+      [workerMessageId, storeB, workerConversationId, connectionB],
+    );
+    const workerIdentities = await runtime.query("SELECT count(*)::int AS count FROM channel_identities");
+    const workerConversations = await runtime.query("SELECT count(*)::int AS count FROM conversations");
+    const workerMessages = await runtime.query("SELECT count(*)::int AS count FROM conversation_messages");
+    assert.equal(workerIdentities.rows[0].count, 3, "authenticated channel worker must insert identities across stores");
+    assert.equal(workerConversations.rows[0].count, 3, "authenticated channel worker must insert conversations across stores");
+    assert.equal(workerMessages.rows[0].count, 3, "authenticated channel worker must insert messages across stores");
     const workerCredentials = await runtime.query("SELECT count(*)::int AS count FROM channel_credentials");
     assert.equal(workerCredentials.rows[0].count, 2, "authenticated channel worker must resolve encrypted provider credentials");
     await runtime.query("SELECT set_config('app.channel_worker','false',true)");
     const merchantConnections = await runtime.query("SELECT count(*)::int AS count FROM channel_connections");
     assert.equal(merchantConnections.rows[0].count, 1, "worker capability must be transaction-local and revocable");
+    const merchantIdentities = await runtime.query("SELECT count(*)::int AS count FROM channel_identities");
+    const merchantConversations = await runtime.query("SELECT count(*)::int AS count FROM conversations");
+    const merchantMessages = await runtime.query("SELECT count(*)::int AS count FROM conversation_messages");
+    assert.equal(merchantIdentities.rows[0].count, 1, "worker capability must not widen merchant identity access");
+    assert.equal(merchantConversations.rows[0].count, 1, "worker capability must not widen merchant conversation access");
+    assert.equal(merchantMessages.rows[0].count, 1, "worker capability must not widen merchant message access");
     const workerCannotReadOAuth = await runtime.query("SELECT count(*)::int AS count FROM channel_oauth_states");
     assert.equal(workerCannotReadOAuth.rows[0].count, 0, "channel worker must not access OAuth transaction state");
     await runtime.query("SELECT set_config($1,$2,true)", ["app.channel_oauth","true"]);
