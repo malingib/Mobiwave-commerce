@@ -14,6 +14,7 @@ MobiWave Commerce is MobiWave-owned, multi-tenant B2C commerce SaaS for Kenyan m
 - Replay-safe Daraja callback handling, amount/currency/phone correlation, cross-order/subscription receipt claims and payment reconciliation queue.
 - Configurable subscription plan catalogue, admin-managed KES prices/quotas, M-Pesa subscription STK collection, callback-based activation and manual renewal.
 - Transactional SMS outbox, deduplication, lease-based processing, retry/backoff and an authenticated worker endpoint.
+- Official Meta webhook ingress foundation for WhatsApp Cloud API and Instagram Messaging, including raw-body signature verification, account matching, event normalization and deduplicated durable webhook storage.
 - GitHub Actions CI for tests, typecheck, lint, dependency audit and production build.
 
 ## Environment and secrets
@@ -36,12 +37,13 @@ Copy .env.example to .env.local and configure:
 - MPESA_CREDENTIALS_ENCRYPTION_KEY (base64-encoded 32-byte key) and MPESA_CALLBACK_TOKEN.
 - MOBIWAVE_SMS_API_URL, MOBIWAVE_SMS_API_KEY, MOBIWAVE_SMS_SENDER_ID.
 - CRON_SECRET for the authenticated message worker endpoint.
+- META_APP_SECRET and META_WEBHOOK_VERIFY_TOKEN for the official Meta webhook endpoint (server-side only).
 
 Never commit .env.local, expose provider secrets through NEXT_PUBLIC_ variables, or rotate the M-Pesa encryption key without re-encrypting all stored credentials.
 
 ## Database migrations
 
-db/schema.sql is the initial schema baseline. Apply db/migrations/0002-auth.sql through 0018-social-commerce-foundation.sql in numeric order. Migration 0018 adds the official-channel connection registry, raw webhook inbox, channel identities, conversations, messages, attachments, notes and durable outbound message queue. It stores only a server-side credential reference, never provider access tokens. Apply and validate migrations on a disposable Neon branch first. Production migrations have not been applied as part of this implementation work.
+db/schema.sql is the initial schema baseline. Apply db/migrations/0002-auth.sql through 0019-meta-webhook-worker-access.sql in numeric order. Migration 0018 adds the official-channel connection registry, raw webhook inbox, channel identities, conversations, messages, attachments, notes and durable outbound message queue. Migration 0019 grants the authenticated channel worker read access to connection metadata needed to resolve webhook account IDs. The Meta webhook endpoint validates signatures before writing. It stores only a server-side credential reference, never provider access tokens. Apply and validate migrations on a disposable Neon branch first. Production migrations have not been applied as part of this implementation work.
 
 ## Development
 
@@ -63,8 +65,8 @@ Platform administration:
 - SMS messages are queued and retried. The adapter currently sends a bearer-authenticated JSON request with to, message, senderId and clientReference. The exact MobiWave SMS endpoint and payload contract must be confirmed against the provider documentation before live sending. No SMS has been sent from this audit.
 - Immediate SMS dispatch uses Next.js after(). The GitHub scheduled worker is available for retries; configure repository secrets COMMERCE_BASE_URL and COMMERCE_CRON_SECRET (same value as Vercel CRON_SECRET) after production deployment.
 - Custom domains require merchant DNS TXT verification, manual attachment to the Vercel project, then platform-admin activation. Production wildcard DNS, Vercel domain attachment and TLS have not been verified.
-- The current work is in a development branch and draft PR. Production Neon was not modified. The latest Vercel preview is still being verified.
-- Pesapal/Paystack, official WhatsApp messaging, email order notifications, automatic recurring card/M-Pesa mandates, and a full subscription usage-metering system remain future work.
+- Social Commerce Phase 1 is merged to main. Migration 0018 was applied only to a disposable Neon verification branch; production Neon was not modified. Phase 2 Meta webhook ingress is under development.
+- Meta webhook ingress is implemented as a foundation; inbound event processing, Meta OAuth/Embedded Signup, token lifecycle, outbound WhatsApp/Instagram messaging and the unified inbox remain future work. Pesapal/Paystack, email order notifications, automatic recurring card/M-Pesa mandates, and a full subscription usage-metering system remain future work.
 
 ## Production readiness
 

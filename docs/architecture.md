@@ -6,7 +6,7 @@ MobiWave Commerce is MobiWave-owned software. Take App and Bumpa are market benc
 
 ## Decision 002 — application and persistence
 
-The active application is a custom Next.js 15 / React 19 / TypeScript application using Better Auth and Neon PostgreSQL. A Medusa DTC Starter integration is deferred; it is not part of the current runtime. Do not describe this repository as a completed Medusa integration.
+The active application is a custom Next.js 16 / React 19 / TypeScript application using Better Auth and Neon PostgreSQL. A Medusa DTC Starter integration is deferred; it is not part of the current runtime. Do not describe this repository as a completed Medusa integration.
 
 ## Decision 003 — tenant identity and authorization
 
@@ -38,11 +38,19 @@ The active application is a custom Next.js 15 / React 19 / TypeScript applicatio
 
 ## Decision 006 — messaging
 
-Transactional SMS uses a tenant-scoped outbox with deduplication, worker leases, bounded retries and exponential backoff. Immediate dispatch uses Next.js after(); an authenticated worker endpoint supports scheduled retries. The MobiWave SMS endpoint and payload contract must be verified against the provider's documentation before live sending. Bulk/marketing messaging, opt-out handling, provider delivery reports and official WhatsApp integration are not enabled.
+Transactional SMS uses a tenant-scoped outbox with deduplication, worker leases, bounded retries and exponential backoff. Immediate dispatch uses Next.js after(); an authenticated worker endpoint supports scheduled retries. The MobiWave SMS endpoint and payload contract must be verified against the provider's documentation before live sending. Bulk/marketing messaging, opt-out handling, provider delivery reports and official WhatsApp and Instagram messaging are not yet enabled for merchant conversations.
 
 ## Decision 007 — subscriptions and entitlements
 
 The platform plan catalogue is configurable by a verified platform administrator. Paid plan prices remain unset until MobiWave approves commercial rates. Product and custom-domain quotas are enforced from plan limits; blank limits mean unlimited. Subscription payment is a manual M-Pesa STK flow with monthly renewal, not an automatic recurring mandate.
+
+## Decision 008 — official Meta channel ingress
+
+- WhatsApp uses the official WhatsApp Cloud API; Instagram uses the official Instagram Messaging API. Unofficial QR or WhatsApp Web automation is prohibited.
+- A shared Meta webhook verifies the exact raw request body with X-Hub-Signature-256 before parsing or persisting events.
+- Provider account IDs resolve to tenant-scoped channel connections. Raw webhook payloads are worker-only; merchant sessions cannot read them.
+- Event ingestion is deduplicated and durable. The webhook route does not send replies or create customer identities; a separate worker owns event processing.
+- Meta app secrets and webhook verification tokens are server-side environment secrets, never database credentials or browser variables.
 
 ## Deployment boundaries
 

@@ -29,6 +29,7 @@ const migrationPaths = [
   "db/migrations/0016-mpesa-callback-read-policies.sql",
   "db/migrations/0017-commerce-hardening.sql",
   "db/migrations/0018-social-commerce-foundation.sql",
+  "db/migrations/0019-meta-webhook-worker-access.sql",
 ];
 
 const appUrl = new URL(databaseUrl);
@@ -151,6 +152,13 @@ try {
     [connectionA,storeA,userA,connectionB,storeB,userB],
   );
   await owner.query(
+    `INSERT INTO channel_webhook_events
+     (store_id,connection_id,provider_event_id,event_type,payload,signature_valid)
+     VALUES ($1,$2,'event-a','whatsapp.messages.message','{"text":"tenant A"}'::jsonb,true),
+            ($3,$4,'event-b','whatsapp.messages.message','{"text":"tenant B"}'::jsonb,true)`,
+    [storeA,connectionA,storeB,connectionB],
+  );
+  await owner.query(
     `INSERT INTO channel_identities (id,store_id,channel,external_user_id)
      VALUES ($1,$2,'whatsapp','contact-a'),($3,$4,'whatsapp','contact-b')`,
     [identityA,storeA,identityB,storeB],
@@ -223,6 +231,17 @@ try {
       const result = await runtime.query(`SELECT count(*)::int AS count FROM ${table}`);
       assert.equal(result.rows[0].count, 1, `user A must see exactly one row in ${table}`);
     }
+    const privateWebhookEvents = await runtime.query("SELECT count(*)::int AS count FROM channel_webhook_events");
+    assert.equal(privateWebhookEvents.rows[0].count, 0, "merchant sessions must not read raw webhook payloads");
+
+    await runtime.query("SELECT set_config('app.channel_worker','true',true)");
+    const workerConnections = await runtime.query("SELECT count(*)::int AS count FROM channel_connections");
+    const workerWebhookEvents = await runtime.query("SELECT count(*)::int AS count FROM channel_webhook_events");
+    assert.equal(workerConnections.rows[0].count, 2, "authenticated channel worker must resolve connections across stores");
+    assert.equal(workerWebhookEvents.rows[0].count, 2, "authenticated channel worker must read the private webhook queue");
+    await runtime.query("SELECT set_config('app.channel_worker','false',true)");
+    const merchantConnections = await runtime.query("SELECT count(*)::int AS count FROM channel_connections");
+    assert.equal(merchantConnections.rows[0].count, 1, "worker capability must be transaction-local and revocable");
 
     const crossTenantUpdate = await runtime.query(
       "UPDATE orders SET customer_note='unauthorized' WHERE store_id=$1",
