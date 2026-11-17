@@ -22,7 +22,7 @@ function graphVersion() {
 
 function requiredEnv(name: string) {
   const value = process.env[name]?.trim();
-  if (!value) throw new Error(\`\${name} is not configured\`);
+  if (!value) throw new Error(`${name} is not configured`);
   return value;
 }
 
@@ -38,7 +38,7 @@ async function readProviderResponse(response: Response): Promise<JsonObject> {
   if (!response.ok || payload.error) {
     const error = asObject(payload.error || {});
     const code = typeof error.code === "number" ? String(error.code) : "provider_error";
-    throw new Error(\`meta_api_\${code}\`);
+    throw new Error(`meta_api_${code}`);
   }
   return payload;
 }
@@ -74,7 +74,7 @@ export function buildInstagramAuthorizationUrl(state: string, redirectUri: strin
 }
 
 export async function exchangeWhatsAppEmbeddedSignupCode(code: string): Promise<MetaToken> {
-  const url = new URL(\`https://graph.facebook.com/\${graphVersion()}/oauth/access_token\`);
+  const url = new URL(`https://graph.facebook.com/${graphVersion()}/oauth/access_token`);
   url.searchParams.set("client_id", requiredEnv("META_APP_ID"));
   url.searchParams.set("client_secret", requiredEnv("META_APP_SECRET"));
   url.searchParams.set("code", code);
@@ -129,7 +129,7 @@ export async function getInstagramProfile(accessToken: string) {
 }
 
 export async function subscribeInstagramMessagingWebhooks(accountId: string, accessToken: string) {
-  const url = new URL(\`https://graph.instagram.com/\${encodeURIComponent(accountId)}/subscribed_apps\`);
+  const url = new URL(`https://graph.instagram.com/${encodeURIComponent(accountId)}/subscribed_apps`);
   url.searchParams.set("subscribed_fields", "messages");
   url.searchParams.set("access_token", accessToken);
   const response = await fetch(url, {
@@ -141,7 +141,7 @@ export async function subscribeInstagramMessagingWebhooks(accountId: string, acc
 }
 
 export async function getWhatsAppPhoneNumber(wabaId: string, phoneNumberId: string, accessToken: string): Promise<MetaPhoneNumber> {
-  const url = new URL(\`https://graph.facebook.com/\${graphVersion()}/\${encodeURIComponent(wabaId)}/phone_numbers\`);
+  const url = new URL(`https://graph.facebook.com/${graphVersion()}/${encodeURIComponent(wabaId)}/phone_numbers`);
   url.searchParams.set("fields", "id,display_phone_number,verified_name");
   url.searchParams.set("access_token", accessToken);
   const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(12_000) });
@@ -161,7 +161,7 @@ export async function getWhatsAppPhoneNumber(wabaId: string, phoneNumberId: stri
 }
 
 export async function subscribeWhatsAppWebhooks(wabaId: string, accessToken: string) {
-  const url = new URL(\`https://graph.facebook.com/\${graphVersion()}/\${encodeURIComponent(wabaId)}/subscribed_apps\`);
+  const url = new URL(`https://graph.facebook.com/${graphVersion()}/${encodeURIComponent(wabaId)}/subscribed_apps`);
   url.searchParams.set("access_token", accessToken);
   const response = await fetch(url, {
     method: "POST",
