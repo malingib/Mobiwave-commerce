@@ -65,7 +65,7 @@ function tokenFrom(payload: JsonObject): MetaToken {
 
 export function buildInstagramAuthorizationUrl(state: string, redirectUri: string) {
   const url = new URL("https://www.instagram.com/oauth/authorize");
-  url.searchParams.set("client_id", requiredEnv("META_INSTAGRAM_APP_ID"));
+  url.searchParams.set("client_id", requiredEnv("META_APP_ID"));
   url.searchParams.set("redirect_uri", redirectUri);
   url.searchParams.set("response_type", "code");
   url.searchParams.set("scope", "instagram_business_basic,instagram_business_manage_messages");
@@ -84,8 +84,8 @@ export async function exchangeWhatsAppEmbeddedSignupCode(code: string): Promise<
 
 export async function exchangeInstagramAuthorizationCode(code: string, redirectUri: string): Promise<MetaToken> {
   const body = new URLSearchParams({
-    client_id: requiredEnv("META_INSTAGRAM_APP_ID"),
-    client_secret: requiredEnv("META_INSTAGRAM_APP_SECRET"),
+    client_id: requiredEnv("META_APP_ID"),
+    client_secret: requiredEnv("META_APP_SECRET"),
     grant_type: "authorization_code",
     redirect_uri: redirectUri,
     code,
@@ -103,7 +103,7 @@ export async function exchangeInstagramAuthorizationCode(code: string, redirectU
 export async function exchangeInstagramLongLivedToken(shortLivedToken: string): Promise<MetaToken> {
   const url = new URL("https://graph.instagram.com/access_token");
   url.searchParams.set("grant_type", "ig_exchange_token");
-  url.searchParams.set("client_secret", requiredEnv("META_INSTAGRAM_APP_SECRET"));
+  url.searchParams.set("client_secret", requiredEnv("META_APP_SECRET"));
   url.searchParams.set("access_token", shortLivedToken);
   const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(12_000) });
   return tokenFrom(await readProviderResponse(response));
