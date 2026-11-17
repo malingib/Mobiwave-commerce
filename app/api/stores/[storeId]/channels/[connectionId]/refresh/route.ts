@@ -28,7 +28,7 @@ export async function POST(
     }
     const result = await client.query(
       `SELECT c.channel,c.status,cred.id AS credential_id,cred.token_ciphertext,
-              cred.scopes,cred.created_at,cred.expires_at,cred.revoked_at
+              cred.scopes,cred.created_at,cred.expires_at,cred.revoked_at,cred.last_validated_at
          FROM channel_connections c
          JOIN channel_credentials cred
            ON cred.store_id=c.store_id AND cred.id=c.credential_ref
