@@ -28,6 +28,7 @@ const migrationPaths = [
   "db/migrations/0015-mpesa-platform-order-fallback.sql",
   "db/migrations/0016-mpesa-callback-read-policies.sql",
   "db/migrations/0017-commerce-hardening.sql",
+  "db/migrations/0018-social-commerce-foundation.sql",
 ];
 
 const appUrl = new URL(databaseUrl);
@@ -89,6 +90,14 @@ try {
   const productB = "30000000-0000-4000-8000-000000000002";
   const orderA = "40000000-0000-4000-8000-000000000001";
   const orderB = "40000000-0000-4000-8000-000000000002";
+  const connectionA = "50000000-0000-4000-8000-000000000001";
+  const connectionB = "50000000-0000-4000-8000-000000000002";
+  const identityA = "60000000-0000-4000-8000-000000000001";
+  const identityB = "60000000-0000-4000-8000-000000000002";
+  const conversationA = "70000000-0000-4000-8000-000000000001";
+  const conversationB = "70000000-0000-4000-8000-000000000002";
+  const messageA = "80000000-0000-4000-8000-000000000001";
+  const messageB = "80000000-0000-4000-8000-000000000002";
 
   await owner.query(
     "INSERT INTO stores (id,name,slug,status) VALUES ($1,'Tenant A','tenant-a','active'),($2,'Tenant B','tenant-b','active')",
@@ -134,6 +143,45 @@ try {
     "INSERT INTO audit_events (store_id,action,resource_type) VALUES ($1,'created','store'),($2,'created','store')",
     [storeA, storeB],
   );
+  await owner.query(
+    `INSERT INTO channel_connections
+     (id,store_id,channel,ownership_mode,asset_owner_type,provider_account_id,status,connected_by)
+     VALUES ($1,$2,'whatsapp','merchant_owned','merchant','wa-tenant-a','connected',$3),
+            ($4,$5,'whatsapp','mobiwave_managed','merchant','wa-tenant-b','connected',$6)`,
+    [connectionA,storeA,userA,connectionB,storeB,userB],
+  );
+  await owner.query(
+    `INSERT INTO channel_identities (id,store_id,channel,external_user_id)
+     VALUES ($1,$2,'whatsapp','contact-a'),($3,$4,'whatsapp','contact-b')`,
+    [identityA,storeA,identityB,storeB],
+  );
+  await owner.query(
+    `INSERT INTO conversations (id,store_id,connection_id,identity_id,channel)
+     VALUES ($1,$2,$3,$4,'whatsapp'),($5,$6,$7,$8,'whatsapp')`,
+    [conversationA,storeA,connectionA,identityA,conversationB,storeB,connectionB,identityB],
+  );
+  await owner.query(
+    `INSERT INTO conversation_messages
+     (id,store_id,conversation_id,connection_id,direction,content)
+     VALUES ($1,$2,$3,$4,'inbound','hello A'),($5,$6,$7,$8,'inbound','hello B')`,
+    [messageA,storeA,conversationA,connectionA,messageB,storeB,conversationB,connectionB],
+  );
+  await owner.query(
+    `INSERT INTO conversation_attachments (store_id,message_id,storage_key,mime_type)
+     VALUES ($1,$2,'tenant-a/object','image/jpeg'),($3,$4,'tenant-b/object','image/jpeg')`,
+    [storeA,messageA,storeB,messageB],
+  );
+  await owner.query(
+    `INSERT INTO conversation_notes (store_id,conversation_id,author_user_id,body)
+     VALUES ($1,$2,$3,'private note A'),($4,$5,$6,'private note B')`,
+    [storeA,conversationA,userA,storeB,conversationB,userB],
+  );
+  await owner.query(
+    `INSERT INTO message_outbox
+     (store_id,connection_id,conversation_id,message_id,idempotency_key)
+     VALUES ($1,$2,$3,$4,'tenant-a-outbox'),($5,$6,$7,$8,'tenant-b-outbox')`,
+    [storeA,connectionA,conversationA,messageA,storeB,connectionB,conversationB,messageB],
+  );
 
   runtimePool = new Pool({
     connectionString: appUrl.toString(),
@@ -163,6 +211,13 @@ try {
       "message_events",
       "store_domains",
       "audit_events",
+      "channel_connections",
+      "channel_identities",
+      "conversations",
+      "conversation_messages",
+      "conversation_attachments",
+      "conversation_notes",
+      "message_outbox",
     ];
     for (const table of tenantTables) {
       const result = await runtime.query(`SELECT count(*)::int AS count FROM ${table}`);
