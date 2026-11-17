@@ -46,6 +46,7 @@ function normalizeMessageType(value: unknown): "text" | "image" | "video" | "aud
 }
 
 function messageText(item: JsonObject, channel: "whatsapp" | "instagram"): string | null {
+  if (channel === "instagram" && typeof item.text === "string") return item.text.slice(0, 10000);
   const text = nestedObject(item, "text");
   if (typeof text?.body === "string") return text.body.slice(0, 10000);
   if (typeof text?.text === "string") return text.text.slice(0, 10000);
@@ -167,9 +168,11 @@ async function persistMessage(
       \`UPDATE conversations
           SET last_message_at = GREATEST(COALESCE(last_message_at, '-infinity'::timestamptz), COALESCE($1::timestamptz, now())),
               unread_count = unread_count + $2,
+              status = CASE WHEN $3::boolean AND status IN ('resolved','archived') THEN 'open' ELSE status END,
+              resolved_at = CASE WHEN $3::boolean AND status IN ('resolved','archived') THEN NULL ELSE resolved_at END,
               updated_at = now()
-        WHERE store_id = $3 AND id = $4\`,
-      [occurredAt, direction === "inbound" ? 1 : 0, event.store_id, conversationId],
+        WHERE store_id = $4 AND id = $5\`,
+      [occurredAt, direction === "inbound" ? 1 : 0, direction === "inbound", event.store_id, conversationId],
     );
   }
 }
@@ -300,7 +303,7 @@ async function recordFailure(event: ClaimedWebhook, error: unknown) {
   const code = /^[a-z0-9_]{1,80}$/i.test(rawCode) ? rawCode : "webhook_processing_failed";
   const permanent = permanentCodes.has(code);
   const exhausted = event.attempt_count >= 5;
-  const delayMinutes = exhausted ? 1440 : Math.min(60, 2 ** Math.min(event.attempt_count, 6));
+  const delayMinutes = Math.min(60, 2 ** Math.min(event.attempt_count, 6));
   const client = await db.connect();
   try {
     await client.query("BEGIN");
@@ -308,10 +311,10 @@ async function recordFailure(event: ClaimedWebhook, error: unknown) {
     await client.query(
       \`UPDATE channel_webhook_events
           SET processing_status=$1,
-              next_attempt_at=now()+($2 * interval '1 minute'),
-              locked_at=NULL, locked_by=NULL, last_error_code=$3
-        WHERE id=$4 AND processing_status='processing'\`,
-      [permanent ? "ignored" : "failed", delayMinutes, code, event.id],
+              next_attempt_at=CASE WHEN $2::boolean THEN 'infinity'::timestamptz ELSE now()+($3 * interval '1 minute') END,
+              locked_at=NULL, locked_by=NULL, last_error_code=$4
+        WHERE id=$5 AND processing_status='processing'\`,
+      [permanent ? "ignored" : "failed", exhausted, delayMinutes, code, event.id],
     );
     await client.query("COMMIT");
   } catch (updateError) {
