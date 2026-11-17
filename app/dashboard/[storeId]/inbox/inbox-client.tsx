@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 
 type Conversation = {
-  id: string; channel: "whatsapp" | "instagram" | "website" | "email" | "sms";
+  id: string; connection_id: string; channel: "whatsapp" | "instagram" | "website" | "email" | "sms";
   status: "open" | "pending" | "resolved" | "archived"; priority: "low" | "normal" | "high" | "urgent";
   unread_count: number; assigned_to: string | null; customer_name: string | null;
   phone_e164: string | null; external_user_id: string; channel_name: string | null;
@@ -22,6 +22,7 @@ type Message = {
   read_at: string | null; sender_user_id: string | null; created_at: string;
 };
 type Note = { id: string; author_user_id: string; body: string; created_at: string };
+type ApprovedTemplate = { id: string; name: string; language: string; category: string | null; bodyText: string; parameterCount: number };
 type Detail = {
   conversation: Conversation & { email: string | null; connection_status: string; created_at: string; last_inbound_at: string | null; reply_window_open: boolean };
   messages: Message[]; notes: Note[];
@@ -51,6 +52,11 @@ export default function InboxClient({ storeId, userId, userName }: { storeId: st
   const [search,setSearch] = useState("");
   const [draft,setDraft] = useState("");
   const [noteDraft,setNoteDraft] = useState("");
+  const [replyMode,setReplyMode] = useState<"text"|"template">("text");
+  const [templates,setTemplates] = useState<ApprovedTemplate[]>([]);
+  const [templatesLoading,setTemplatesLoading] = useState(false);
+  const [selectedTemplateKey,setSelectedTemplateKey] = useState("");
+  const [templateParams,setTemplateParams] = useState<string[]>([]);
   const [loading,setLoading] = useState(true);
   const [detailLoading,setDetailLoading] = useState(true);
   const [sending,setSending] = useState(false);
@@ -154,6 +160,23 @@ export default function InboxClient({ storeId, userId, userName }: { storeId: st
     return () => window.clearInterval(interval);
   }, [loadConversations,loadDetail,selectedId]);
 
+  const loadTemplates = useCallback(async (connectionId: string) => {
+    setTemplatesLoading(true); setTemplates([]); setSelectedTemplateKey(""); setTemplateParams([]); setError("");
+    try {
+      const response = await fetch("/api/stores/" + storeId + "/channels/" + connectionId + "/templates", { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not load approved templates");
+      const rows = (data.templates || []) as ApprovedTemplate[];
+      setTemplates(rows);
+      if (rows[0]) {
+        setSelectedTemplateKey(rows[0].name + "::" + rows[0].language);
+        setTemplateParams(Array.from({ length: rows[0].parameterCount }, () => ""));
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not load approved templates");
+    } finally { setTemplatesLoading(false); }
+  }, [storeId]);
+
   const visible = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) return conversations;
@@ -181,17 +204,22 @@ export default function InboxClient({ storeId, userId, userName }: { storeId: st
 
   async function sendReply(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedId || !draft.trim()) return;
+    const useTemplate = replyMode === "template";
+    if (!selectedId || (useTemplate ? !canSendTemplate : !draft.trim())) return;
     setSending(true); setError(""); setNotice("");
     try {
+      const payload = useTemplate && selectedTemplate
+        ? { type: "template", templateName: selectedTemplate.name, language: selectedTemplate.language, parameters: templateParams }
+        : { type: "text", text: draft.trim() };
       const response = await fetch("/api/stores/" + storeId + "/conversations/" + selectedId + "/messages", {
         method: "POST",
         headers: { "content-type": "application/json", "Idempotency-Key": window.crypto.randomUUID() },
-        body: JSON.stringify({ text: draft.trim() }),
+        body: JSON.stringify(payload),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Message could not be queued");
       setDraft("");
+      if (useTemplate && selectedTemplate) setTemplateParams(Array.from({ length: selectedTemplate.parameterCount }, () => ""));
       setNotice("Reply queued. Delivery will update when Meta confirms the message.");
       await Promise.all([loadDetail(selectedId),loadConversations()]);
     } catch (e) { setError(e instanceof Error ? e.message : "Message could not be queued"); }
@@ -217,6 +245,9 @@ export default function InboxClient({ storeId, userId, userName }: { storeId: st
 
   const conversation = detail?.conversation;
   const canReply = Boolean(conversation && ["whatsapp","instagram"].includes(conversation.channel) && conversation.connection_status === "connected" && conversation.reply_window_open);
+  const selectedTemplate = templates.find(template => template.name + "::" + template.language === selectedTemplateKey) || null;
+  const canSendTemplate = Boolean(conversation?.channel === "whatsapp" && conversation.connection_status === "connected" &&
+    selectedTemplate && templateParams.length === selectedTemplate.parameterCount && templateParams.every(value => value.trim().length > 0));
 
   return (
     <main className="dashboard-shell">
@@ -255,7 +286,7 @@ export default function InboxClient({ storeId, userId, userName }: { storeId: st
               <div className="inbox-list-head"><span>{visible.length} CONVERSATIONS</span><button onClick={()=>void loadConversations()} aria-label="Refresh conversations"><RefreshCw size={14}/></button></div>
               <div className="inbox-list-scroll">
                 {loading ? <div className="inbox-empty">Loading conversations…</div> : visible.length===0 ? <div className="inbox-empty"><MessageCircle size={24}/><b>No conversations found</b><span>Incoming WhatsApp and Instagram messages will appear here.</span></div> : visible.map(row=>(
-                  <button key={row.id} className={"inbox-conversation " + (selectedId===row.id?"selected":"")} onClick={()=>{setDetail(null);setDetailLoading(true);setSelectedId(row.id);}}>
+                  <button key={row.id} className={"inbox-conversation " + (selectedId===row.id?"selected":"")} onClick={()=>{setDetail(null);setDetailLoading(true);setReplyMode("text");setTemplates([]);setSelectedTemplateKey("");setTemplateParams([]);setDraft("");setSelectedId(row.id);}}>
                     <span className={"channel-avatar " + row.channel}>{row.channel==="instagram"?<Instagram size={17}/>:<MessageCircle size={17}/>}</span>
                     <span className="inbox-row-main">
                       <span className="inbox-row-top"><b>{row.customer_name || row.phone_e164 || row.external_user_id}</b><time>{timeLabel(row.last_message_at || row.last_message_created_at)}</time></span>
