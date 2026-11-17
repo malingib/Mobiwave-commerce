@@ -8,7 +8,7 @@ export type MetaTextSendInput = {
 export async function sendMetaTextMessage(input: MetaTextSendInput): Promise<{ messageId: string }> {
   if (!input.accessToken || !input.accountId || !input.recipientId || !input.text.trim()) throw new Error("invalid_outbound_message");
   const version = process.env.META_GRAPH_API_VERSION || "v27.0";
-  if (!/^v\\d+\\.\\d+$/.test(version)) throw new Error("invalid_meta_graph_version");
+  if (!/^v\d+\.\d+$/.test(version)) throw new Error("invalid_meta_graph_version");
   const host = input.channel === "whatsapp" ? "graph.facebook.com" : "graph.instagram.com";
   const url = new URL("https://" + host + "/" + version + "/" + encodeURIComponent(input.accountId) + "/messages");
   const body = input.channel === "whatsapp"
