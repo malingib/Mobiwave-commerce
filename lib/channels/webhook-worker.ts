@@ -45,7 +45,7 @@ function normalizeMessageType(value: unknown): "text" | "image" | "video" | "aud
   return "unsupported";
 }
 
-function messageText(item: JsonObject, channel: "whatsapp" | "instagram"): string | null {
+export function extractProviderMessageText(item: JsonObject, channel: "whatsapp" | "instagram"): string | null {
   if (channel === "instagram" && typeof item.text === "string") return item.text.slice(0, 10000);
   const text = nestedObject(item, "text");
   if (typeof text?.body === "string") return text.body.slice(0, 10000);
@@ -144,7 +144,7 @@ async function persistMessage(
     ? message.id
     : typeof message.mid === "string" ? message.mid : null;
   const occurredAt = normalizeProviderTimestamp(item.timestamp);
-  const content = messageText(message, channel);
+  const content = extractProviderMessageText(message, channel);
   const inserted = await client.query(
     \`INSERT INTO conversation_messages
        (store_id, conversation_id, connection_id, provider_message_id, direction,
