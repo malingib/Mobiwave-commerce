@@ -50,7 +50,18 @@
 - [ ] Confirm MobiWave SMS API endpoint/payload contract and configure API credentials/sender ID.
 - [ ] Add GitHub worker secrets and verify real send, retry and delivery reports.
 
-## Milestone 6 — release hardening
+## Milestone 6 — Social Commerce channel foundation
+- [x] Add tenant-scoped channel connections, identities, conversations, messages, notes, attachments and outbound message outbox.
+- [x] Add forced RLS, tenant-consistent composite foreign keys and worker-only raw webhook access.
+- [x] Verify migration 0018 on a disposable Neon branch; production database unchanged.
+- [x] Add Meta WhatsApp/Instagram webhook signature verification and event normalization.
+- [ ] Verify migration 0019 and webhook worker RLS in CI and on a disposable Neon branch.
+- [ ] Build provider connection lifecycle and Meta Embedded Signup / Instagram authorization.
+- [ ] Build durable inbound event processor and replay-safe conversation/message creation.
+- [ ] Build outbound WhatsApp/Instagram adapters, delivery-state handling and idempotent sends.
+- [ ] Build unified merchant inbox and assignment/notes/status workflows.
+
+## Milestone 7 — release hardening
 - [x] Add focused unit tests for plan limits, domain validation, Daraja utilities and SMS templates.
 - [x] Add dependency audit to CI.
 - [ ] Complete all current CI runs and resolve failures.
@@ -61,4 +72,4 @@
 
 ## Current honest status
 
-Core application workflows and the security-sensitive integration code are implemented on the development branch. Migrations 0010–0015 and RLS behavior were tested on an isolated Neon branch with synthetic tenants. Production Neon has not been changed. Real Daraja and MobiWave SMS credentials are not configured for live testing. The latest CI run is queued, and the latest Vercel preview has not been verified because of deployment rate limiting. The work is not yet production-ready.
+Core commerce workflows are implemented. Social Commerce Phase 1 is merged to main; migration 0018 has been applied successfully to a disposable Neon branch and forced RLS was confirmed. Phase 2 Meta webhook ingress is on a feature branch pending CI and migration 0019 validation. Production Neon and production deployment have not been changed. Real Daraja and MobiWave SMS credentials remain unverified for live testing. The platform is not yet production-ready.
