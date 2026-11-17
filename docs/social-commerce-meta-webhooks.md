@@ -19,7 +19,8 @@ value in PostgreSQL or log them.
   normalized into independently deduplicated webhook events.
 - Events are queued only for a connected channel whose provider account ID matches
   the Meta entry ID. Unknown account IDs are acknowledged but counted as unmatched.
-- The webhook endpoint does not send replies or create customer identities. A separate
-  authenticated worker will process the durable event queue in the next phase.
+- The webhook endpoint does not send replies or create customer identities. The authenticated worker at
+  `/api/internal/channels/process` consumes the durable event queue, creates channel-scoped identities and
+  conversations, persists message history, and applies provider delivery/read statuses.
 
 Payloads are limited to 1 MiB. Meta should be configured to retry failed 5xx responses.
