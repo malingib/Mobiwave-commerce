@@ -23,7 +23,11 @@ export async function GET(_request: Request, context: Context) {
     const conversation = await client.query(
       `SELECT c.id,c.channel,c.status,c.priority,c.unread_count,c.assigned_to,c.last_message_at,c.created_at,
               ci.display_name AS customer_name,ci.phone_e164,ci.email,ci.external_user_id,
-              cc.display_name AS channel_name,cc.status AS connection_status
+              cc.display_name AS channel_name,cc.status AS connection_status,
+              (SELECT COALESCE(m.provider_timestamp,m.created_at)
+                 FROM conversation_messages m
+                WHERE m.store_id=c.store_id AND m.conversation_id=c.id AND m.direction='inbound'
+                ORDER BY COALESCE(m.provider_timestamp,m.created_at) DESC LIMIT 1) AS last_inbound_at
          FROM conversations c
          JOIN channel_identities ci ON ci.store_id=c.store_id AND ci.id=c.identity_id
          JOIN channel_connections cc ON cc.store_id=c.store_id AND cc.id=c.connection_id
