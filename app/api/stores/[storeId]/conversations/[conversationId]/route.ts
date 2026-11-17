@@ -24,13 +24,17 @@ export async function GET(_request: Request, context: Context) {
       `SELECT c.id,c.channel,c.status,c.priority,c.unread_count,c.assigned_to,c.last_message_at,c.created_at,
               ci.display_name AS customer_name,ci.phone_e164,ci.email,ci.external_user_id,
               cc.display_name AS channel_name,cc.status AS connection_status,
-              (SELECT COALESCE(m.provider_timestamp,m.created_at)
-                 FROM conversation_messages m
-                WHERE m.store_id=c.store_id AND m.conversation_id=c.id AND m.direction='inbound'
-                ORDER BY COALESCE(m.provider_timestamp,m.created_at) DESC LIMIT 1) AS last_inbound_at
+              inbound.last_inbound_at,
+              COALESCE(inbound.last_inbound_at > now()-interval '24 hours',false) AS reply_window_open
          FROM conversations c
          JOIN channel_identities ci ON ci.store_id=c.store_id AND ci.id=c.identity_id
          JOIN channel_connections cc ON cc.store_id=c.store_id AND cc.id=c.connection_id
+         LEFT JOIN LATERAL (
+           SELECT COALESCE(m.provider_timestamp,m.created_at) AS last_inbound_at
+             FROM conversation_messages m
+            WHERE m.store_id=c.store_id AND m.conversation_id=c.id AND m.direction='inbound'
+            ORDER BY COALESCE(m.provider_timestamp,m.created_at) DESC LIMIT 1
+         ) inbound ON true
         WHERE c.store_id=$1 AND c.id=$2 LIMIT 1`,
       [storeId,conversationId],
     );
