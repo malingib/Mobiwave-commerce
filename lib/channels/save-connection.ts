@@ -33,12 +33,12 @@ export async function saveMetaChannelConnection(input: {
     if (!membership.rowCount) throw new Error("store_access_revoked");
 
     const connection = await client.query(
-      \`INSERT INTO channel_connections
+      `INSERT INTO channel_connections
         (store_id,channel,ownership_mode,asset_owner_type,provider_business_id,
          provider_account_id,provider_address_id,display_name,status,connected_by,
          connected_at,last_verified_at,metadata)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'connected',$9,now(),now(),$10::jsonb)
-       RETURNING id\`,
+       RETURNING id`,
       [
         input.storeId, input.channel, input.ownershipMode, input.assetOwnerType,
         input.providerBusinessId || null, input.providerAccountId,
@@ -48,10 +48,10 @@ export async function saveMetaChannelConnection(input: {
     );
     const connectionId = String(connection.rows[0].id);
     const credential = await client.query(
-      \`INSERT INTO channel_credentials
+      `INSERT INTO channel_credentials
         (store_id,connection_id,token_ciphertext,token_type,scopes,expires_at,last_validated_at)
        VALUES ($1,$2,$3,$4,$5,$6,now())
-       RETURNING id\`,
+       RETURNING id`,
       [
         input.storeId, connectionId, tokenCiphertext, input.token.tokenType,
         input.token.scopes, expiresAt,
@@ -62,8 +62,8 @@ export async function saveMetaChannelConnection(input: {
       [credential.rows[0].id, input.storeId, connectionId],
     );
     await client.query(
-      \`INSERT INTO channel_connection_events (store_id,connection_id,event_type,actor_user_id,details)
-       VALUES ($1,$2,'created',$3,$4::jsonb),($1,$2,'connected',$3,$5::jsonb)\`,
+      `INSERT INTO channel_connection_events (store_id,connection_id,event_type,actor_user_id,details)
+       VALUES ($1,$2,'created',$3,$4::jsonb),($1,$2,'connected',$3,$5::jsonb)`,
       [
         input.storeId, connectionId, input.userId,
         JSON.stringify({ channel: input.channel, ownershipMode: input.ownershipMode }),
