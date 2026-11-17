@@ -354,7 +354,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON
 TO commerce_runtime;
 
 COMMENT ON TABLE channel_connections IS
-  'Official provider channel connections. credential_ref points to a server-side secret manager; raw access tokens must never be stored here.';
+  'Official provider channel connections. credential_ref points to a server-side secret-manager entry; raw access tokens must never be stored here.';
 COMMENT ON TABLE channel_webhook_events IS
   'Raw provider webhook event inbox. Payload is retained for dedupe, replay and audit; access is worker-only.';
 COMMENT ON TABLE message_outbox IS
