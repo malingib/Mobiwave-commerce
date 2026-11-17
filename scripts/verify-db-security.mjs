@@ -248,7 +248,11 @@ try {
       assert.equal(result.rows[0].count, 1, `user A must see exactly one row in ${table}`);
     }
     const privateWebhookEvents = await runtime.query("SELECT count(*)::int AS count FROM channel_webhook_events");
+    const privateCredentials = await runtime.query("SELECT count(*)::int AS count FROM channel_credentials");
+    const privateOAuthStates = await runtime.query("SELECT count(*)::int AS count FROM channel_oauth_states");
     assert.equal(privateWebhookEvents.rows[0].count, 0, "merchant sessions must not read raw webhook payloads");
+    assert.equal(privateCredentials.rows[0].count, 0, "merchant sessions must not read encrypted provider credentials");
+    assert.equal(privateOAuthStates.rows[0].count, 0, "merchant sessions must not read OAuth transaction state");
 
     await runtime.query("SELECT set_config('app.channel_worker','true',true)");
     const workerConnections = await runtime.query("SELECT count(*)::int AS count FROM channel_connections");
@@ -267,6 +271,16 @@ try {
     await runtime.query("SELECT set_config('app.channel_worker','false',true)");
     const merchantConnections = await runtime.query("SELECT count(*)::int AS count FROM channel_connections");
     assert.equal(merchantConnections.rows[0].count, 1, "worker capability must be transaction-local and revocable");
+    const workerCredentials = await runtime.query("SELECT count(*)::int AS count FROM channel_credentials");
+    assert.equal(workerCredentials.rows[0].count, 2, "authenticated channel worker must resolve encrypted provider credentials");
+    const workerCannotReadOAuth = await runtime.query("SELECT count(*)::int AS count FROM channel_oauth_states");
+    assert.equal(workerCannotReadOAuth.rows[0].count, 0, "channel worker must not access OAuth transaction state");
+    await runtime.query("SELECT set_config($1,$2,true)", ["app.channel_oauth","true"]);
+    const oauthCredentials = await runtime.query("SELECT count(*)::int AS count FROM channel_credentials");
+    const oauthStates = await runtime.query("SELECT count(*)::int AS count FROM channel_oauth_states");
+    assert.equal(oauthCredentials.rows[0].count, 2, "OAuth capability must access the encrypted credential vault");
+    assert.equal(oauthStates.rows[0].count, 2, "OAuth capability must access one-time transaction state");
+    await runtime.query("SELECT set_config($1,$2,true)", ["app.channel_oauth","false"]);
 
     const crossTenantUpdate = await runtime.query(
       "UPDATE orders SET customer_note='unauthorized' WHERE store_id=$1",
