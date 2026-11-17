@@ -368,8 +368,8 @@ export async function processMetaWebhookBatch(batchSize = 25) {
           OR (processing_status='processing' AND locked_at < now() - interval '10 minutes')
         )
         ORDER BY received_at ASC
-        FOR UPDATE SKIP LOCKED
-        LIMIT $1\`,
+        LIMIT $1
+        FOR UPDATE SKIP LOCKED\`,
       [limit],
     );
     for (const row of due.rows as ClaimedWebhook[]) {
