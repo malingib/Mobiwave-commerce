@@ -28,13 +28,13 @@ export default async function MerchantChannelsPage({ params }: Context) {
     allowed = Boolean(membership.rowCount);
     if (allowed) {
       const result = await client.query(
-        \`SELECT c.id,c.channel,c.display_name,c.status,c.ownership_mode,c.asset_owner_type,
+        `SELECT c.id,c.channel,c.display_name,c.status,c.ownership_mode,c.asset_owner_type,
                 c.connected_at,cred.expires_at
            FROM channel_connections c
            LEFT JOIN channel_credentials cred
              ON cred.store_id=c.store_id AND cred.id=c.credential_ref AND cred.revoked_at IS NULL
           WHERE c.store_id=$1 AND c.channel IN ('whatsapp','instagram')
-          ORDER BY c.created_at DESC\`,
+          ORDER BY c.created_at DESC`,
         [storeId],
       );
       connections = result.rows.map(row => ({
@@ -58,11 +58,11 @@ export default async function MerchantChannelsPage({ params }: Context) {
       <aside className="dashboard-sidebar">
         <Link className="brand" href="/dashboard">MobiWave <strong>Commerce</strong></Link>
         <div className="sidebar-label">STORE</div>
-        <Link className="sidebar-link" href={\`/dashboard/\${storeId}/products\`}>Products</Link>
-        <Link className="sidebar-link" href={\`/dashboard/\${storeId}/orders\`}>Orders</Link>
-        <Link className="sidebar-link" href={\`/dashboard/\${storeId}/billing\`}>Billing</Link>
-        <Link className="sidebar-link active" href={\`/dashboard/\${storeId}/integrations/channels\`}>Sales channels</Link>
-        <Link className="sidebar-link" href={\`/dashboard/\${storeId}/integrations/mpesa\`}>M-Pesa integration</Link>
+        <Link className="sidebar-link" href={`/dashboard/${storeId}/products`}>Products</Link>
+        <Link className="sidebar-link" href={`/dashboard/${storeId}/orders`}>Orders</Link>
+        <Link className="sidebar-link" href={`/dashboard/${storeId}/billing`}>Billing</Link>
+        <Link className="sidebar-link active" href={`/dashboard/${storeId}/integrations/channels`}>Sales channels</Link>
+        <Link className="sidebar-link" href={`/dashboard/${storeId}/integrations/mpesa`}>M-Pesa integration</Link>
       </aside>
       <section className="dashboard-main">
         <header className="dashboard-topbar"><div><span className="eyebrow">MERCHANT WORKSPACE</span><h1>Sales channels</h1></div></header>
