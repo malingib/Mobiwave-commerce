@@ -57,6 +57,7 @@ export default async function MerchantChannelsPage({ params }: Context) {
         <div className="sidebar-label">STORE</div>
         <Link className="sidebar-link" href={`/dashboard/${storeId}/products`}>Products</Link>
         <Link className="sidebar-link" href={`/dashboard/${storeId}/orders`}>Orders</Link>
+        <Link className="sidebar-link" href={`/dashboard/${storeId}/inbox`}>Unified inbox</Link>
         <Link className="sidebar-link" href={`/dashboard/${storeId}/billing`}>Billing</Link>
         <Link className="sidebar-link active" href={`/dashboard/${storeId}/integrations/channels`}>Sales channels</Link>
         <Link className="sidebar-link" href={`/dashboard/${storeId}/integrations/mpesa`}>M-Pesa integration</Link>
