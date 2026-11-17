@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { decryptChannelCredential } from "@/lib/channels/credentials";
-import { sendMetaTextMessage } from "@/lib/channels/meta-send";
+import { sendMetaTextMessage, sendWhatsAppTemplateMessage } from "@/lib/channels/meta-send";
 
 type ClaimedMessage = {
   id: string;
@@ -14,6 +14,8 @@ type ClaimedMessage = {
   provider_address_id: string | null;
   recipient_id: string;
   content: string;
+  message_type: string;
+  raw_metadata: Record<string, unknown> | null;
   token_ciphertext: string | null;
   credential_expires_at: string | null;
   last_inbound_at: string | null;
@@ -107,7 +109,7 @@ export async function processOutboundMessageBatch(batchSize = 20) {
     const due = await client.query(
       `SELECT o.id,o.store_id,o.connection_id,o.conversation_id,o.message_id,
               cc.channel,cc.status AS connection_status,cc.provider_account_id,cc.provider_address_id,
-              ci.external_user_id AS recipient_id,m.content,cred.token_ciphertext,cred.expires_at AS credential_expires_at,
+              ci.external_user_id AS recipient_id,m.content,m.message_type,m.raw_metadata,cred.token_ciphertext,cred.expires_at AS credential_expires_at,
               (SELECT COALESCE(inbound.provider_timestamp,inbound.created_at)
                  FROM conversation_messages inbound
                 WHERE inbound.store_id=o.store_id AND inbound.conversation_id=o.conversation_id
@@ -148,20 +150,39 @@ export async function processOutboundMessageBatch(batchSize = 20) {
       if (item.connection_status !== "connected") throw new Error("channel_not_connected");
       if (!item.token_ciphertext) throw new Error("channel_credential_missing");
       if (item.credential_expires_at && new Date(item.credential_expires_at).getTime() <= Date.now()) throw new Error("channel_credential_expired");
-      const lastInbound = item.last_inbound_at ? new Date(item.last_inbound_at).getTime() : 0;
-      if (!lastInbound || !Number.isFinite(lastInbound) || Date.now() - lastInbound > 24 * 60 * 60 * 1000) {
-        throw new Error("messaging_window_expired");
+      if (item.message_type !== "template") {
+        const lastInbound = item.last_inbound_at ? new Date(item.last_inbound_at).getTime() : 0;
+        if (!lastInbound || !Number.isFinite(lastInbound) || Date.now() - lastInbound > 24 * 60 * 60 * 1000) {
+          throw new Error("messaging_window_expired");
+        }
       }
       const accountId = item.channel === "whatsapp" ? item.provider_address_id : item.provider_account_id;
       if (!accountId) throw new Error("provider_account_missing");
       const token = decryptChannelCredential(item.token_ciphertext);
-      const result = await sendMetaTextMessage({
-        channel: item.channel,
-        accountId,
-        recipientId: item.recipient_id,
-        accessToken: token,
-        text: item.content,
-      });
+      const result = item.message_type === "template"
+        ? await (async () => {
+            if (item.channel !== "whatsapp") throw new Error("template_channel_unsupported");
+            const template = item.raw_metadata?.template;
+            if (!template || typeof template !== "object" || Array.isArray(template)) throw new Error("template_payload_missing");
+            const value = template as Record<string, unknown>;
+            const parameters = Array.isArray(value.parameters) ? value.parameters : [];
+            if (parameters.some(parameter => typeof parameter !== "string")) throw new Error("template_payload_invalid");
+            return sendWhatsAppTemplateMessage({
+              phoneNumberId: accountId,
+              recipientId: item.recipient_id,
+              accessToken: token,
+              name: String(value.name || ""),
+              language: String(value.language || ""),
+              parameters: parameters as string[],
+            });
+          })()
+        : await sendMetaTextMessage({
+            channel: item.channel,
+            accountId,
+            recipientId: item.recipient_id,
+            accessToken: token,
+            text: item.content,
+          });
       await markSent(item, result.messageId);
       sent++;
     } catch (error) {
