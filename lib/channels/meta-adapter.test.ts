@@ -35,6 +35,7 @@ describe("Meta webhook normalization", () => {
     });
     expect(events).toHaveLength(2);
     expect(events[0]).toMatchObject({ channel: "instagram", providerAccountId: "ig-business-1", providerEventId: "ig:message:ig-mid-1" });
+    expect(events[0].occurredAt).toBe(new Date(1794912000000).toISOString());
     expect(events[1].eventType).toBe("instagram.delivery");
   });
 
