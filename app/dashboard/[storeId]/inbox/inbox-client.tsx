@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Check, CheckCheck, Clock3, Instagram, MessageCircle,
@@ -129,7 +129,7 @@ export default function InboxClient({ storeId, userId, userName }: { storeId: st
     finally { setSaving(false); }
   }
 
-  async function sendReply(event: React.FormEvent<HTMLFormElement>) {
+  async function sendReply(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedId || !draft.trim()) return;
     setSending(true); setError(""); setNotice("");
