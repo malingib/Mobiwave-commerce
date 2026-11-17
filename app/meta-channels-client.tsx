@@ -50,6 +50,7 @@ export default function MetaChannelsClient({
   const [assetOwnerType, setAssetOwnerType] = useState<"merchant" | "mobiwave">("merchant");
   const [busy, setBusy] = useState<"whatsapp" | "instagram" | null>(null);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const pending = useRef<PendingSignup | null>(null);
 
@@ -156,6 +157,23 @@ export default function MetaChannelsClient({
     }
   }
 
+  async function refreshConnection(connectionId: string) {
+    setRefreshing(connectionId);
+    setNotice("Checking and refreshing the Instagram access token…");
+    try {
+      const response = await fetch(`/api/stores/${encodeURIComponent(storeId)}/channels/${encodeURIComponent(connectionId)}/refresh`, {
+        method: "POST",
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Token refresh failed");
+      setNotice("Instagram access token refreshed securely.");
+      window.location.reload();
+    } catch (error) {
+      setRefreshing(null);
+      setNotice(error instanceof Error ? error.message : "Token refresh failed.");
+    }
+  }
+
   async function disconnectConnection(connectionId: string) {
     if (!window.confirm("Remove this channel from MobiWave Commerce? Its locally stored access token will be erased. You may also need to remove MobiWave from the connected assets in Meta Business settings.")) return;
     setDisconnecting(connectionId);
@@ -259,7 +277,7 @@ export default function MetaChannelsClient({
       <section className="panel">
         <div className="panel-heading"><div><h2>Connected accounts</h2><p>Connection health and ownership details. Access tokens are never displayed.</p></div></div>
         {connections.length ? <div className="orders-table-wrap"><table className="orders-table">
-          <thead><tr><th>CHANNEL</th><th>ACCOUNT</th><th>STATUS</th><th>ONBOARDING</th><th>ASSET OWNER</th><th>CONNECTED</th><th></th></tr></thead>
+          <thead><tr><th>CHANNEL</th><th>ACCOUNT</th><th>STATUS</th><th>ONBOARDING</th><th>ASSET OWNER</th><th>CONNECTED</th><th>ACTIONS</th></tr></thead>
           <tbody>{connections.map(connection => <tr key={connection.id}>
             <td>{connection.channel === "whatsapp" ? "WhatsApp" : "Instagram"}</td>
             <td><b>{connection.display_name || "Business account"}</b><small>{connection.id}</small></td>
@@ -267,7 +285,7 @@ export default function MetaChannelsClient({
             <td>{connection.ownership_mode === "mobiwave_managed" ? "MobiWave managed" : "Merchant managed"}</td>
             <td>{connection.asset_owner_type === "mobiwave" ? "MobiWave" : "Merchant"}</td>
             <td>{connection.connected_at ? new Date(connection.connected_at).toLocaleDateString() : "—"}</td>
-            <td>{connection.status !== "disconnected" && <button className="status-toggle" disabled={disconnecting === connection.id} onClick={() => void disconnectConnection(connection.id)}>{disconnecting === connection.id ? "Removing…" : "Disconnect"}</button>}</td>
+            <td style={{ display: "flex", gap: 7 }}>{connection.channel === "instagram" && connection.status === "connected" && <button className="status-toggle" disabled={refreshing === connection.id || disconnecting === connection.id} onClick={() => void refreshConnection(connection.id)}>{refreshing === connection.id ? "Refreshing…" : "Refresh token"}</button>}{connection.status !== "disconnected" && <button className="status-toggle" disabled={disconnecting === connection.id || refreshing === connection.id} onClick={() => void disconnectConnection(connection.id)}>{disconnecting === connection.id ? "Removing…" : "Disconnect"}</button>}</td>
           </tr>)}</tbody>
         </table></div> : <div className="shop-empty"><h3>No channels connected</h3><p>Connect WhatsApp or Instagram to start receiving customer messages.</p></div>}
       </section>
