@@ -126,14 +126,6 @@ export default function InboxClient({ storeId, userId, userName }: { storeId: st
   }, [storeId,status,channel]);
 
   useEffect(() => {
-    setTemplateMode(false);
-    setTemplates([]);
-    setTemplateName("");
-    setTemplateLanguage("");
-    setTemplateComponents("[]");
-  }, [selectedId]);
-
-  useEffect(() => {
     if (!selectedId) return;
     let active = true;
     const run = async () => {
@@ -177,6 +169,10 @@ export default function InboxClient({ storeId, userId, userName }: { storeId: st
         .some(value => String(value || "").toLowerCase().includes(query)),
     );
   }, [conversations,search]);
+
+  function resetTemplateComposer() {
+    setTemplateMode(false); setTemplates([]); setTemplateName(""); setTemplateLanguage(""); setTemplateComponents("[]");
+  }
 
   async function updateConversation(values: Record<string,unknown>) {
     if (!selectedId) return;
@@ -299,10 +295,10 @@ export default function InboxClient({ storeId, userId, userName }: { storeId: st
           <div className="inbox-toolbar">
             <div><h2>Conversations</h2><p>WhatsApp and Instagram messages in one workspace.</p></div>
             <div className="inbox-filters">
-              <select value={status} onChange={e=>{setSelectedId("");setDetail(null);setDetailLoading(true);setStatus(e.target.value);}} aria-label="Filter conversation status">
+              <select value={status} onChange={e=>{resetTemplateComposer();setSelectedId("");setDetail(null);setDetailLoading(true);setStatus(e.target.value);}} aria-label="Filter conversation status">
                 <option value="all">All statuses</option><option value="open">Open</option><option value="pending">Pending</option><option value="resolved">Resolved</option><option value="archived">Archived</option>
               </select>
-              <select value={channel} onChange={e=>{setSelectedId("");setDetail(null);setDetailLoading(true);setChannel(e.target.value);}} aria-label="Filter channel">
+              <select value={channel} onChange={e=>{resetTemplateComposer();setSelectedId("");setDetail(null);setDetailLoading(true);setChannel(e.target.value);}} aria-label="Filter channel">
                 <option value="all">All channels</option><option value="whatsapp">WhatsApp</option><option value="instagram">Instagram</option>
               </select>
             </div>
@@ -315,7 +311,7 @@ export default function InboxClient({ storeId, userId, userName }: { storeId: st
               <div className="inbox-list-head"><span>{visible.length} CONVERSATIONS</span><button onClick={()=>void loadConversations()} aria-label="Refresh conversations"><RefreshCw size={14}/></button></div>
               <div className="inbox-list-scroll">
                 {loading ? <div className="inbox-empty">Loading conversations…</div> : visible.length===0 ? <div className="inbox-empty"><MessageCircle size={24}/><b>No conversations found</b><span>Incoming WhatsApp and Instagram messages will appear here.</span></div> : visible.map(row=>(
-                  <button key={row.id} className={"inbox-conversation " + (selectedId===row.id?"selected":"")} onClick={()=>{setDetail(null);setDetailLoading(true);setSelectedId(row.id);}}>
+                  <button key={row.id} className={"inbox-conversation " + (selectedId===row.id?"selected":"")} onClick={()=>{resetTemplateComposer();setDetail(null);setDetailLoading(true);setSelectedId(row.id);}}>
                     <span className={"channel-avatar " + row.channel}>{row.channel==="instagram"?<Instagram size={17}/>:<MessageCircle size={17}/>}</span>
                     <span className="inbox-row-main">
                       <span className="inbox-row-top"><b>{row.customer_name || row.phone_e164 || row.external_user_id}</b><time>{timeLabel(row.last_message_at || row.last_message_created_at)}</time></span>
