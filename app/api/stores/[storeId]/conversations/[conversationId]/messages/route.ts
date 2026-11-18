@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getRequestUser } from "@/lib/request-user";
+import { validateWhatsAppTemplateComponents } from "@/lib/channels/template-validation";
 
 export const runtime = "nodejs";
 
@@ -23,10 +24,7 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
   if (messageType === "text" && (!messageText || messageText.length > 4096)) return NextResponse.json({ error: "Message text must contain 1–4096 characters" }, { status: 400 });
   if (messageType === "template") {
     if (!/^[a-z0-9_]{1,512}$/.test(templateName) || !/^[a-z]{2,3}(?:_[A-Z]{2})?$/.test(templateLanguage)) return NextResponse.json({ error: "A valid approved template name and language are required" }, { status: 400 });
-    if (!Array.isArray(components) || components.length > 10 || components.some((item) => !item || typeof item !== "object" || Array.isArray(item))) return NextResponse.json({ error: "Template components are invalid" }, { status: 400 });
-    for (const component of components as Array<Record<string, unknown>>) {
-      if (!["header", "body", "button"].includes(String(component.type)) || (component.parameters !== undefined && (!Array.isArray(component.parameters) || component.parameters.length > 20))) return NextResponse.json({ error: "Template component parameters are invalid" }, { status: 400 });
-    }
+    if (!validateWhatsAppTemplateComponents(components)) return NextResponse.json({ error: "Template components or parameters are invalid" }, { status: 400 });
   }
 
   const client = await db.connect();
