@@ -40,7 +40,7 @@ export async function GET(_request: Request, context: { params: Promise<{ storeI
     if (connection.channel !== "whatsapp") return NextResponse.json({ templates: [], unsupported: true });
     if (connection.status !== "connected" || !connection.token_ciphertext) return NextResponse.json({ error: "WhatsApp channel is not connected" }, { status: 409 });
     if (connection.expires_at && new Date(connection.expires_at).getTime() <= Date.now()) return NextResponse.json({ error: "WhatsApp credential has expired" }, { status: 409 });
-    if (!(connection.scopes as string[]).includes("whatsapp_business_management")) return NextResponse.json({ error: "WhatsApp template-management permission is missing. Reconnect the channel with the required permission." }, { status: 403 });
+    if (!Array.isArray(connection.scopes) || !(connection.scopes as string[]).includes("whatsapp_business_management")) return NextResponse.json({ error: "WhatsApp template-management permission is missing. Reconnect the channel with the required permission." }, { status: 403 });
     const wabaId = String(connection.provider_account_id || "");
     if (!/^\d{5,30}$/.test(wabaId)) return NextResponse.json({ error: "WhatsApp Business Account is not configured" }, { status: 409 });
     const token = decryptChannelCredential(String(connection.token_ciphertext));
