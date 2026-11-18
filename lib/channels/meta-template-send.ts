@@ -1,3 +1,5 @@
+import { validateWhatsAppTemplateComponents } from "@/lib/channels/template-validation";
+
 type ProviderError = { code?: number };
 type TemplateListResponse = {
   data?: Array<{ name?: string; status?: string; language?: string; components?: unknown[] }>;
@@ -35,7 +37,7 @@ export async function sendMetaTemplateMessage(input: {
   const components = input.template.components === undefined ? [] : input.template.components;
   if (!input.accessToken || !input.phoneNumberId || !input.wabaId || !input.recipientId ||
       !/^[a-z0-9_]{1,512}$/.test(name) || typeof language !== "string" ||
-      !/^[a-z]{2,3}(?:_[A-Z]{2})?$/.test(language) || !Array.isArray(components)) {
+      !/^[a-z]{2,3}(?:_[A-Z]{2})?$/.test(language) || !validateWhatsAppTemplateComponents(components)) {
     throw new Error("invalid_template_message");
   }
   const version = graphVersion();
