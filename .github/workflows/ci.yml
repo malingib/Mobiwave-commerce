@@ -47,8 +47,6 @@ jobs:
         env:
           TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/commerce_test
         run: npm run test:db-security
-      - name: Production dependency security audit
-        run: npm audit --omit=dev --audit-level=high
       - name: Full dependency security audit
         run: npm audit --audit-level=high
       - name: Unit tests
