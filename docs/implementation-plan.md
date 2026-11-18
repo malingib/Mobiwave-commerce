@@ -106,4 +106,17 @@ The unified inbox message endpoint accepts a template request when the customer-
 }
 ```
 
-Send this to the existing conversation messages endpoint with a fresh `Idempotency-Key`. Template messages are WhatsApp-only. The worker checks the exact template name, language and `APPROVED` status against the connected WABA before submitting the message through the connected phone-number ID. An unavailable approval check fails closed; ambiguous send timeouts are marked delivery-unknown and are never automatically resent. Template sends use the existing encrypted connection credential and durable outbox. The merchant UI template picker and live Meta test-asset acceptance remain outstanding.
+Send this to the existing conversation messages endpoint with a fresh `Idempotency-Key`. Template messages are WhatsApp-only. The worker checks the exact template name, language and `APPROVED` status against the connected WABA before submitting the message through the connected phone-number ID. An unavailable approval check fails closed; ambiguous send timeouts are marked delivery-unknown and are never automatically resent. Template sends use the existing encrypted connection credential and durable outbox. The inbox now includes a template composer and a tenant-scoped endpoint that retrieves approved templates from the connected WABA. The merchant selects a template/language and supplies Meta-format component parameters. The UI and server both validate the component structure; the worker independently checks approval immediately before send. Live Meta test-asset acceptance remains outstanding.
+
+
+### Template discovery and merchant workflow
+
+- `GET /api/stores/{storeId}/conversations/{conversationId}/templates` returns only templates with `APPROVED` status from the conversation's connected WhatsApp Business Account.
+- Access is tenant-membership checked; the access token remains server-side and the channel must grant `whatsapp_business_management`.
+- The unified inbox exposes an Approved template composer for connected WhatsApp conversations, including when the 24-hour free-form window is closed.
+- Component parameters are bounded and validated in both the enqueue route and the provider adapter. The worker performs a fresh approval/language check immediately before sending.
+- Meta webhook delivery statuses remain the source of truth for sent, delivered, read and failed states. Provider webhook events are deduplicated and processed by the existing durable worker; a generic provider-side message-status polling API is not assumed.
+
+### Media scope and release gate
+
+Media transport is intentionally not enabled by this phase. The schema already has tenant-scoped attachment records, but production media requires a configured private object store, retention policy, malware/content scanning decision, MIME/size allowlists, signed download authorization and live provider acceptance. Do not expose raw Meta media URLs or store provider access tokens in attachment metadata. This remains a separate implementation/release gate rather than silently falling back to public URLs or database blobs.
