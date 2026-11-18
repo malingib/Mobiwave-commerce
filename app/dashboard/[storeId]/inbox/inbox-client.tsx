@@ -126,6 +126,14 @@ export default function InboxClient({ storeId, userId, userName }: { storeId: st
   }, [storeId,status,channel]);
 
   useEffect(() => {
+    setTemplateMode(false);
+    setTemplates([]);
+    setTemplateName("");
+    setTemplateLanguage("");
+    setTemplateComponents("[]");
+  }, [selectedId]);
+
+  useEffect(() => {
     if (!selectedId) return;
     let active = true;
     const run = async () => {
