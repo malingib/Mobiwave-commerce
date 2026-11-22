@@ -1,16 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "@/lib/test-runtime";
 import { formatDarajaTimestamp, matchesKenyanPhone, normalizeKenyanPhone } from "@/lib/mpesa-utils";
 
 describe("Kenyan phone normalization", () => {
-  it.each([
+  for (const [input, expected] of [
     ["0712345678", "254712345678"],
     ["254712345678", "254712345678"],
     ["712345678", "254712345678"],
     ["0112345678", "254112345678"],
     ["112345678", "254112345678"],
-  ])("normalizes %s", (input, expected) => {
-    expect(normalizeKenyanPhone(input)).toBe(expected);
-  });
+  ]) {
+    it(`normalizes ${input}`, () => {
+      expect(normalizeKenyanPhone(input)).toBe(expected);
+    });
+  }
 
   it("rejects malformed numbers and compares normalized callback phone numbers", () => {
     expect(normalizeKenyanPhone("123")).toBeNull();
