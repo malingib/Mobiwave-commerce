@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "@/lib/test-runtime";
 import { canManagePaidFeatures, hasReachedPlanLimit } from "@/lib/plans";
 
 describe("plan enforcement", () => {

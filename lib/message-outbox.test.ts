@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "@/lib/test-runtime";
 import { renderCommerceSms, sendMobiWaveSms } from "@/lib/message-outbox";
 
 describe("transactional commerce SMS templates", () => {

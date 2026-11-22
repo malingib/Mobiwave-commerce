@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "@/lib/test-runtime";
 import { extractProviderMessageText, mapProviderStatus, normalizeProviderTimestamp } from "@/lib/channels/webhook-worker";
 
 describe("channel webhook worker normalization", () => {

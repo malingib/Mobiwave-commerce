@@ -22,6 +22,7 @@ type Message = {
   read_at: string | null; sender_user_id: string | null; created_at: string;
 };
 type Note = { id: string; author_user_id: string; body: string; created_at: string };
+type ApprovedTemplate = { name: string; language: string; category: string | null; components: unknown[] };
 type Detail = {
   conversation: Conversation & { email: string | null; connection_status: string; created_at: string; last_inbound_at: string | null; reply_window_open: boolean };
   messages: Message[]; notes: Note[];
@@ -50,6 +51,12 @@ export default function InboxClient({ storeId, userId, userName }: { storeId: st
   const [channel,setChannel] = useState("all");
   const [search,setSearch] = useState("");
   const [draft,setDraft] = useState("");
+  const [templateMode,setTemplateMode] = useState(false);
+  const [templates,setTemplates] = useState<ApprovedTemplate[]>([]);
+  const [templateName,setTemplateName] = useState("");
+  const [templateLanguage,setTemplateLanguage] = useState("");
+  const [templateComponents,setTemplateComponents] = useState("[]");
+  const [templatesLoading,setTemplatesLoading] = useState(false);
   const [noteDraft,setNoteDraft] = useState("");
   const [loading,setLoading] = useState(true);
   const [detailLoading,setDetailLoading] = useState(true);
@@ -163,6 +170,10 @@ export default function InboxClient({ storeId, userId, userName }: { storeId: st
     );
   }, [conversations,search]);
 
+  function resetTemplateComposer() {
+    setTemplateMode(false); setTemplates([]); setTemplateName(""); setTemplateLanguage(""); setTemplateComponents("[]");
+  }
+
   async function updateConversation(values: Record<string,unknown>) {
     if (!selectedId) return;
     setSaving(true); setError(""); setNotice("");
@@ -217,6 +228,51 @@ export default function InboxClient({ storeId, userId, userName }: { storeId: st
 
   const conversation = detail?.conversation;
   const canReply = Boolean(conversation && ["whatsapp","instagram"].includes(conversation.channel) && conversation.connection_status === "connected" && conversation.reply_window_open);
+  const canUseTemplates = Boolean(conversation && conversation.channel === "whatsapp" && conversation.connection_status === "connected");
+
+  async function openTemplateMode() {
+    if (!selectedId || !canUseTemplates) return;
+    setTemplateMode(true); setTemplatesLoading(true); setError(""); setNotice("");
+    try {
+      const response = await fetch("/api/stores/" + storeId + "/conversations/" + selectedId + "/templates", { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not load approved templates");
+      const rows = (data.templates || []) as ApprovedTemplate[];
+      setTemplates(rows);
+      if (rows.length && !rows.some(row => row.name === templateName && row.language === templateLanguage)) {
+        setTemplateName(rows[0].name);
+        setTemplateLanguage(rows[0].language);
+        setTemplateComponents("[]");
+      }
+      if (!rows.length) setNotice("No approved WhatsApp templates were found for this account.");
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not load approved templates"); }
+    finally { setTemplatesLoading(false); }
+  }
+
+  async function sendTemplate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedId || !templateName || !templateLanguage) return;
+    let components: unknown;
+    try {
+      components = JSON.parse(templateComponents);
+      if (!Array.isArray(components)) throw new Error("Template parameters must be a JSON array.");
+    } catch (e) { setError(e instanceof Error ? e.message : "Invalid template parameters"); return; }
+    setSending(true); setError(""); setNotice("");
+    try {
+      const response = await fetch("/api/stores/" + storeId + "/conversations/" + selectedId + "/messages", {
+        method: "POST",
+        headers: { "content-type": "application/json", "Idempotency-Key": window.crypto.randomUUID() },
+        body: JSON.stringify({ type: "template", templateName, language: templateLanguage, components }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Template could not be queued");
+      setTemplateMode(false);
+      setTemplateComponents("[]");
+      setNotice("Approved template queued. Delivery status will update when Meta confirms it.");
+      await Promise.all([loadDetail(selectedId),loadConversations()]);
+    } catch (e) { setError(e instanceof Error ? e.message : "Template could not be queued"); }
+    finally { setSending(false); }
+  }
 
   return (
     <main className="dashboard-shell">
@@ -239,10 +295,10 @@ export default function InboxClient({ storeId, userId, userName }: { storeId: st
           <div className="inbox-toolbar">
             <div><h2>Conversations</h2><p>WhatsApp and Instagram messages in one workspace.</p></div>
             <div className="inbox-filters">
-              <select value={status} onChange={e=>{setSelectedId("");setDetail(null);setDetailLoading(true);setStatus(e.target.value);}} aria-label="Filter conversation status">
+              <select value={status} onChange={e=>{resetTemplateComposer();setSelectedId("");setDetail(null);setDetailLoading(true);setStatus(e.target.value);}} aria-label="Filter conversation status">
                 <option value="all">All statuses</option><option value="open">Open</option><option value="pending">Pending</option><option value="resolved">Resolved</option><option value="archived">Archived</option>
               </select>
-              <select value={channel} onChange={e=>{setSelectedId("");setDetail(null);setDetailLoading(true);setChannel(e.target.value);}} aria-label="Filter channel">
+              <select value={channel} onChange={e=>{resetTemplateComposer();setSelectedId("");setDetail(null);setDetailLoading(true);setChannel(e.target.value);}} aria-label="Filter channel">
                 <option value="all">All channels</option><option value="whatsapp">WhatsApp</option><option value="instagram">Instagram</option>
               </select>
             </div>
@@ -255,7 +311,7 @@ export default function InboxClient({ storeId, userId, userName }: { storeId: st
               <div className="inbox-list-head"><span>{visible.length} CONVERSATIONS</span><button onClick={()=>void loadConversations()} aria-label="Refresh conversations"><RefreshCw size={14}/></button></div>
               <div className="inbox-list-scroll">
                 {loading ? <div className="inbox-empty">Loading conversations…</div> : visible.length===0 ? <div className="inbox-empty"><MessageCircle size={24}/><b>No conversations found</b><span>Incoming WhatsApp and Instagram messages will appear here.</span></div> : visible.map(row=>(
-                  <button key={row.id} className={"inbox-conversation " + (selectedId===row.id?"selected":"")} onClick={()=>{setDetail(null);setDetailLoading(true);setSelectedId(row.id);}}>
+                  <button key={row.id} className={"inbox-conversation " + (selectedId===row.id?"selected":"")} onClick={()=>{resetTemplateComposer();setDetail(null);setDetailLoading(true);setSelectedId(row.id);}}>
                     <span className={"channel-avatar " + row.channel}>{row.channel==="instagram"?<Instagram size={17}/>:<MessageCircle size={17}/>}</span>
                     <span className="inbox-row-main">
                       <span className="inbox-row-top"><b>{row.customer_name || row.phone_e164 || row.external_user_id}</b><time>{timeLabel(row.last_message_at || row.last_message_created_at)}</time></span>
@@ -309,11 +365,29 @@ export default function InboxClient({ storeId, userId, userName }: { storeId: st
                       <form className="note-compose" onSubmit={addNote}><input value={noteDraft} onChange={e=>setNoteDraft(e.target.value)} placeholder="Add an internal note…" maxLength={10000}/><button disabled={addingNote||!noteDraft.trim()}>{addingNote?"Saving…":"Add note"}</button></form>
                     </section>
                   </div>
-                  <form className="reply-compose" onSubmit={sendReply}>
-                    {!canReply&&<div className="reply-window-warning"><Clock3 size={14}/>{conversation?.channel==="whatsapp"||conversation?.channel==="instagram"?"Free-form replies are available only within 24 hours of the customer’s last message. Approved templates are not enabled yet.":"Outbound replies for this channel are not enabled yet."}</div>}
-                    <textarea value={draft} onChange={e=>setDraft(e.target.value)} placeholder={canReply?"Write a reply…":"Customer messaging window closed"} maxLength={conversation?.channel==="instagram"?1000:4096} disabled={!canReply||sending}/>
-                    <div className="reply-compose-footer"><span>Text only · {conversation?.channel==="instagram"?"1,000":"4,096"} character limit</span><button className="button button-dark" disabled={!canReply||sending||!draft.trim()}>{sending?"Queueing…":"Send reply"} <Send size={15}/></button></div>
-                  </form>
+                  <div className="reply-mode-switch">
+                    <button type="button" className={!templateMode?"active":""} onClick={()=>setTemplateMode(false)}>Free-form reply</button>
+                    {canUseTemplates&&<button type="button" className={templateMode?"active":""} onClick={()=>void openTemplateMode()}>Approved template</button>}
+                  </div>
+                  {templateMode ? (
+                    <form className="reply-compose" onSubmit={sendTemplate}>
+                      <div className="reply-window-warning"><Clock3 size={14}/>Approved WhatsApp templates can be sent outside the 24-hour customer-care window.</div>
+                      {templatesLoading ? <p>Loading approved templates from Meta…</p> : <>
+                        <label>Approved template<select value={templateName+"|"+templateLanguage} onChange={e=>{const selected=templates.find(row=>row.name+"|"+row.language===e.target.value);if(selected){setTemplateName(selected.name);setTemplateLanguage(selected.language);setTemplateComponents("[]");}}} disabled={!templates.length||sending}>
+                          {templates.length===0?<option value="">No approved templates available</option>:templates.map(row=><option key={row.name+"|"+row.language} value={row.name+"|"+row.language}>{row.name} · {row.language}{row.category?" · "+row.category:""}</option>)}
+                        </select></label>
+                        <label>Template components (JSON array)<textarea value={templateComponents} onChange={e=>setTemplateComponents(e.target.value)} placeholder='[{"type":"body","parameters":[{"type":"text","text":"Order #1001"}]}]' rows={4} disabled={!templates.length||sending}/></label>
+                        <p className="muted-message">Use Meta’s component parameter format for this approved template. Leave as [] when the template has no variables.</p>
+                      </>}
+                      <div className="reply-compose-footer"><span>{templates.length} approved templates</span><button className="button button-dark" disabled={sending||templatesLoading||!templateName||!templateLanguage}>{sending?"Queueing…":"Send template"} <Send size={15}/></button></div>
+                    </form>
+                  ) : (
+                    <form className="reply-compose" onSubmit={sendReply}>
+                      {!canReply&&<div className="reply-window-warning"><Clock3 size={14}/>{conversation?.channel==="whatsapp"||conversation?.channel==="instagram"?"Free-form replies are available only within 24 hours of the customer’s last message. Use an approved WhatsApp template where supported.":"Outbound replies for this channel are not enabled yet."}</div>}
+                      <textarea value={draft} onChange={e=>setDraft(e.target.value)} placeholder={canReply?"Write a reply…":"Customer messaging window closed"} maxLength={conversation?.channel==="instagram"?1000:4096} disabled={!canReply||sending}/>
+                      <div className="reply-compose-footer"><span>Text only · {conversation?.channel==="instagram"?"1,000":"4,096"} character limit</span><button className="button button-dark" disabled={!canReply||sending||!draft.trim()}>{sending?"Queueing…":"Send reply"} <Send size={15}/></button></div>
+                    </form>
+                  )}
                 </>
               }
             </section>

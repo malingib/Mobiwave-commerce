@@ -8,7 +8,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: commerce-ci-${{ github.ref }}
@@ -34,27 +34,47 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
       - name: Resolve dependencies and generate lockfile
         run: npm install --no-audit --no-fund
-      - name: Install from generated lockfile
+      - name: Persist lockfile on same-repository branches
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          if ! git diff --cached --quiet; then
+            git commit -m "build: commit reproducible npm lockfile"
+            git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${HEAD_REF}"
+          fi
+      - name: Install from committed lockfile
+        id: deps-install
         run: npm ci --no-audit --no-fund
       - name: Database roles and tenant isolation
         env:
           TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/commerce_test
         run: npm run test:db-security
-      - name: Dependency security audit
+      - name: Full dependency security audit
         run: npm audit --audit-level=high
       - name: Unit tests
+        if: ${{ always() && steps.deps-install.outcome == 'success' }}
         run: npm test
       - name: Typecheck
+        if: ${{ always() && steps.deps-install.outcome == 'success' }}
         run: npm run typecheck
       - name: Lint
+        if: ${{ always() && steps.deps-install.outcome == 'success' }}
         run: npm run lint
       - name: Build
+        if: ${{ always() && steps.deps-install.outcome == 'success' }}
         run: npm run build
       - name: Upload generated lockfile
         if: success()

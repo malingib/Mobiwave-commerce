@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getRequestUser } from "@/lib/request-user";
+import { validateWhatsAppTemplateComponents } from "@/lib/channels/template-validation";
 
 export const runtime = "nodejs";
 
@@ -15,8 +16,16 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
   }
   let body: Record<string, unknown>;
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Invalid request body" }, { status: 400 }); }
+  const messageType = body.type === "template" ? "template" : "text";
   const messageText = typeof body.text === "string" ? body.text.trim() : "";
-  if (!messageText || messageText.length > 4096) return NextResponse.json({ error: "Message text must contain 1–4096 characters" }, { status: 400 });
+  const templateName = typeof body.templateName === "string" ? body.templateName.trim() : "";
+  const templateLanguage = typeof body.language === "string" ? body.language.trim() : "";
+  const components = body.components === undefined ? [] : body.components;
+  if (messageType === "text" && (!messageText || messageText.length > 4096)) return NextResponse.json({ error: "Message text must contain 1–4096 characters" }, { status: 400 });
+  if (messageType === "template") {
+    if (!/^[a-z0-9_]{1,512}$/.test(templateName) || !/^[a-z]{2,3}(?:_[A-Z]{2})?$/.test(templateLanguage)) return NextResponse.json({ error: "A valid approved template name and language are required" }, { status: 400 });
+    if (!validateWhatsAppTemplateComponents(components)) return NextResponse.json({ error: "Template components or parameters are invalid" }, { status: 400 });
+  }
 
   const client = await db.connect();
   try {
@@ -47,7 +56,12 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
       await client.query("ROLLBACK");
       return NextResponse.json({ error: "Instagram text messages are limited to 1,000 characters" }, { status: 400 });
     }
-    const requestHash = createHash("sha256").update(JSON.stringify({ channel: item.channel, conversationId, text: messageText })).digest("hex");
+    if (messageType === "template" && item.channel !== "whatsapp") {
+      await client.query("ROLLBACK");
+      return NextResponse.json({ error: "Approved templates are supported for WhatsApp only" }, { status: 409 });
+    }
+    const templatePayload = messageType === "template" ? { name: templateName, language: { code: templateLanguage }, components } : null;
+    const requestHash = createHash("sha256").update(JSON.stringify({ channel: item.channel, conversationId, type: messageType, text: messageText, template: templatePayload })).digest("hex");
     const existing = await client.query(
       "SELECT id,message_id,status,request_hash FROM message_outbox WHERE store_id=$1 AND idempotency_key=$2 LIMIT 1",
       [storeId, idempotencyKey],
@@ -64,15 +78,15 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
       return NextResponse.json({ error: "This channel is not connected for outbound messaging" }, { status: 409 });
     }
     const lastInbound = item.last_inbound_at ? new Date(item.last_inbound_at).getTime() : 0;
-    if (!lastInbound || !Number.isFinite(lastInbound) || Date.now() - lastInbound > 24 * 60 * 60 * 1000) {
+    if (messageType === "text" && (!lastInbound || !Number.isFinite(lastInbound) || Date.now() - lastInbound > 24 * 60 * 60 * 1000)) {
       await client.query("ROLLBACK");
-      return NextResponse.json({ error: "The customer messaging window has expired. Approved template messaging is not yet enabled." }, { status: 409 });
+      return NextResponse.json({ error: "The customer messaging window has expired. Use an approved WhatsApp template." }, { status: 409 });
     }
 
     const message = await client.query(
-      `INSERT INTO conversation_messages (store_id,conversation_id,connection_id,direction,message_type,content,provider_status,sender_user_id)
-       VALUES ($1,$2,$3,'outbound','text',$4,'queued',$5) RETURNING id`,
-      [storeId, conversationId, item.connection_id, messageText, user.id],
+      `INSERT INTO conversation_messages (store_id,conversation_id,connection_id,direction,message_type,content,raw_metadata,provider_status,sender_user_id)
+       VALUES ($1,$2,$3,'outbound',$4,$5,$6::jsonb,'queued',$7) RETURNING id`,
+      [storeId, conversationId, item.connection_id, messageType, messageType === "template" ? "WhatsApp template: " + templateName : messageText, JSON.stringify(templatePayload || {}), user.id],
     );
     const messageId = String(message.rows[0].id);
     const queued = await client.query(

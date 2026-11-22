@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "@/lib/test-runtime";
 import { verifyMetaWebhookSignature } from "@/lib/channels/meta-signature";
 
 describe("Meta webhook signature verification", () => {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "@/lib/test-runtime";
 import { clientAddress, rateLimitKey } from "./rate-limit-utils";
 
 describe("rate limit key helpers", () => {

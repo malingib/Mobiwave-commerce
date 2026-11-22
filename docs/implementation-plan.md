@@ -68,7 +68,8 @@
 - [x] Build official WhatsApp/Instagram text-send adapters and durable outbound worker.
 - [x] Add tenant-scoped idempotency keys and request fingerprints; reject key reuse with different content.
 - [x] Enforce the 24-hour free-form messaging window and conservative delivery-unknown handling; never auto-retry ambiguous sends.
-- [ ] Add approved template sends, media and explicit delivery reconciliation.
+- [x] Add queued approved WhatsApp template sends with live Meta template approval checks, language matching and idempotent request fingerprints.
+- [ ] Add media and explicit delivery reconciliation.
 - [x] Build unified merchant inbox with conversation list, channel/status filters, customer history, reply composer, assignment-to-self, internal notes, priority and status controls.
 - [ ] Add richer team assignment, labels, saved views and browser-level workflow acceptance.
 
@@ -85,3 +86,37 @@
 ## Current honest status
 
 Core commerce workflows and Social Commerce Phases 1–6 are merged to main. The Phase 6 PR CI passed and the post-merge main CI passed. The separate scheduled Message outbox workflow currently fails fast because COMMERCE_BASE_URL and COMMERCE_CRON_SECRET are not configured in GitHub Actions; this is a missing deployment configuration, not a code-test failure. Production Neon and production deployment have not been changed. Live Meta test-asset acceptance, real Daraja sandbox/live acceptance, MobiWave SMS credentials and provider delivery, browser E2E, and release operations remain outstanding. The platform is not yet production-ready.
+
+
+## Approved WhatsApp template send contract
+
+The unified inbox message endpoint accepts a template request when the customer-care window is closed:
+
+```json
+{
+  "type": "template",
+  "templateName": "order_update",
+  "language": "en",
+  "components": [
+    {
+      "type": "body",
+      "parameters": [{ "type": "text", "text": "Order #1001" }]
+    }
+  ]
+}
+```
+
+Send this to the existing conversation messages endpoint with a fresh `Idempotency-Key`. Template messages are WhatsApp-only. The worker checks the exact template name, language and `APPROVED` status against the connected WABA before submitting the message through the connected phone-number ID. An unavailable approval check fails closed; ambiguous send timeouts are marked delivery-unknown and are never automatically resent. Template sends use the existing encrypted connection credential and durable outbox. The inbox now includes a template composer and a tenant-scoped endpoint that retrieves approved templates from the connected WABA. The merchant selects a template/language and supplies Meta-format component parameters. The UI and server both validate the component structure; the worker independently checks approval immediately before send. Live Meta test-asset acceptance remains outstanding.
+
+
+### Template discovery and merchant workflow
+
+- `GET /api/stores/{storeId}/conversations/{conversationId}/templates` returns only templates with `APPROVED` status from the conversation's connected WhatsApp Business Account.
+- Access is tenant-membership checked; the access token remains server-side and the channel must grant `whatsapp_business_management`.
+- The unified inbox exposes an Approved template composer for connected WhatsApp conversations, including when the 24-hour free-form window is closed.
+- Component parameters are bounded and validated in both the enqueue route and the provider adapter. The worker performs a fresh approval/language check immediately before sending.
+- Meta webhook delivery statuses remain the source of truth for sent, delivered, read and failed states. Provider webhook events are deduplicated and processed by the existing durable worker; a generic provider-side message-status polling API is not assumed.
+
+### Media scope and release gate
+
+Media transport is intentionally not enabled by this phase. The schema already has tenant-scoped attachment records, but production media requires a configured private object store, retention policy, malware/content scanning decision, MIME/size allowlists, signed download authorization and live provider acceptance. Do not expose raw Meta media URLs or store provider access tokens in attachment metadata. This remains a separate implementation/release gate rather than silently falling back to public URLs or database blobs.

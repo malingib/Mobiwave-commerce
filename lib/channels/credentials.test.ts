@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "@/lib/test-runtime";
 import { decryptChannelCredential, encryptChannelCredential } from "@/lib/channels/credentials";
 
 const originalKey = process.env.CHANNEL_CREDENTIALS_ENCRYPTION_KEY;

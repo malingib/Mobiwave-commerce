@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "@/lib/test-runtime";
 import { normalizeMetaWebhook } from "@/lib/channels/meta-adapter";
 
 describe("Meta webhook normalization", () => {
