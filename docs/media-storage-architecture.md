@@ -1,12 +1,12 @@
 # Social Commerce private media architecture
 
-Status: implementation decision; infrastructure provisioning and runtime integration remain gated.
+Status: architecture decision; bucket existence verified 22 November 2026; credentials, runtime integration and security scanning remain gated.
 
 ## Decision
 
 Use a **private Cloudflare R2 bucket** for WhatsApp/Instagram conversation media. Keep PostgreSQL as the metadata and authorization source of truth. Use the R2 S3-compatible API from the existing Node.js application; do not expose a public bucket, `r2.dev` URL, or permanent object URL. Issue short-lived, operation-specific presigned URLs only after tenant membership and attachment authorization checks.
 
-This fits the existing Next.js/Node runtime without introducing a second worker platform or a new database. R2 remains an infrastructure dependency: no bucket or credentials are assumed to exist.
+This fits the existing Next.js/Node runtime without introducing a second database. The private bucket `mobiwave-commerce-media` was verified in the connected Cloudflare account on 22 November 2026. Application-scoped S3 credentials and the runtime integration are not yet configured.
 
 ## Required infrastructure configuration
 
