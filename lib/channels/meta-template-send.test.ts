@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "@/lib/test-runtime";
 import { sendMetaTemplateMessage } from "@/lib/channels/meta-template-send";
 
 afterEach(() => vi.unstubAllGlobals());
