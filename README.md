@@ -53,7 +53,7 @@ db/schema.sql is the initial schema baseline. Apply db/migrations/0002-auth.sql 
 
 ## Development
 
-Run npm install and npm run dev.
+Run `npm ci` and then `npm run dev`. Run `npm test` for the 58 Node-native unit tests, `npm run typecheck` for TypeScript validation, `npm run lint` for JavaScript/config linting, and `npm run build` for the production build.
 
 Visit /signup, create a store in /dashboard, manage products/orders, and test its public storefront at /shop/{slug}. Merchant billing is at /dashboard/{storeId}/billing; merchant domain and M-Pesa settings are in the store dashboard.
 
@@ -69,7 +69,7 @@ Platform administration:
 - Paid plan prices intentionally remain unconfigured (NULL) until MobiWave approves commercial rates. Free plan custom-domain quota is zero. Quotas are enforced when configured.
 - Daraja credentials and callbacks are implemented, but real sandbox/production credentials and live callback tests are still required. Browser redirects never activate payments.
 - SMS messages are queued and retried. The adapter currently sends a bearer-authenticated JSON request with to, message, senderId and clientReference. The exact MobiWave SMS endpoint and payload contract must be confirmed against the provider documentation before live sending. No SMS has been sent from this audit.
-- Immediate SMS dispatch uses Next.js after(). The GitHub scheduled worker is available for retries; configure repository secrets COMMERCE_BASE_URL and COMMERCE_CRON_SECRET (same value as Vercel CRON_SECRET) after production deployment.
+- Immediate SMS dispatch uses Next.js after(). The GitHub scheduled worker is available for retries; configure repository secrets `COMMERCE_BASE_URL`, `CRON_SECRET`, and `CHANNEL_WORKER_SECRET`. The app runtime must use the matching `CRON_SECRET` and `CHANNEL_WORKER_SECRET` values.
 - Custom domains require merchant DNS TXT verification, manual attachment to the Vercel project, then platform-admin activation. Production wildcard DNS, Vercel domain attachment and TLS have not been verified.
 - Social Commerce Phases 1–6 are merged to main as of 17 November 2026. The release includes tenant-scoped channel/conversation storage, verified Meta webhook ingress, inbound processing, WhatsApp Embedded Signup and Instagram Login foundations, encrypted provider-token storage, idempotent outbound text messaging, and the merchant unified inbox. Production Neon and production deployment have not been modified.
 - Remaining Social Commerce work: live Meta test-asset onboarding and App Review/permission acceptance; approved template sends; media download/storage; explicit delivery reconciliation; richer team assignment, labels and saved views; browser-level workflow acceptance. The inbox/outbound paths have CI coverage, but have not been validated end-to-end with live Meta assets. Pesapal/Paystack, email order notifications, automatic recurring card/M-Pesa mandates, and a full subscription usage-metering system remain future work.
