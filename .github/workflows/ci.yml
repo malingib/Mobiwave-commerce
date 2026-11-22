@@ -8,7 +8,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: commerce-ci-${{ github.ref }}
@@ -40,7 +40,20 @@ jobs:
           node-version: 22
       - name: Resolve dependencies and generate lockfile
         run: npm install --no-audit --no-fund
-      - name: Install from generated lockfile
+      - name: Persist lockfile on same-repository branches
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          if ! git diff --cached --quiet; then
+            git commit -m "build: commit reproducible npm lockfile"
+            git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${HEAD_REF}"
+          fi
+      - name: Install from committed lockfile
         id: deps-install
         run: npm ci --no-audit --no-fund
       - name: Database roles and tenant isolation
