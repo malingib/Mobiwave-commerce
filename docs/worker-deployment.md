@@ -9,12 +9,12 @@ Configure these secrets in the repository's Actions secrets settings. Do not com
 | Secret | Used by | Value |
 |---|---|---|
 | `COMMERCE_BASE_URL` | All three workers | The canonical HTTPS production application origin, without a trailing path |
-| `COMMERCE_CRON_SECRET` | Transactional message outbox | Must exactly match the application's `COMMERCE_CRON_SECRET` |
+| `CRON_SECRET` | Transactional message outbox | Must exactly match the application's `CRON_SECRET` |
 | `CHANNEL_WORKER_SECRET` | Meta inbound webhook and outbound message workers | Must exactly match the application's `CHANNEL_WORKER_SECRET` |
 
 ## Application environment
 
-The deployed application must have both `COMMERCE_CRON_SECRET` and `CHANNEL_WORKER_SECRET` configured as server-only environment variables. Use independently generated high-entropy values, at least 32 random bytes each. The GitHub Actions secret for each worker must be the exact corresponding application value.
+The deployed application must have both `CRON_SECRET` and `CHANNEL_WORKER_SECRET` configured as server-only environment variables. Use independently generated high-entropy values, at least 32 random bytes each. The GitHub Actions secret for each worker must be the exact corresponding application value.
 
 Do not reuse the Meta App Secret, Meta webhook verify token, database password, or any provider access token as a worker secret.
 
