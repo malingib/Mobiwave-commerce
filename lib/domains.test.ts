@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "@/lib/test-runtime";
 import { domainVerificationRecordName, domainVerificationRecordValue, normalizeCustomHostname } from "@/lib/domains";
 
 describe("custom domain validation", () => {
