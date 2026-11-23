@@ -32,10 +32,10 @@ test("GSM-7 and UCS-2 segment boundaries are calculated correctly", () => {
 });
 
 test("M-Pesa wallet credit posts one append-only ledger movement", async () => {
-  const statements:string[]=[];
+  const statements:Array<{sql:string;params?:unknown[]}>=[];
   const client={
-    query:async(sql:string)=>{
-      statements.push(sql);
+    query:async(sql:string,params?:unknown[])=>{
+      statements.push({sql,params});
       if(sql.includes("SELECT currency,status,available_balance_minor"))return {rowCount:1,rows:[{currency:"KES",status:"active",available_balance_minor:"5000"}]};
       if(sql.includes("INSERT INTO store_wallet_transactions"))return {rowCount:1,rows:[{id:"ledger-1"}]};
       if(sql.includes("UPDATE store_wallet_accounts"))return {rowCount:1,rows:[{available_balance_minor:"15000"}]};
@@ -44,8 +44,8 @@ test("M-Pesa wallet credit posts one append-only ledger movement", async () => {
   } as unknown as import("pg").PoolClient;
   const result=await creditStoreWalletFromMpesa(client,{storeId:"store-1",attemptId:"attempt-1",amountMinor:10000,currency:"KES",receipt:"ABC123456"});
   assert.deepEqual(result,{ok:true,balanceMinor:15000});
-  assert.equal(statements.some(sql=>sql.includes("mpesa-topup:attempt-1")),true);
-  assert.equal(statements.some(sql=>sql.includes("ON CONFLICT (store_id,idempotency_key) DO NOTHING")),true);
+  assert.equal(statements.some(entry=>entry.params?.[3]==="mpesa-topup:attempt-1"),true);
+  assert.equal(statements.some(entry=>entry.sql.includes("ON CONFLICT (store_id,idempotency_key) DO NOTHING")),true);
 });
 
 test("M-Pesa duplicate wallet credit never increments the balance twice", async () => {
