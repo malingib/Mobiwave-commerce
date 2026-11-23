@@ -44,6 +44,7 @@ export default function ContactPage() {
       <nav className="cm-nav" aria-label="Main navigation"><Link href="/">Home</Link><Link href="/#features">Features</Link><Link href="/#pricing">Pricing</Link><Link href="/about">About</Link><Link href="/contact" aria-current="page">Contact</Link></nav>
       <div className="cm-header-actions"><Link className="cm-login" href="/login">Log in</Link><Link className="cm-button cm-button-primary cm-button-small" href="/signup">Get started <ArrowRight size={15}/></Link></div>
     </header>
+    <nav className="cm-inner-mobile-nav" aria-label="Mobile navigation"><Link href="/">Home</Link><Link href="/#features">Features</Link><Link href="/#pricing">Pricing</Link><Link href="/about">About</Link><Link href="/contact">Contact</Link></nav>
 
     <section className="cm-contact-hero"><div><span className="cm-section-kicker">CONTACT MOBIWAVE COMMERCE</span><h1>Let’s talk about <span>your business.</span></h1><p>Questions about getting started, setting up your shop or using Commerce? Send our team a message and we’ll get back to you.</p><div className="cm-contact-details">
       <a href="mailto:sales@mobiwave.co.ke"><span><Mail size={18}/></span><div><small>EMAIL OUR TEAM</small><strong>sales@mobiwave.co.ke</strong></div></a>
