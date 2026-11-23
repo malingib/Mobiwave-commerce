@@ -20,7 +20,7 @@ export function calculateSmsWalletCharge(totalSegments: number, includedSegments
 
 
 const GSM7_BASIC = new Set(Array.from("@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà"));
-const GSM7_EXTENSION = new Set(Array.from("\\^{}\\\\[~]|€"));
+const GSM7_EXTENSION = new Set(Array.from("\f^{}\\[~]|€"));
 
 export function countSmsSegments(message: string): { encoding: "GSM-7" | "UCS-2"; units: number; segments: number } {
   if (typeof message !== "string") throw new Error("invalid_sms_message");
