@@ -11,8 +11,8 @@ export async function scanMediaObject(input: {
   fetcher?: typeof fetch;
 }): Promise<MediaScanStatus> {
   const saved = await getPlatformProviderConfig("media_scanner").catch(() => null);
-  const token = input.scannerToken || saved?.scannerToken || "";
-  const provider = input.scannerProvider || saved?.provider || "custom";
+  const token = saved?.scannerToken || input.scannerToken || "";
+  const provider = saved?.provider || input.scannerProvider || "custom";
   if (!token) return "quarantined";
 
   const fetcher = input.fetcher || fetch;
@@ -38,7 +38,7 @@ export async function scanMediaObject(input: {
       return "quarantined";
     }
 
-    const scannerUrl = input.scannerUrl || saved?.scannerUrl || "";
+    const scannerUrl = saved?.scannerUrl || input.scannerUrl || "";
     if (!scannerUrl) return "quarantined";
     const url = new URL(scannerUrl);
     if (url.protocol !== "https:") return "quarantined";
