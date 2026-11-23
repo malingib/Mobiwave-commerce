@@ -75,7 +75,57 @@ CREATE POLICY store_wallet_reservations_system_write ON store_wallet_reservation
   USING (current_setting('app.wallet_worker', true) = 'true' OR current_setting('app.admin', true) = 'true')
   WITH CHECK (current_setting('app.wallet_worker', true) = 'true' OR current_setting('app.admin', true) = 'true');
 GRANT SELECT, INSERT, UPDATE, DELETE ON store_wallet_accounts TO commerce_runtime;
-GRANT SELECT, INSERT, UPDATE, DELETE ON store_wallet_transactions TO commerce_runtime;
+GRANT SELECT, INSERT ON store_wallet_transactions TO commerce_runtime;
+REVOKE UPDATE, DELETE ON store_wallet_transactions FROM commerce_runtime;
 GRANT SELECT, INSERT, UPDATE, DELETE ON store_wallet_reservations TO commerce_runtime;
 COMMENT ON TABLE store_wallet_transactions IS 'Append-only wallet movements. amount_minor is signed; positive credits and negative debits.';
 COMMENT ON TABLE store_wallet_reservations IS 'Idempotent holds against available wallet balance. Reservation debit is recorded immediately; release refunds it.';
+
+
+-- Financial movement records are immutable. Correct mistakes with compensating
+-- entries rather than editing or deleting historical ledger rows.
+CREATE OR REPLACE FUNCTION prevent_store_wallet_transaction_mutation()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'store_wallet_transactions_are_append_only';
+END;
+$$;
+DROP TRIGGER IF EXISTS store_wallet_transactions_immutable ON store_wallet_transactions;
+CREATE TRIGGER store_wallet_transactions_immutable
+  BEFORE UPDATE OR DELETE ON store_wallet_transactions
+  FOR EACH ROW EXECUTE FUNCTION prevent_store_wallet_transaction_mutation();
+
+-- Reservations are immutable except for the one-way reserved -> committed/released
+-- settlement transition. They are never deleted.
+CREATE OR REPLACE FUNCTION enforce_store_wallet_reservation_transition()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION 'store_wallet_reservations_cannot_be_deleted';
+  END IF;
+  IF OLD.store_id IS DISTINCT FROM NEW.store_id
+     OR OLD.amount_minor IS DISTINCT FROM NEW.amount_minor
+     OR OLD.currency IS DISTINCT FROM NEW.currency
+     OR OLD.idempotency_key IS DISTINCT FROM NEW.idempotency_key
+     OR OLD.reference_type IS DISTINCT FROM NEW.reference_type
+     OR OLD.reference_id IS DISTINCT FROM NEW.reference_id
+     OR OLD.created_at IS DISTINCT FROM NEW.created_at THEN
+    RAISE EXCEPTION 'store_wallet_reservation_identity_is_immutable';
+  END IF;
+  IF OLD.status IS DISTINCT FROM NEW.status
+     AND NOT (OLD.status = 'reserved' AND NEW.status IN ('committed','released')) THEN
+    RAISE EXCEPTION 'invalid_store_wallet_reservation_transition';
+  END IF;
+  IF NEW.status = 'committed' AND NEW.released_at IS NOT NULL THEN
+    RAISE EXCEPTION 'committed_wallet_reservation_cannot_be_released';
+  END IF;
+  IF NEW.status = 'released' AND NEW.committed_at IS NOT NULL THEN
+    RAISE EXCEPTION 'released_wallet_reservation_cannot_be_committed';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS store_wallet_reservations_transition ON store_wallet_reservations;
+CREATE TRIGGER store_wallet_reservations_transition
+  BEFORE UPDATE OR DELETE ON store_wallet_reservations
+  FOR EACH ROW EXECUTE FUNCTION enforce_store_wallet_reservation_transition();
