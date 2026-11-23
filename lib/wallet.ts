@@ -70,6 +70,8 @@ export async function settleStoreWalletReservation(client: PoolClient, input: {
 }) {
   if (!input.idempotencyKey.trim() || input.idempotencyKey.length > 180) throw new Error("invalid_wallet_idempotency_key");
   await client.query("SELECT set_config('app.wallet_worker', 'true', true)");
+  // Keep lock order consistent with reservation creation to avoid deadlocks.
+  await client.query("SELECT store_id FROM store_wallet_accounts WHERE store_id=$1 FOR UPDATE", [input.storeId]);
   const result = await client.query(
     "SELECT id, amount_minor, currency, status FROM store_wallet_reservations WHERE store_id=$1 AND id=$2 FOR UPDATE",
     [input.storeId, input.reservationId],
