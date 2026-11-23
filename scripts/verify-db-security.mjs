@@ -327,6 +327,7 @@ try {
     );
     assert.equal(crossTenantAttachmentUpdate.rowCount, 0, "user A must not change tenant B attachment visibility");
 
+    await runtime.query("SAVEPOINT before_cross_tenant_attachment_insert");
     await assert.rejects(
       runtime.query(
         "INSERT INTO conversation_attachments (store_id,message_id,storage_key,mime_type) VALUES ($1,$2,'tenant-b/forged-object','image/jpeg')",
@@ -335,7 +336,10 @@ try {
       /row-level security/i,
       "user A must not attach media to tenant B messages",
     );
+    await runtime.query("ROLLBACK TO SAVEPOINT before_cross_tenant_attachment_insert");
+    await runtime.query("RELEASE SAVEPOINT before_cross_tenant_attachment_insert");
 
+    await runtime.query("SAVEPOINT before_cross_tenant_product_insert");
     await assert.rejects(
       runtime.query(
         "INSERT INTO products (store_id,name,slug,price_minor,status) VALUES ($1,'Intrusion','intrusion',1,'active')",
@@ -344,6 +348,8 @@ try {
       /row-level security/i,
       "user A must not insert products into tenant B",
     );
+    await runtime.query("ROLLBACK TO SAVEPOINT before_cross_tenant_product_insert");
+    await runtime.query("RELEASE SAVEPOINT before_cross_tenant_product_insert");
     await runtime.query("ROLLBACK");
   } catch (error) {
     await runtime.query("ROLLBACK").catch(() => undefined);
