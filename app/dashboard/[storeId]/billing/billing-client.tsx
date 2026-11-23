@@ -112,6 +112,32 @@ export default function BillingClient({ storeId, userName }: { storeId: string; 
             <div className="auth-form"><label htmlFor="billing-phone">M-Pesa phone number</label><input id="billing-phone" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="0712 345 678" autoComplete="tel"/></div>
           </section>}
           {latestPayment && <p className="billing-note">Latest payment: {latestPayment.plan_code} · {money(latestPayment.amount_minor, latestPayment.currency)} · {latestPayment.status.replaceAll("_", " ")}.</p>}
+          <section className="workspace-panel">
+            <div className="panel-heading"><div><h3>Store wallet</h3><p>Wallet-funded SMS overage and other enabled Commerce charges.</p></div><WalletIcon size={20}/></div>
+            <div className="admin-metrics">
+              <article><span>Available balance</span><b>{wallet?.account?money(wallet.account.available_balance_minor,wallet.account.currency):"KES 0.00"}</b></article>
+              <article><span>Wallet status</span><b>{wallet?.account?.status||"Not initialized"}</b></article>
+              <article><span>SMS segments this month</span><b>{Number(wallet?.smsUsage.monthly_segments||0).toLocaleString("en-KE")}</b></article>
+              <article><span>SMS overage this month</span><b>{money(wallet?.smsUsage.monthly_amount_minor||0)}</b></article>
+            </div>
+            {canTopUp && platformPaymentsEnabled ? <div className="auth-form" style={{maxWidth:460}}>
+              <label htmlFor="wallet-topup-amount">Top-up amount (KES)</label>
+              <input id="wallet-topup-amount" type="number" min="1" step="1" value={topupAmount} onChange={e=>setTopupAmount(e.target.value)}/>
+              <label htmlFor="wallet-topup-phone">M-Pesa phone number</label>
+              <input id="wallet-topup-phone" type="tel" value={phone} onChange={e=>setPhone(e.target.value)} placeholder="0712 345 678" autoComplete="tel"/>
+              <button className="button button-dark" disabled={busy==="wallet"||!phone.trim()} onClick={()=>void requestWalletTopup()}>{busy==="wallet"?"Sending STK Push…":"Top up wallet with M-Pesa"} <WalletIcon size={15}/></button>
+            </div> : !canTopUp ? <p className="billing-note">Only the store owner can initiate wallet top-ups.</p>
+              : <p className="billing-note">Wallet top-ups will be available when platform M-Pesa payments are enabled.</p>}
+            <div className="panel-heading" style={{marginTop:24}}><div><h3>Recent wallet activity</h3><p>Credits and debits recorded in the append-only ledger.</p></div><button className="button button-light" onClick={()=>void load()}><RefreshCw size={14}/> Refresh</button></div>
+            {wallet?.transactions.length ? <div className="admin-store-list">{wallet.transactions.map(tx=><article className="admin-store-row" key={tx.id}>
+              <div className="store-avatar"><WalletIcon size={17}/></div><div className="admin-store-info"><b>{tx.description||tx.transaction_type.replaceAll("_"," ")}</b><small>{tx.transaction_type.replaceAll("_"," ")} · {new Date(tx.created_at).toLocaleString("en-KE")}</small></div>
+              <strong>{money(tx.amount_minor,tx.currency)}</strong>
+            </article>)}</div> : <p className="empty-state">No wallet transactions yet.</p>}
+            {wallet?.topups.length ? <><div className="panel-heading" style={{marginTop:24}}><div><h3>Top-up requests</h3><p>Payment is credited only after a verified Daraja callback.</p></div><MessageSquare size={18}/></div>
+              <div className="admin-store-list">{wallet.topups.map(item=><article className="admin-store-row" key={item.id}>
+                <div className="store-avatar"><CreditCard size={17}/></div><div className="admin-store-info"><b>{money(item.amount_minor,item.currency)}</b><small>{new Date(item.created_at).toLocaleString("en-KE")} {item.checkout_request_id?"· "+item.checkout_request_id:""}</small></div><span className={"order-status-pill status-"+item.status}>{item.status.replaceAll("_"," ")}</span>
+              </article>)}</div></> : null}
+          </section>
           <div className="billing-plans">
             {plans.map(plan => <article className={`billing-plan ${billing.plan_code === plan.code ? "current" : ""}`} key={plan.code}>
               <div className="billing-plan-head"><div><h3>{plan.name}</h3><p>{plan.description}</p></div>{billing.plan_code === plan.code && <span className="current-plan-label">CURRENT</span>}</div>
