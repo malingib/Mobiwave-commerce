@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Check, CreditCard, Store } from "lucide-react";
+import { ArrowLeft, Check, CreditCard, Store, Wallet as WalletIcon, MessageSquare, RefreshCw } from "lucide-react";
 
 type Billing = {
   id: string; name: string; slug: string; plan_code: string; subscription_status: string;
@@ -13,11 +13,15 @@ type Plan = {
   currency: string; billing_interval: string; limits: Record<string, number>; features: string[];
 };
 type Payment = { id: string; plan_code: string; amount_minor: number | string; currency: string; status: string; created_at: string } | null;
+type WalletData = { account:{available_balance_minor:number|string;currency:string;status:string;updated_at:string}|null; transactions:Array<{id:string;transaction_type:string;amount_minor:number|string;currency:string;description:string;created_at:string}>; topups:Array<{id:string;amount_minor:number|string;currency:string;status:string;checkout_request_id:string|null;created_at:string}>; smsUsage:{monthly_segments:number|string;monthly_amount_minor:number|string}; };
 
 export default function BillingClient({ storeId, userName }: { storeId: string; userName: string }) {
   const [billing, setBilling] = useState<Billing | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [latestPayment, setLatestPayment] = useState<Payment>(null);
+  const [wallet, setWallet] = useState<WalletData | null>(null);
+  const [canTopUp, setCanTopUp] = useState(false);
+  const [topupAmount, setTopupAmount] = useState("100");
   const [platformPaymentsEnabled, setPlatformPaymentsEnabled] = useState(false);
   const [renewalDue, setRenewalDue] = useState(false);
   const [phone, setPhone] = useState("");
@@ -37,27 +41,26 @@ export default function BillingClient({ storeId, userName }: { storeId: string; 
       setPlans(data.plans || []);
       setPlatformPaymentsEnabled(Boolean(data.platformPaymentsEnabled));
       setLatestPayment(data.latestPayment || null);
+      setWallet(data.wallet || null);
+      setCanTopUp(Boolean(data.canTopUp));
     } catch (e) { setError(e instanceof Error ? e.message : "Could not load billing"); }
     finally { setLoading(false); }
   }, [storeId]);
-  useEffect(() => {
-    let active = true;
-    fetch(`/api/stores/${storeId}/billing`, { cache: "no-store" })
-      .then(async response => {
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || "Could not load billing");
-        if (!active) return;
-        const serverTime = Date.parse(response.headers.get("date") || "");
-        setRenewalDue(Boolean(data.billing && data.billing.plan_code !== "free" && data.billing.current_period_end && Number.isFinite(serverTime) && Date.parse(data.billing.current_period_end) <= serverTime + 7 * 24 * 60 * 60 * 1000));
-        setBilling(data.billing);
-        setPlans(data.plans || []);
-        setPlatformPaymentsEnabled(Boolean(data.platformPaymentsEnabled));
-        setLatestPayment(data.latestPayment || null);
-      })
-      .catch(error => { if (active) setError(error instanceof Error ? error.message : "Could not load billing"); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, [storeId]);
+  useEffect(() => { void load(); }, [load]);
+
+  async function requestWalletTopup() {
+    const amountMinor=Math.round(Number(topupAmount)*100);
+    if(!Number.isSafeInteger(amountMinor)||amountMinor<100||amountMinor%100!==0){setError("Enter a valid top-up amount in whole Kenyan shillings.");return;}
+    setBusy("wallet");setError("");setNotice("");
+    try {
+      const response=await fetch("/api/stores/"+storeId+"/wallet/topups/mpesa",{method:"POST",headers:{"content-type":"application/json","idempotency-key":crypto.randomUUID()},body:JSON.stringify({amountMinor,phone})});
+      const data=await response.json();
+      if(!response.ok)throw new Error(data.error||"Could not initiate wallet top-up");
+      setNotice(data.message||"M-Pesa wallet top-up request sent. Approve it on your phone.");
+      await load();
+    } catch(e){setError(e instanceof Error?e.message:"Could not initiate wallet top-up");}
+    finally{setBusy("");}
+  }
 
   async function requestUpgrade(plan: Plan) {
     setBusy(plan.code); setError(""); setNotice("");
