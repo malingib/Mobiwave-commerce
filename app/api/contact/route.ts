@@ -144,6 +144,8 @@ async function deliverMail(input: { name: string; email: string; phone: string; 
 
 const attempts = new Map<string, { count: number; resetAt: number }>();
 export async function POST(request: Request) {
+  const contentLength = Number(request.headers.get("content-length") || "0");
+  if (contentLength > 12000) return Response.json({ error: "Your message is too large." }, { status: 413 });
   const origin = request.headers.get("origin");
   const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
   if (origin && host) {
