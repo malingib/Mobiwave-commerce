@@ -36,7 +36,7 @@ export async function enqueueSms(client: PoolClient, event: SmsEventInput) {
     [event.storeId,event.orderId || null,recipient,event.templateKey,event.dedupeKey,JSON.stringify(event.payload)],
   );
   if (!result.rowCount) throw new Error("sms_idempotency_conflict");
-  return { queued: true as const, id: result.rows[0].id, inserted: result.command === "INSERT" };
+  return { queued: true as const, id: result.rows[0].id };
 }
 export function renderCommerceSms(templateKey: SmsEventInput["templateKey"], payload: Record<string, unknown>) {
   const store = String(payload.storeName || "the store").slice(0, 80);
@@ -119,7 +119,7 @@ export async function processQueuedSmsBatch(batchSize = 20) {
     await client.query(
       "UPDATE message_events SET status='delivery_unknown',delivery_unknown_at=COALESCE(delivery_unknown_at,now())," +
       "error_code='sms_worker_lease_expired',locked_at=NULL,locked_by=NULL,updated_at=now() " +
-      "WHERE channel='sms' AND status='processing' AND locked_at<now()-interval '2 minutes'",
+      "WHERE channel='sms' AND status='processing' AND locked_at<now()-interval '15 minutes'",
     );
     const due = await client.query(
       "SELECT id,store_id,recipient,template_key,dedupe_key,payload,attempt_count FROM message_events " +
