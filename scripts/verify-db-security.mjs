@@ -33,6 +33,7 @@ const migrationPaths = [
   "db/migrations/0020-meta-channel-onboarding.sql",
   "db/migrations/0021-social-commerce-outbound.sql",
   "db/migrations/0022-conversation-attachment-security.sql",
+  "db/migrations/0023-platform-provider-configurations.sql",
 ];
 
 const appUrl = new URL(databaseUrl);
