@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, Clock3, Mail, MapPin, MessageSquareText, Phone, Send } from "lucide-react";
+import { ArrowRight, CheckCircle2, Clock3, Mail, MapPin, MessageSquareText, Send } from "lucide-react";
 
 type FormState = "idle" | "sending" | "sent" | "error";
 
@@ -35,7 +35,6 @@ export default function ContactPage() {
       <aside className="cm-contact-aside">
         <span className="cm-section-kicker">GET IN TOUCH</span><h2>We’d love to <span>hear from you.</span></h2><p>Tell us what you’re working on and how we can help. Your message goes directly to the MobiWave team.</p>
         <div className="cm-contact-detail"><span><Mail size={18}/></span><div><b>Email</b><a href="mailto:sales@mobiwave.co.ke">sales@mobiwave.co.ke</a></div></div>
-        <div className="cm-contact-detail"><span><Phone size={18}/></span><div><b>Phone</b><a href="tel:+254700000000">Contact our team by email</a></div></div>
         <div className="cm-contact-detail"><span><MapPin size={18}/></span><div><b>Based in</b><small>Kenya</small></div></div>
         <div className="cm-contact-note"><Clock3 size={16}/><span>Our team will respond as soon as possible during business hours.</span></div>
       </aside>
