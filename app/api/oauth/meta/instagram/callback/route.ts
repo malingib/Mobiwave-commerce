@@ -10,7 +10,6 @@ import {
 } from "@/lib/channels/meta-oauth";
 import { saveMetaChannelConnection } from "@/lib/channels/save-connection";
 import { getPlatformProviderConfig } from "@/lib/platform-provider-config";
-import { getPlatformProviderConfig } from "@/lib/platform-provider-config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
