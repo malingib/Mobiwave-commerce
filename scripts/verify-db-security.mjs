@@ -35,6 +35,7 @@ const migrationPaths = [
   "db/migrations/0022-conversation-attachment-security.sql",
   "db/migrations/0023-platform-provider-configurations.sql",
   "db/migrations/0024-store-wallet-ledger.sql",
+  "db/migrations/0025-sms-delivery-idempotency.sql",
 ];
 
 const appUrl = new URL(databaseUrl);
