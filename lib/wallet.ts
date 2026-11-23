@@ -48,24 +48,31 @@ export async function reserveSmsUsage(client: PoolClient, input: {
     throw new Error("invalid_sms_usage_reservation");
   }
   await client.query("SELECT set_config('app.wallet_worker','true',true), set_config('app.message_worker','true',true)");
+  const findExisting = async () => client.query(
+    "SELECT id, wallet_reservation_id, total_segments, included_segments, billable_segments, amount_minor, status " +
+    "FROM store_sms_usage WHERE store_id=$1 AND event_id=$2",
+    [input.storeId,input.eventId],
+  );
+  const returnExisting = (existing: Awaited<ReturnType<typeof findExisting>>) => {
+    if (!existing.rowCount) return null;
+    const row = existing.rows[0];
+    if (Number(row.total_segments) !== input.totalSegments) throw new Error("sms_usage_idempotency_conflict");
+    if (row.status === "released") throw new Error("sms_usage_already_released");
+    return { ok:true as const, usageId:row.id, walletReservationId:row.wallet_reservation_id,
+      totalSegments:Number(row.total_segments), includedSegments:Number(row.included_segments),
+      billableSegments:Number(row.billable_segments), amountMinor:Number(row.amount_minor) };
+  };
+  // Reuse an existing reservation even if an administrator has since disabled
+  // billing. Then lock the configuration row and recheck to serialize allowance.
+  const prior = returnExisting(await findExisting());
+  if (prior) return prior;
   const config = await client.query(
     "SELECT included_segments_per_month, unit_rate_minor, currency FROM store_sms_billing_config WHERE store_id=$1 AND enabled=true FOR UPDATE",
     [input.storeId],
   );
   if (!config.rowCount) return { ok: false, reason: "sms_billing_not_configured" };
-  const existing = await client.query(
-    "SELECT id, wallet_reservation_id, total_segments, included_segments, billable_segments, amount_minor, status " +
-    "FROM store_sms_usage WHERE store_id=$1 AND event_id=$2",
-    [input.storeId,input.eventId],
-  );
-  if (existing.rowCount) {
-    const row = existing.rows[0];
-    if (Number(row.total_segments) !== input.totalSegments) throw new Error("sms_usage_idempotency_conflict");
-    if (row.status === "released") throw new Error("sms_usage_already_released");
-    return { ok:true, usageId:row.id, walletReservationId:row.wallet_reservation_id,
-      totalSegments:Number(row.total_segments), includedSegments:Number(row.included_segments),
-      billableSegments:Number(row.billable_segments), amountMinor:Number(row.amount_minor) };
-  }
+  const afterLock = returnExisting(await findExisting());
+  if (afterLock) return afterLock;
   const period = await client.query("SELECT date_trunc('month', now() AT TIME ZONE 'UTC')::date AS period_start");
   const periodStart = period.rows[0].period_start;
   const consumed = await client.query(
