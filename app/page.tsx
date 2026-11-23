@@ -32,6 +32,8 @@ export default function HomePage() {
           <a href="#how-it-works">How it works</a>
           <a href="#features">Features</a>
           <a href="#pricing">Pricing</a>
+          <a href="/about">About</a>
+          <a href="/contact">Contact</a>
         </nav>
         <div className="cm-header-actions">
           <a className="cm-login" href="/login">Log in</a>
@@ -44,6 +46,8 @@ export default function HomePage() {
           <a href="#how-it-works" onClick={() => setMobileOpen(false)}>How it works</a>
           <a href="#features" onClick={() => setMobileOpen(false)}>Features</a>
           <a href="#pricing" onClick={() => setMobileOpen(false)}>Pricing</a>
+          <a href="/about" onClick={() => setMobileOpen(false)}>About</a>
+          <a href="/contact" onClick={() => setMobileOpen(false)}>Contact us</a>
           <a href="/login" onClick={() => setMobileOpen(false)}>Log in</a>
           <a href="/signup" onClick={() => setMobileOpen(false)}>Create your shop <ArrowRight size={15} /></a>
         </nav>}
@@ -133,6 +137,7 @@ export default function HomePage() {
       <footer className="cm-footer">
         <a className="cm-brand cm-footer-brand" href="/" aria-label="MobiWave Commerce home"><img src="/branding/mw-logo.svg" alt="MobiWave Innovations" /><span className="cm-brand-divider" /><strong>Commerce</strong></a>
         <span>Commerce tools for businesses ready to grow.</span>
+        <nav className="cm-footer-links" aria-label="Footer navigation"><a href="/about">About</a><a href="/contact">Contact us</a><a href="https://mobiwave.co.ke" target="_blank" rel="noreferrer">MobiWave Innovations</a></nav>
         <span>© {new Date().getFullYear()} MobiWave Innovations Ltd</span>
       </footer>
     </main>
