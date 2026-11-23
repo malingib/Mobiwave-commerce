@@ -51,7 +51,7 @@ function decryptConfig(value: Record<string,string>): ProviderConfig {
   return Object.fromEntries(Object.entries(value).map(([key, encrypted]) => [key, decryptChannelCredential(encrypted)]));
 }
 
-export async function savePlatformProviderConfig(provider: ProviderName, updates: ProviderConfig, userId: string) {
+export async function savePlatformProviderConfig(provider: ProviderName, updates: ProviderConfig, userId: string, source: "dashboard" | "environment" = "dashboard") {
   const client = await db.connect();
   try {
     await client.query("BEGIN");
@@ -78,7 +78,7 @@ export async function savePlatformProviderConfig(provider: ProviderName, updates
     );
     await client.query(
       "INSERT INTO audit_events(actor_user_id,action,resource_type,metadata) VALUES($1,$2,'platform_provider_configuration',$3::jsonb)",
-      [userId, `provider.${provider}.credentials_replaced`, JSON.stringify({ provider, fields: Object.keys(updates), version: current.rowCount ? "incremented" : "1" })],
+      [userId, `provider.${provider}.${source === "environment" ? "credentials_imported_from_environment" : "credentials_replaced"}`, JSON.stringify({ provider, source, fields: Object.keys(updates), version: current.rowCount ? "incremented" : "1" })],
     );
     await client.query("COMMIT");
   } catch (error) {
