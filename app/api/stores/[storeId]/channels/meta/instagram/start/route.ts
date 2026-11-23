@@ -4,6 +4,7 @@ import { getRequestUser } from "@/lib/request-user";
 import { buildInstagramAuthorizationUrl } from "@/lib/channels/meta-oauth";
 import { issueMetaOAuthState, type AssetOwnerType, type OnboardingMode } from "@/lib/channels/oauth-state";
 import { getPlatformProviderConfig } from "@/lib/platform-provider-config";
+import { getPlatformProviderConfig } from "@/lib/platform-provider-config";
 
 export const runtime = "nodejs";
 
@@ -15,8 +16,9 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
   try { body = await request.json(); } catch { /* defaults are intentional */ }
   const ownershipMode = body.ownershipMode === "mobiwave_managed" ? "mobiwave_managed" : "merchant_owned";
   const assetOwnerType = body.assetOwnerType === "mobiwave" ? "mobiwave" : "merchant";
-  const redirectUri = process.env.META_INSTAGRAM_REDIRECT_URI || "";
-  if (!process.env.META_APP_ID || !process.env.META_APP_SECRET ||
+  const meta = await getPlatformProviderConfig("meta");
+  const redirectUri = meta?.instagramRedirectUri || process.env.META_INSTAGRAM_REDIRECT_URI || "";
+  if (!(meta?.appId || process.env.META_APP_ID) || !(meta?.appSecret || process.env.META_APP_SECRET) ||
       !redirectUri || !process.env.CHANNEL_CREDENTIALS_ENCRYPTION_KEY) {
     return NextResponse.json({ error: "Instagram onboarding is not configured on the server" }, { status: 503 });
   }
