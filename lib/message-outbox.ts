@@ -1,6 +1,7 @@
 import type { PoolClient } from "pg";
 import { db } from "@/lib/db";
 import { normalizeKenyanPhone } from "@/lib/mpesa-utils";
+import { getPlatformProviderConfig } from "@/lib/platform-provider-config";
 
 type SmsEventInput = {
   storeId: string;
@@ -51,10 +52,11 @@ export function renderCommerceSms(templateKey: SmsEventInput["templateKey"], pay
   }
 }
 
-export async function sendMobiWaveSms(recipient: string, message: string, reference: string) {
-  const configuredUrl = process.env.MOBIWAVE_SMS_API_URL || "https://sms.mobiwave.co.ke/api/v3";
-  const apiKey = process.env.MOBIWAVE_SMS_API_KEY;
-  const senderId = process.env.MOBIWAVE_SMS_SENDER_ID;
+export async function sendMobiWaveSms(recipient: string, message: string, reference: string, providerConfig?: { apiUrl: string; apiKey: string; senderId: string }) {
+  const saved = providerConfig || (process.env.DATABASE_URL ? await getPlatformProviderConfig("mobiwave_sms") : null);
+  const configuredUrl = saved?.apiUrl || process.env.MOBIWAVE_SMS_API_URL || "https://sms.mobiwave.co.ke/api/v3";
+  const apiKey = saved?.apiKey || process.env.MOBIWAVE_SMS_API_KEY;
+  const senderId = saved?.senderId || process.env.MOBIWAVE_SMS_SENDER_ID;
   if (!apiKey || !senderId) throw new Error("sms_provider_not_configured");
   if (senderId.length > 11) throw new Error("sms_sender_id_too_long");
 
@@ -97,7 +99,11 @@ export async function sendMobiWaveSms(recipient: string, message: string, refere
 }
 
 export async function processQueuedSmsBatch(batchSize = 20) {
-  if (!process.env.MOBIWAVE_SMS_API_KEY || !process.env.MOBIWAVE_SMS_SENDER_ID) {
+  const saved = process.env.DATABASE_URL ? await getPlatformProviderConfig("mobiwave_sms") : null;
+  const providerConfig = saved?.apiUrl && saved.apiKey && saved.senderId
+    ? { apiUrl: saved.apiUrl, apiKey: saved.apiKey, senderId: saved.senderId }
+    : null;
+  if (!providerConfig && (!process.env.MOBIWAVE_SMS_API_KEY || !process.env.MOBIWAVE_SMS_SENDER_ID)) {
     return { claimed: 0, sent: 0, retried: 0, failed: 0, skipped: "sms_provider_not_configured" as const };
   }
 
@@ -139,7 +145,7 @@ export async function processQueuedSmsBatch(batchSize = 20) {
     const updateClient = await db.connect();
     try {
       const message = renderCommerceSms(event.template_key, event.payload || {});
-      const providerReference = await sendMobiWaveSms(event.recipient, message, event.dedupe_key);
+      const providerReference = await sendMobiWaveSms(event.recipient, message, event.dedupe_key, providerConfig || undefined);
       await updateClient.query("BEGIN");
       await updateClient.query("SELECT set_config('app.message_worker', 'true', true)");
       await updateClient.query(

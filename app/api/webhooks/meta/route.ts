@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { normalizeMetaWebhook } from "@/lib/channels/meta-adapter";
 import { verifyMetaWebhookSignature } from "@/lib/channels/meta-signature";
+import { getPlatformProviderConfig } from "@/lib/platform-provider-config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,7 +19,8 @@ export async function GET(request: Request) {
   const mode = url.searchParams.get("hub.mode") || url.searchParams.get("hub[mode]");
   const token = url.searchParams.get("hub.verify_token") || url.searchParams.get("hub[verify_token]") || "";
   const challenge = url.searchParams.get("hub.challenge") || url.searchParams.get("hub[challenge]") || "";
-  const expected = process.env.META_WEBHOOK_VERIFY_TOKEN || "";
+  const meta = await getPlatformProviderConfig("meta").catch(() => null);
+  const expected = meta?.webhookVerifyToken || process.env.META_WEBHOOK_VERIFY_TOKEN || "";
   if (mode !== "subscribe" || !expected || !constantTimeMatch(expected, token) || !challenge) {
     return new NextResponse("Forbidden", { status: 403 });
   }
@@ -29,16 +31,14 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const appSecret = process.env.META_APP_SECRET || "";
+  const meta = await getPlatformProviderConfig("meta").catch(() => null);
+  const appSecret = meta?.appSecret || process.env.META_APP_SECRET || "";
   if (!appSecret) return NextResponse.json({ error: "Webhook is not configured" }, { status: 503 });
 
   const contentLength = Number(request.headers.get("content-length") || 0);
   if (contentLength > 1_048_576) return NextResponse.json({ error: "Payload too large" }, { status: 413 });
-
   const rawBody = await request.text();
-  if (Buffer.byteLength(rawBody, "utf8") > 1_048_576) {
-    return NextResponse.json({ error: "Payload too large" }, { status: 413 });
-  }
+  if (Buffer.byteLength(rawBody, "utf8") > 1_048_576) return NextResponse.json({ error: "Payload too large" }, { status: 413 });
   if (!verifyMetaWebhookSignature(rawBody, request.headers.get("x-hub-signature-256"), appSecret)) {
     return NextResponse.json({ error: "Invalid webhook signature" }, { status: 401 });
   }
@@ -64,10 +64,7 @@ export async function POST(request: Request) {
           LIMIT 1`,
         [event.channel, event.providerAccountId, event.providerAddressId],
       );
-      if (!connection.rowCount) {
-        unmatched++;
-        continue;
-      }
+      if (!connection.rowCount) { unmatched++; continue; }
       const result = await client.query(
         `INSERT INTO channel_webhook_events
           (store_id, connection_id, provider_event_id, event_type, payload, signature_valid)
@@ -82,7 +79,5 @@ export async function POST(request: Request) {
   } catch {
     await client.query("ROLLBACK").catch(() => undefined);
     return NextResponse.json({ error: "Webhook could not be queued" }, { status: 500 });
-  } finally {
-    client.release();
-  }
+  } finally { client.release(); }
 }

@@ -33,6 +33,7 @@ const migrationPaths = [
   "db/migrations/0020-meta-channel-onboarding.sql",
   "db/migrations/0021-social-commerce-outbound.sql",
   "db/migrations/0022-conversation-attachment-security.sql",
+  "db/migrations/0023-platform-provider-configurations.sql",
 ];
 
 const appUrl = new URL(databaseUrl);
@@ -150,6 +151,9 @@ try {
     [storeA, storeB],
   );
   await owner.query(
+    "INSERT INTO platform_provider_configurations(provider,config_ciphertext,status) VALUES ('meta','{\"appSecret\":\"encrypted-test-value\"}'::jsonb,'configured')",
+  );
+  await owner.query(
     `INSERT INTO channel_connections
      (id,store_id,channel,ownership_mode,asset_owner_type,provider_account_id,status,connected_by)
      VALUES ($1,$2,'whatsapp','merchant_owned','merchant','wa-tenant-a','connected',$3),
@@ -259,6 +263,24 @@ try {
     assert.equal(privateWebhookEvents.rows[0].count, 0, "merchant sessions must not read raw webhook payloads");
     assert.equal(privateCredentials.rows[0].count, 0, "merchant sessions must not read encrypted provider credentials");
     assert.equal(privateOAuthStates.rows[0].count, 0, "merchant sessions must not read OAuth transaction state");
+    const merchantProviderConfigs = await runtime.query("SELECT count(*)::int AS count FROM platform_provider_configurations");
+    assert.equal(merchantProviderConfigs.rows[0].count, 0, "merchant sessions must not read platform provider credentials");
+    await runtime.query("SELECT set_config('app.channel_worker','true',true)");
+    const workerProviderConfigs = await runtime.query("SELECT count(*)::int AS count FROM platform_provider_configurations");
+    assert.equal(workerProviderConfigs.rows[0].count, 0, "channel worker capability must not read platform provider credentials");
+    await runtime.query("SELECT set_config('app.channel_worker','false',true)");
+    await runtime.query("SELECT set_config('app.provider_config_read','true',true)");
+    const providerRuntimeConfigs = await runtime.query("SELECT count(*)::int AS count FROM platform_provider_configurations");
+    assert.equal(providerRuntimeConfigs.rows[0].count, 1, "trusted provider runtime capability must read platform settings");
+    await runtime.query("SELECT set_config('app.provider_config_read','false',true)");
+    const providerReadRevoked = await runtime.query("SELECT count(*)::int AS count FROM platform_provider_configurations");
+    assert.equal(providerReadRevoked.rows[0].count, 0, "provider runtime capability must be transaction-local");
+    await runtime.query("SELECT set_config('app.admin','true',true)");
+    const adminProviderConfigs = await runtime.query("SELECT count(*)::int AS count FROM platform_provider_configurations");
+    assert.equal(adminProviderConfigs.rows[0].count, 1, "platform admin capability must read provider status");
+    await runtime.query("UPDATE platform_provider_configurations SET status='verified' WHERE provider='meta'");
+    await runtime.query("SELECT set_config('app.admin','false',true)");
+
 
     await runtime.query("SELECT set_config('app.channel_worker','true',true)");
     const workerConnections = await runtime.query("SELECT count(*)::int AS count FROM channel_connections");

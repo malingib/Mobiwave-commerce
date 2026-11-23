@@ -1,3 +1,4 @@
+import { getPlatformProviderConfig } from "@/lib/platform-provider-config";
 type ProviderError = { code?: number; error_subcode?: number };
 type ProviderResponse = { messages?: Array<{ id?: string }>; message_id?: string; error?: ProviderError };
 
@@ -7,7 +8,8 @@ export type MetaTextSendInput = {
 
 export async function sendMetaTextMessage(input: MetaTextSendInput): Promise<{ messageId: string }> {
   if (!input.accessToken || !input.accountId || !input.recipientId || !input.text.trim()) throw new Error("invalid_outbound_message");
-  const version = process.env.META_GRAPH_API_VERSION || "v27.0";
+  const config = process.env.DATABASE_URL ? await getPlatformProviderConfig("meta") : null;
+  const version = config?.graphVersion || process.env.META_GRAPH_API_VERSION || "v27.0";
   if (!/^v\d+\.\d+$/.test(version)) throw new Error("invalid_meta_graph_version");
   const host = input.channel === "whatsapp" ? "graph.facebook.com" : "graph.instagram.com";
   const url = new URL("https://" + host + "/" + version + "/" + encodeURIComponent(input.accountId) + "/messages");

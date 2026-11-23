@@ -1,3 +1,4 @@
+import { getPlatformProviderConfig } from "@/lib/platform-provider-config";
 import { createHash } from "node:crypto";
 
 const DEFAULT_GRAPH_VERSION = "v27.0";
@@ -10,8 +11,9 @@ type MetaMediaMetadata = {
   sha256?: string;
 };
 
-function graphVersion() {
-  const version = process.env.META_GRAPH_API_VERSION || DEFAULT_GRAPH_VERSION;
+async function graphVersion() {
+  const config = process.env.DATABASE_URL ? await getPlatformProviderConfig("meta") : null;
+  const version = config?.graphVersion || process.env.META_GRAPH_API_VERSION || DEFAULT_GRAPH_VERSION;
   if (!/^v\d+\.\d+$/.test(version)) throw new Error("invalid_meta_graph_version");
   return version;
 }
@@ -84,7 +86,7 @@ export async function downloadMetaMedia(input: {
     throw new Error("invalid_meta_media_request");
   }
   const metadataUrl = new URL(
-    "https://graph.facebook.com/" + graphVersion() + "/" + encodeURIComponent(input.mediaId),
+    "https://graph.facebook.com/" + await graphVersion() + "/" + encodeURIComponent(input.mediaId),
   );
   let metadataResponse: Response;
   try {
@@ -149,7 +151,7 @@ export async function uploadMetaMedia(input: {
   let response: Response;
   try {
     response = await fetch(
-      "https://graph.facebook.com/" + graphVersion() + "/" + encodeURIComponent(input.phoneNumberId) + "/media",
+      "https://graph.facebook.com/" + await graphVersion() + "/" + encodeURIComponent(input.phoneNumberId) + "/media",
       {
         method: "POST",
         headers: { Authorization: "Bearer " + input.accessToken },
@@ -187,7 +189,7 @@ export async function sendMetaMediaMessage(input: {
   let response: Response;
   try {
     response = await fetch(
-      "https://graph.facebook.com/" + graphVersion() + "/" + encodeURIComponent(input.phoneNumberId) + "/messages",
+      "https://graph.facebook.com/" + await graphVersion() + "/" + encodeURIComponent(input.phoneNumberId) + "/messages",
       {
         method: "POST",
         headers: { Authorization: "Bearer " + input.accessToken, "Content-Type": "application/json" },
