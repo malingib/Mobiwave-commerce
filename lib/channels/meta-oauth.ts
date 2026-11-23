@@ -1,5 +1,3 @@
-import { getPlatformProviderConfig } from "@/lib/platform-provider-config";
-
 type JsonObject = Record<string, unknown>;
 
 export type MetaToken = {
@@ -80,7 +78,7 @@ export function buildInstagramAuthorizationUrl(state: string, redirectUri: strin
 export async function exchangeWhatsAppEmbeddedSignupCode(code: string): Promise<MetaToken> {
   const url = new URL(`https://graph.facebook.com/${graphVersion()}/oauth/access_token`);
   url.searchParams.set("client_id", requiredEnv("META_APP_ID"));
-  url.searchParams.set("client_secret", config?.appSecret || requiredEnv("META_APP_SECRET"));
+  url.searchParams.set("client_secret", requiredEnv("META_APP_SECRET"));
   url.searchParams.set("code", code);
   const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(12_000) });
   return tokenFrom(await readProviderResponse(response));
