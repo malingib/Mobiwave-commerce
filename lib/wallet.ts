@@ -38,7 +38,7 @@ export function countSmsSegments(message: string): { encoding: "GSM-7" | "UCS-2"
 }
 
 export type SmsUsageReservation =
-  | { ok: true; usageId: string; walletReservationId: string | null; totalSegments: number; includedSegments: number; billableSegments: number; amountMinor: number }
+  | { ok: true; usageId: string; walletReservationId: string | null; totalSegments: number; includedSegments: number; billableSegments: number; amountMinor: number; alreadyCommitted?: boolean }
   | { ok: false; reason: "sms_billing_not_configured" | "wallet_not_configured" | "wallet_blocked" | "insufficient_funds" | "wallet_currency_mismatch" };
 
 export async function reserveSmsUsage(client: PoolClient, input: {
@@ -60,7 +60,8 @@ export async function reserveSmsUsage(client: PoolClient, input: {
     if (row.status === "released") throw new Error("sms_usage_already_released");
     return { ok:true as const, usageId:row.id, walletReservationId:row.wallet_reservation_id,
       totalSegments:Number(row.total_segments), includedSegments:Number(row.included_segments),
-      billableSegments:Number(row.billable_segments), amountMinor:Number(row.amount_minor) };
+      billableSegments:Number(row.billable_segments), amountMinor:Number(row.amount_minor),
+      alreadyCommitted:row.status === "committed" };
   };
   // Reuse an existing reservation even if an administrator has since disabled
   // billing. Then lock the configuration row and recheck to serialize allowance.
@@ -114,7 +115,7 @@ export async function reserveSmsUsage(client: PoolClient, input: {
 }
 
 export async function settleSmsUsage(client: PoolClient, input: {
-  storeId: string; eventId: string; outcome: "commit" | "release";
+  storeId: string; eventId: string; outcome: "commit" | "release"; providerReference?: string;
 }) {
   await client.query("SELECT set_config('app.wallet_worker','true',true), set_config('app.message_worker','true',true)");
   const result = await client.query(
@@ -133,8 +134,8 @@ export async function settleSmsUsage(client: PoolClient, input: {
     });
   }
   const status=input.outcome === "commit" ? "committed" : "released";
-  await client.query("UPDATE store_sms_usage SET status=$3, settled_at=now() WHERE store_id=$1 AND id=$2",
-    [input.storeId,usage.id,status]);
+  await client.query("UPDATE store_sms_usage SET status=$3, settled_at=now(), provider_reference=$4 WHERE store_id=$1 AND id=$2",
+    [input.storeId,usage.id,status,input.outcome === "commit" ? input.providerReference ?? null : null]);
   return {status};
 }
 
