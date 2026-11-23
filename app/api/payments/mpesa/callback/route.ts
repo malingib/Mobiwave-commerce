@@ -95,6 +95,7 @@ async function processSubscriptionCallback(client: PoolClient, attempt: Subscrip
     `SELECT 1 FROM mpesa_receipt_claims WHERE receipt_number=$1
      UNION ALL SELECT 1 FROM payment_attempts WHERE provider='mpesa' AND provider_reference=$1
      UNION ALL SELECT 1 FROM subscription_payment_attempts WHERE provider_reference=$1 AND id<>$2
+     UNION ALL SELECT 1 FROM wallet_topup_attempts WHERE provider_reference=$1
      LIMIT 1`,
     [receipt, attempt.id],
   );
