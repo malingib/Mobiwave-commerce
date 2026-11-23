@@ -14,13 +14,10 @@ const REQUIRED: Record<ProviderName, string[]> = {
 
 export function validateProviderConfig(provider: ProviderName, config: ProviderConfig) {
   if (!REQUIRED[provider]) throw new Error("unsupported_provider");
-  for (const key of REQUIRED[provider]) {
-    if (!config[key]?.trim()) throw new Error(`missing_${key}`);
-  }
+  for (const key of REQUIRED[provider]) if (!config[key]?.trim()) throw new Error(`missing_${key}`);
   if (provider === "meta") {
     if (!/^\d+$/.test(config.appId) || !/^v\d+\.\d+$/.test(config.graphVersion)) throw new Error("invalid_meta_configuration");
-    const redirect = new URL(config.instagramRedirectUri);
-    if (redirect.protocol !== "https:") throw new Error("instagram_redirect_requires_https");
+    if (new URL(config.instagramRedirectUri).protocol !== "https:") throw new Error("instagram_redirect_requires_https");
   }
   if (provider === "mobiwave_sms") {
     const url = new URL(config.apiUrl);
@@ -31,19 +28,28 @@ export function validateProviderConfig(provider: ProviderName, config: ProviderC
     const endpoint = new URL(config.endpoint);
     if (endpoint.protocol !== "https:") throw new Error("r2_endpoint_requires_https");
   }
-  if (provider === "media_scanner") {
-    const url = new URL(config.scannerUrl);
-    if (url.protocol !== "https:") throw new Error("scanner_url_requires_https");
-  }
+  if (provider === "media_scanner" && new URL(config.scannerUrl).protocol !== "https:") throw new Error("scanner_url_requires_https");
 }
 
-export async function savePlatformProviderConfig(provider: ProviderName, config: ProviderConfig, userId: string) {
-  validateProviderConfig(provider, config);
-  const encrypted = Object.fromEntries(Object.entries(config).map(([key, value]) => [key, encryptChannelCredential(value)]));
+function decryptConfig(value: Record<string,string>): ProviderConfig {
+  return Object.fromEntries(Object.entries(value).map(([key, encrypted]) => [key, decryptChannelCredential(encrypted)]));
+}
+
+export async function savePlatformProviderConfig(provider: ProviderName, updates: ProviderConfig, userId: string) {
   const client = await db.connect();
   try {
     await client.query("BEGIN");
     await client.query("SELECT set_config('app.admin','true',true)");
+    // Lock the provider row so simultaneous partial rotations cannot overwrite
+    // one another or temporarily discard credentials omitted by the form.
+    const current = await client.query(
+      "SELECT config_ciphertext FROM platform_provider_configurations WHERE provider=$1 FOR UPDATE",
+      [provider],
+    );
+    const previous = current.rowCount ? decryptConfig(current.rows[0].config_ciphertext as Record<string,string>) : {};
+    const merged = { ...previous, ...updates };
+    validateProviderConfig(provider, merged);
+    const encrypted = Object.fromEntries(Object.entries(merged).map(([key, value]) => [key, encryptChannelCredential(value)]));
     await client.query(
       `INSERT INTO platform_provider_configurations(provider,config_ciphertext,status,last_error_code,version,updated_by)
        VALUES ($1,$2::jsonb,'configured',NULL,1,$3)
@@ -54,7 +60,7 @@ export async function savePlatformProviderConfig(provider: ProviderName, config:
     );
     await client.query(
       "INSERT INTO audit_events(actor_user_id,action,resource_type,metadata) VALUES($1,$2,'platform_provider_configuration',$3::jsonb)",
-      [userId, `provider.${provider}.credentials_replaced`, JSON.stringify({ provider, fields: Object.keys(config) })],
+      [userId, `provider.${provider}.credentials_replaced`, JSON.stringify({ provider, fields: Object.keys(updates), version: current.rowCount ? "incremented" : "1" })],
     );
     await client.query("COMMIT");
   } catch (error) {
@@ -74,8 +80,7 @@ export async function getPlatformProviderConfig(provider: ProviderName): Promise
     );
     await client.query("COMMIT");
     if (!result.rowCount) return null;
-    const encrypted = result.rows[0].config_ciphertext as Record<string, string>;
-    return Object.fromEntries(Object.entries(encrypted).map(([key, value]) => [key, decryptChannelCredential(value)]));
+    return decryptConfig(result.rows[0].config_ciphertext as Record<string,string>);
   } catch (error) {
     await client.query("ROLLBACK").catch(() => undefined);
     throw error;
