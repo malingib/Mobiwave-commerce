@@ -26,7 +26,9 @@ CREATE TABLE IF NOT EXISTS store_sms_usage (
   settled_at timestamptz,
   UNIQUE (store_id,event_id),
   CHECK (included_segments + billable_segments = total_segments),
-  CHECK (amount_minor = billable_segments * unit_rate_minor)
+  CHECK (amount_minor = billable_segments * unit_rate_minor),
+  FOREIGN KEY (store_id,wallet_reservation_id)
+    REFERENCES store_wallet_reservations(store_id,id) ON DELETE RESTRICT
 );
 CREATE INDEX IF NOT EXISTS store_sms_usage_period_idx
   ON store_sms_usage(store_id,period_start) WHERE status IN ('reserved','committed');
