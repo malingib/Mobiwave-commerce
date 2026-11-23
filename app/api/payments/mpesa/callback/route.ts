@@ -158,6 +158,17 @@ async function processWalletTopupCallback(client: PoolClient, attempt: WalletTop
     await client.query("COMMIT");
     return NextResponse.json({ResultCode:0,ResultDesc:"Already processed"});
   }
+  if (attempt.status==="review_required") {
+    await client.query("COMMIT");
+    return NextResponse.json({ResultCode:0,ResultDesc:"Wallet top-up remains under reconciliation"});
+  }
+  if (attempt.status==="failed" && callback.ResultCode!==0) {
+    await client.query("COMMIT");
+    return NextResponse.json({ResultCode:0,ResultDesc:"Already processed"});
+  }
+  if (attempt.status==="failed" && callback.ResultCode===0) {
+    return markWalletTopupReview(client,attempt,callback,"success_callback_after_failure");
+  }
   if (callback.ResultCode!==0) {
     await client.query(
       "UPDATE wallet_topup_attempts SET status='failed',callback_payload=$1::jsonb,updated_at=now() WHERE id=$2 AND status<>'paid'",
