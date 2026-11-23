@@ -151,7 +151,7 @@ export async function uploadMetaMedia(input: {
   let response: Response;
   try {
     response = await fetch(
-      "https://graph.facebook.com/" + graphVersion() + "/" + encodeURIComponent(input.phoneNumberId) + "/media",
+      "https://graph.facebook.com/" + await graphVersion() + "/" + encodeURIComponent(input.phoneNumberId) + "/media",
       {
         method: "POST",
         headers: { Authorization: "Bearer " + input.accessToken },
@@ -189,7 +189,7 @@ export async function sendMetaMediaMessage(input: {
   let response: Response;
   try {
     response = await fetch(
-      "https://graph.facebook.com/" + graphVersion() + "/" + encodeURIComponent(input.phoneNumberId) + "/messages",
+      "https://graph.facebook.com/" + await graphVersion() + "/" + encodeURIComponent(input.phoneNumberId) + "/messages",
       {
         method: "POST",
         headers: { Authorization: "Bearer " + input.accessToken, "Content-Type": "application/json" },
