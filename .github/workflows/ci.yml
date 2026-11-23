@@ -53,6 +53,8 @@ jobs:
           git add package-lock.json
           if ! git diff --cached --quiet; then
             git commit -m "build: commit reproducible npm lockfile"
+            git fetch origin "${HEAD_REF}"
+            git rebase "origin/${HEAD_REF}"
             git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${HEAD_REF}"
           fi
       - name: Install from committed lockfile
