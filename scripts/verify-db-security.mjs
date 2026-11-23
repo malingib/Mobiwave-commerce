@@ -36,6 +36,7 @@ const migrationPaths = [
   "db/migrations/0023-platform-provider-configurations.sql",
   "db/migrations/0024-store-wallet-ledger.sql",
   "db/migrations/0025-sms-delivery-idempotency.sql",
+  "db/migrations/0026-sms-wallet-enforcement.sql",
 ];
 
 const appUrl = new URL(databaseUrl);
@@ -62,10 +63,12 @@ try {
   const walletSecurity = await owner.query(
     `SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity
        FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-      WHERE n.nspname='public' AND c.relname IN ('store_wallet_accounts','store_wallet_transactions','store_wallet_reservations')
+      WHERE n.nspname='public' AND c.relname IN ('store_sms_billing_config','store_sms_usage','store_wallet_accounts','store_wallet_transactions','store_wallet_reservations')
       ORDER BY c.relname`,
   );
   assert.deepEqual(walletSecurity.rows, [
+    { relname: "store_sms_billing_config", relrowsecurity: true, relforcerowsecurity: true },
+    { relname: "store_sms_usage", relrowsecurity: true, relforcerowsecurity: true },
     { relname: "store_wallet_accounts", relrowsecurity: true, relforcerowsecurity: true },
     { relname: "store_wallet_reservations", relrowsecurity: true, relforcerowsecurity: true },
     { relname: "store_wallet_transactions", relrowsecurity: true, relforcerowsecurity: true },
@@ -169,6 +172,25 @@ try {
     `INSERT INTO store_wallet_reservations (store_id,amount_minor,idempotency_key,status)
      VALUES ($1,100,'seed-reservation-a','reserved'),($2,200,'seed-reservation-b','reserved')`,
     [storeA, storeB],
+  );
+  const smsEventA = "81000000-0000-4000-8000-000000000001";
+  const smsEventB = "81000000-0000-4000-8000-000000000002";
+  await owner.query(
+    "INSERT INTO message_events (id,store_id,channel,recipient,template_key,dedupe_key) VALUES ($1,$2,'sms','254700000001','order_created','sms-billing-a'),($3,$4,'sms','254700000002','order_created','sms-billing-b')",
+    [smsEventA,storeA,smsEventB,storeB],
+  );
+  await owner.query(
+    "INSERT INTO store_sms_billing_config (store_id,included_segments_per_month,unit_rate_minor,currency,enabled) VALUES ($1,100,25,'KES',true),($2,200,30,'KES',true)",
+    [storeA,storeB],
+  );
+  await owner.query(
+    "INSERT INTO store_sms_usage (store_id,event_id,period_start,total_segments,included_segments,billable_segments,unit_rate_minor,amount_minor,currency,status) VALUES ($1,$2,date_trunc('month',now())::date,120,100,20,25,500,'KES','reserved'),($3,$4,date_trunc('month',now())::date,250,200,50,30,1500,'KES','reserved')",
+    [storeA,smsEventA,storeB,smsEventB],
+  );
+  await assert.rejects(
+    owner.query("UPDATE store_sms_usage SET amount_minor=1 WHERE event_id=$1",[smsEventA]),
+    /identity_is_immutable/i,
+    "SMS usage financial identity must be immutable",
   );
   await assert.rejects(
     owner.query("UPDATE store_wallet_transactions SET description='tampered' WHERE idempotency_key='seed-topup-a'"),
@@ -289,6 +311,8 @@ try {
       "store_wallet_accounts",
       "store_wallet_transactions",
       "store_wallet_reservations",
+      "store_sms_billing_config",
+      "store_sms_usage",
       "store_domains",
       "audit_events",
       "channel_connections",
@@ -388,6 +412,21 @@ try {
       [storeB],
     );
     assert.equal(crossTenantWalletUpdate.rowCount, 0, "merchant A must not mutate tenant B wallet balance");
+    const crossTenantSmsConfig = await runtime.query(
+      "UPDATE store_sms_billing_config SET enabled=false WHERE store_id=$1",
+      [storeB],
+    );
+    assert.equal(crossTenantSmsConfig.rowCount,0,"merchant A must not change tenant B SMS billing config");
+    const merchantSmsConfigWrite = await runtime.query(
+      "UPDATE store_sms_billing_config SET unit_rate_minor=1 WHERE store_id=$1",
+      [storeA],
+    );
+    assert.equal(merchantSmsConfigWrite.rowCount,0,"merchant sessions must not change platform-controlled SMS rates");
+    await runtime.query("SELECT set_config('app.message_worker','true',true)");
+    const workerSmsConfig = await runtime.query("SELECT count(*)::int AS count FROM store_sms_billing_config");
+    assert.equal(workerSmsConfig.rows[0].count,2,"message worker must read billing configuration across stores");
+    await runtime.query("SELECT store_id FROM store_sms_billing_config WHERE store_id=$1 FOR UPDATE",[storeA]);
+    await runtime.query("SELECT set_config('app.message_worker','false',true)");
     await runtime.query("SAVEPOINT before_cross_tenant_wallet_reservation");
     await assert.rejects(
       runtime.query(
