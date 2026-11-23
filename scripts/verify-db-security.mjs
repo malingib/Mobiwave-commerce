@@ -196,6 +196,11 @@ try {
     [topupA,storeA,"a".repeat(64),topupB,storeB,"b".repeat(64)],
   );
   await assert.rejects(
+    owner.query("UPDATE wallet_topup_attempts SET amount_minor=2000 WHERE id=$1",[topupA]),
+    /identity_is_immutable/i,
+    "wallet top-up amount and request identity must be immutable",
+  );
+  await assert.rejects(
     owner.query("UPDATE store_sms_usage SET amount_minor=1 WHERE event_id=$1",[smsEventA]),
     /identity_is_immutable/i,
     "SMS usage financial identity must be immutable",
