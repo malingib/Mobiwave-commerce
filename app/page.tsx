@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import {
-  ArrowDownRight, ArrowRight, Check, ChevronDown, Globe2,
-  MessageSquareText, Package, ShoppingBag, Store, Truck, Menu, X,
+  ArrowDownRight, ArrowRight, Check, Globe2,
+  MessageSquareText, Package, Store, Truck, Menu, X,
 } from "lucide-react";
 
 const benefits = [
