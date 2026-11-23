@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 type Provider = { provider:string; status:"not_configured"|"configured"|"verified"|"error"; last_verified_at:string|null; last_error_code:string|null; credentials_saved:boolean; updated_at:string; version:number };
 const definitions = [
-  {id:"meta",title:"Meta · WhatsApp and Instagram",fields:[["appId","Meta App ID"],["appSecret","Meta App Secret"],["whatsappConfigId","WhatsApp Embedded Signup Config ID"],["graphVersion","Graph API version"],["instagramRedirectUri","Instagram OAuth redirect URI"]]},
+  {id:"meta",title:"Meta · WhatsApp and Instagram",fields:[["appId","Meta App ID"],["appSecret","Meta App Secret"],["whatsappConfigId","WhatsApp Embedded Signup Config ID"],["graphVersion","Graph API version"],["instagramRedirectUri","Instagram OAuth redirect URI"],["webhookVerifyToken","Meta webhook verification token"]]},
   {id:"mobiwave_sms",title:"MobiWave SMS",fields:[["apiUrl","SMS API base URL"],["apiKey","SMS API key"],["senderId","Sender ID"]]},
   {id:"r2",title:"Cloudflare R2 media storage",fields:[["accountId","Cloudflare account ID"],["endpoint","R2 S3 endpoint"],["bucketName","Bucket name"],["accessKeyId","R2 access key ID"],["secretAccessKey","R2 secret access key"]]},
   {id:"media_scanner",title:"Media malware scanner",fields:[["provider","Scanner provider"],["scannerUrl","Scanner base URL"],["scannerToken","Scanner API token"]]},
