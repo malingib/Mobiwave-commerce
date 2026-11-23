@@ -78,7 +78,7 @@ export async function deletePrivateObject(key: string) {
 }
 
 export async function createPrivateDownloadUrl(input: { key: string; contentType: string; fileName: string }) {
-  const config = credentials();
+  const config = await credentials();
   const safeName = input.fileName.replace(/[\r\n"\\]/g, "_").slice(0, 120) || "attachment";
   return createPresignedS3Url({
     ...config,
