@@ -77,7 +77,7 @@ export function buildInstagramAuthorizationUrl(state: string, redirectUri: strin
 }
 
 export async function exchangeWhatsAppEmbeddedSignupCode(code: string): Promise<MetaToken> {
-  const config = await getPlatformProviderConfig("meta");
+  const config = (process.env.DATABASE_URL ? await getPlatformProviderConfig("meta") : null);
   const url = new URL(`https://graph.facebook.com/${graphVersion(config?.graphVersion)}/oauth/access_token`);
   url.searchParams.set("client_id", config?.appId || requiredEnv("META_APP_ID"));
   url.searchParams.set("client_secret", config?.appSecret || requiredEnv("META_APP_SECRET"));
