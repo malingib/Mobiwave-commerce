@@ -6,7 +6,7 @@ async function configuration() {
   const saved = await getPlatformProviderConfig("r2");
   const accountId = saved?.accountId || process.env.R2_ACCOUNT_ID || "";
   const bucket = saved?.bucketName || process.env.R2_BUCKET_NAME || "";
-  const endpoint = (saved?.endpoint || process.env.R2_S3_ENDPOINT || "").replace(/\\/+$/, "");
+  const endpoint = (saved?.endpoint || process.env.R2_S3_ENDPOINT || "").replace(/\/+$/, "");
   const accessKeyId = saved?.accessKeyId || process.env.R2_ACCESS_KEY_ID || "";
   const secretAccessKey = saved?.secretAccessKey || process.env.R2_SECRET_ACCESS_KEY || "";
   if (!/^[a-f0-9]{32}$/i.test(accountId) || !/^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/.test(bucket)) {
