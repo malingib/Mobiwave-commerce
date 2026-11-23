@@ -34,6 +34,7 @@ const migrationPaths = [
   "db/migrations/0021-social-commerce-outbound.sql",
   "db/migrations/0022-conversation-attachment-security.sql",
   "db/migrations/0023-platform-provider-configurations.sql",
+  "db/migrations/0024-store-wallet-ledger.sql",
 ];
 
 const appUrl = new URL(databaseUrl);
@@ -56,6 +57,18 @@ try {
   }
   await owner.query(await readFile(join(root, "db/roles/commerce-runtime.sql"), "utf8"));
   await owner.query(await readFile(join(root, "db/roles/commerce-auth-runtime.sql"), "utf8"));
+
+  const walletSecurity = await owner.query(
+    `SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity
+       FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+      WHERE n.nspname='public' AND c.relname IN ('store_wallet_accounts','store_wallet_transactions','store_wallet_reservations')
+      ORDER BY c.relname`,
+  );
+  assert.deepEqual(walletSecurity.rows, [
+    { relname: "store_wallet_accounts", relrowsecurity: true, relforcerowsecurity: true },
+    { relname: "store_wallet_reservations", relrowsecurity: true, relforcerowsecurity: true },
+    { relname: "store_wallet_transactions", relrowsecurity: true, relforcerowsecurity: true },
+  ], "all wallet tables must enforce RLS");
 
   const roleChecks = await owner.query(`
     SELECT rolname, rolcanlogin, rolbypassrls
