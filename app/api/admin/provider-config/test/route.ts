@@ -1,4 +1,7 @@
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
+import { verifyPrivateStorageAccess } from "@/lib/media/storage";
+import { scanMediaObject } from "@/lib/media/scanner";
 import { getSuperAdmin } from "@/lib/admin";
 import { getPlatformProviderConfig, setPlatformProviderStatus, type ProviderName } from "@/lib/platform-provider-config";
 
@@ -12,7 +15,7 @@ export async function POST(request: Request) {
   const provider = body.provider;
   if (!provider || !["meta","mobiwave_sms","r2","media_scanner"].includes(provider)) return NextResponse.json({ error: "Unsupported provider" }, { status: 400 });
   try {
-    const config = await getPlatformProviderConfig(provider);
+    const config = await getPlatformProviderConfig(provider, true);
     if (!config) return NextResponse.json({ status: "not_configured" }, { status: 409 });
     if (provider === "meta") {
       const token = `${config.appId}|${config.appSecret}`;
@@ -32,15 +35,19 @@ export async function POST(request: Request) {
       url.pathname = url.pathname.replace(/\/$/,"") + "/health";
       const response = await fetch(url,{method:"GET",headers:{Authorization:`Bearer ${config.scannerToken}`},cache:"no-store",signal:AbortSignal.timeout(10000)});
       if (!response.ok) throw new Error(`scanner_health_http_${response.status}`);
+    } else if (provider === "r2") {
+      await verifyPrivateStorageAccess();
     } else {
-      // R2 verification is deliberately non-mutating: validate the endpoint and
-      // configuration shape here; signed HeadBucket verification is added with
-      // the storage adapter so no test object or customer media is created.
-      const endpoint = new URL(config.endpoint);
-      if (!endpoint.hostname.endsWith(".r2.cloudflarestorage.com") || !config.bucketName) throw new Error("r2_endpoint_invalid");
+      const bytes = Buffer.from("MobiWave Commerce scanner health check", "utf8");
+      const sha256 = createHash("sha256").update(bytes).digest("hex");
+      const result = await scanMediaObject({
+        bytes, mimeType: "text/plain", sha256,
+        scannerUrl: config.scannerUrl, scannerToken: config.scannerToken, scannerProvider: config.provider,
+      });
+      if (result !== "available") throw new Error(result === "rejected" ? "scanner_rejected_clean_test" : "scanner_health_check_unavailable");
     }
     await setPlatformProviderStatus(provider,"verified");
-    return NextResponse.json({status:"verified",message:"Provider credentials verified. No customer message, payment or media object was created."});
+    return NextResponse.json({status:"verified",message:"Provider credentials verified. No customer message or payment was sent; R2 used a disposable health-check object that was deleted."});
   } catch (error) {
     const raw = error instanceof Error ? error.message : "provider_check_failed";
     const code = /^[a-z0-9_]{1,80}$/i.test(raw) ? raw : "provider_check_failed";
