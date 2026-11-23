@@ -2,15 +2,7 @@ import { randomUUID } from "node:crypto";
 import { createPresignedS3Url, createS3AuthorizationHeaders } from "@/lib/media/sigv4";
 import { getPlatformProviderConfig } from "@/lib/platform-provider-config";
 
-let configCache: {
-  bucket: string;
-  endpoint: string;
-  accessKeyId: string;
-  secretAccessKey: string;
-} | undefined;
-
 async function configuration() {
-  if (configCache) return configCache;
   const saved = await getPlatformProviderConfig("r2");
   const accountId = saved?.accountId || process.env.R2_ACCOUNT_ID || "";
   const bucket = saved?.bucketName || process.env.R2_BUCKET_NAME || "";
@@ -25,8 +17,7 @@ async function configuration() {
     throw new Error("R2 endpoint must match the configured Cloudflare account");
   }
   if (!accessKeyId || !secretAccessKey) throw new Error("R2 S3 credentials are not configured");
-  configCache = { bucket, endpoint: parsed.origin, accessKeyId, secretAccessKey };
-  return configCache;
+  return { bucket, endpoint: parsed.origin, accessKeyId, secretAccessKey };
 }
 
 async function credentials() {
