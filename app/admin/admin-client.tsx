@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, CheckCircle2, CreditCard, Globe, ShieldCheck, Store, Plug } from "lucide-react";
+import { ArrowLeft, CheckCircle2, CreditCard, Globe, ShieldCheck, Store } from "lucide-react";
 
 type StoreRow={id:string;name:string;slug:string;status:string;currency:string;created_at:string;plan_code:string;subscription_status:string;order_count:number;paid_volume_minor:string|number;member_count:number};
 type Totals={store_count:number;active_stores:number;suspended_stores:number};
