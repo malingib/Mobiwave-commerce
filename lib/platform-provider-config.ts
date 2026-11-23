@@ -1,3 +1,4 @@
+import { isIP } from "node:net";
 import { db } from "@/lib/db";
 import { decryptChannelCredential, encryptChannelCredential } from "@/lib/channels/credentials";
 
@@ -28,14 +29,22 @@ export function validateProviderConfig(provider: ProviderName, config: ProviderC
   }
   if (provider === "mobiwave_sms") {
     const url = new URL(config.apiUrl);
-    if (url.protocol !== "https:" && url.hostname !== "localhost") throw new Error("sms_api_requires_https");
+    if (url.protocol !== "https:" || url.hostname !== "sms.mobiwave.co.ke" || url.port || url.username || url.password || url.search || url.hash) throw new Error("sms_api_endpoint_rejected");
     if (config.senderId.length > 11) throw new Error("sms_sender_id_too_long");
   }
   if (provider === "r2") {
     const endpoint = new URL(config.endpoint);
-    if (endpoint.protocol !== "https:") throw new Error("r2_endpoint_requires_https");
+    if (endpoint.protocol !== "https:" || endpoint.hostname !== config.accountId + ".r2.cloudflarestorage.com" || endpoint.pathname !== "/" && endpoint.pathname !== "" || endpoint.port || endpoint.search || endpoint.hash) throw new Error("r2_endpoint_rejected");
   }
-  if (provider === "media_scanner" && new URL(config.scannerUrl).protocol !== "https:") throw new Error("scanner_url_requires_https");
+  if (provider === "media_scanner") {
+    const scanner = new URL(config.scannerUrl);
+    const host = scanner.hostname.toLowerCase();
+    if (scanner.protocol !== "https:" || scanner.port || scanner.username || scanner.password || scanner.search || scanner.hash ||
+        isIP(host) || !host.includes(".") || host === "localhost" || host.endsWith(".local") || host.endsWith(".internal") || host === "metadata.google.internal") {
+      throw new Error("scanner_url_rejected");
+    }
+    if (config.provider !== "custom" && config.provider !== "cloudmersive") throw new Error("unsupported_scanner_provider");
+  }
 }
 
 function decryptConfig(value: Record<string,string>): ProviderConfig {
