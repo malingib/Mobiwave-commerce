@@ -11,7 +11,7 @@ describe("platform provider configuration validation", () => {
     assert.throws(() => validateProviderConfig("r2", {
       accountId: "a".repeat(32), endpoint: "http://abc.r2.cloudflarestorage.com",
       bucketName: "mobiwave-media", accessKeyId: "key", secretAccessKey: "secret",
-    }), /r2_endpoint_requires_https/);
+    }), /r2_endpoint_rejected/);
   });
 
   it("accepts complete HTTPS SMS and Meta application configuration", () => {
@@ -23,6 +23,11 @@ describe("platform provider configuration validation", () => {
       graphVersion: "v27.0", instagramRedirectUri: "https://commerce.example.test/api/oauth/meta/instagram/callback",
       webhookVerifyToken: "private-webhook-token",
     }));
+  });
+
+  it("rejects arbitrary SMS hosts and private scanner targets", () => {
+    assert.throws(() => validateProviderConfig("mobiwave_sms", { apiUrl: "https://example.test/api", apiKey: "key", senderId: "MOBIWAVE" }), /sms_api_endpoint_rejected/);
+    assert.throws(() => validateProviderConfig("media_scanner", { provider: "custom", scannerUrl: "https://127.0.0.1/scan", scannerToken: "token" }), /scanner_url_rejected/);
   });
 
   it("rejects sender IDs that exceed the provider limit", () => {
