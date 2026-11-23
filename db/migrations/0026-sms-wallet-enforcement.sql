@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS store_sms_usage (
   amount_minor bigint NOT NULL CHECK (amount_minor >= 0),
   currency char(3) NOT NULL DEFAULT 'KES',
   wallet_reservation_id uuid,
+  provider_reference text,
   status text NOT NULL DEFAULT 'reserved' CHECK (status IN ('reserved','committed','released')),
   created_at timestamptz NOT NULL DEFAULT now(),
   settled_at timestamptz,
@@ -78,7 +79,10 @@ BEGIN
     OR OLD.included_segments IS DISTINCT FROM NEW.included_segments OR OLD.billable_segments IS DISTINCT FROM NEW.billable_segments
     OR OLD.unit_rate_minor IS DISTINCT FROM NEW.unit_rate_minor OR OLD.amount_minor IS DISTINCT FROM NEW.amount_minor
     OR OLD.currency IS DISTINCT FROM NEW.currency OR OLD.wallet_reservation_id IS DISTINCT FROM NEW.wallet_reservation_id
-    OR OLD.created_at IS DISTINCT FROM NEW.created_at THEN
+    OR OLD.created_at IS DISTINCT FROM NEW.created_at
+    OR (OLD.provider_reference IS NOT NULL AND OLD.provider_reference IS DISTINCT FROM NEW.provider_reference)
+    OR (OLD.provider_reference IS DISTINCT FROM NEW.provider_reference
+      AND NOT (OLD.status='reserved' AND NEW.status='committed' AND NEW.provider_reference IS NOT NULL)) THEN
     RAISE EXCEPTION 'store_sms_usage_identity_is_immutable';
   END IF;
   IF OLD.status IS DISTINCT FROM NEW.status
