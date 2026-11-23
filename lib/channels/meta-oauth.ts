@@ -1,3 +1,4 @@
+import { getPlatformProviderConfig } from "@/lib/platform-provider-config";
 type JsonObject = Record<string, unknown>;
 
 export type MetaToken = {
@@ -14,8 +15,8 @@ export type MetaPhoneNumber = {
   verifiedName: string | null;
 };
 
-function graphVersion() {
-  const version = process.env.META_GRAPH_API_VERSION || "v27.0";
+function graphVersion(override?: string) {
+  const version = override || process.env.META_GRAPH_API_VERSION || "v27.0";
   if (!/^v\d+\.\d+$/.test(version)) throw new Error("Invalid Meta Graph API version configuration");
   return version;
 }
@@ -76,18 +77,20 @@ export function buildInstagramAuthorizationUrl(state: string, redirectUri: strin
 }
 
 export async function exchangeWhatsAppEmbeddedSignupCode(code: string): Promise<MetaToken> {
-  const url = new URL(`https://graph.facebook.com/${graphVersion()}/oauth/access_token`);
-  url.searchParams.set("client_id", requiredEnv("META_APP_ID"));
-  url.searchParams.set("client_secret", requiredEnv("META_APP_SECRET"));
+  const config = await getPlatformProviderConfig("meta");
+  const url = new URL(`https://graph.facebook.com/${graphVersion(config?.graphVersion)}/oauth/access_token`);
+  url.searchParams.set("client_id", config?.appId || requiredEnv("META_APP_ID"));
+  url.searchParams.set("client_secret", config?.appSecret || requiredEnv("META_APP_SECRET"));
   url.searchParams.set("code", code);
   const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(12_000) });
   return tokenFrom(await readProviderResponse(response));
 }
 
 export async function exchangeInstagramAuthorizationCode(code: string, redirectUri: string): Promise<MetaToken> {
+  const config = await getPlatformProviderConfig("meta");
   const body = new URLSearchParams({
-    client_id: requiredEnv("META_APP_ID"),
-    client_secret: requiredEnv("META_APP_SECRET"),
+    client_id: config?.appId || requiredEnv("META_APP_ID"),
+    client_secret: config?.appSecret || requiredEnv("META_APP_SECRET"),
     grant_type: "authorization_code",
     redirect_uri: redirectUri,
     code,
@@ -103,9 +106,10 @@ export async function exchangeInstagramAuthorizationCode(code: string, redirectU
 }
 
 export async function exchangeInstagramLongLivedToken(shortLivedToken: string): Promise<MetaToken> {
+  const config = await getPlatformProviderConfig("meta");
   const url = new URL("https://graph.instagram.com/access_token");
   url.searchParams.set("grant_type", "ig_exchange_token");
-  url.searchParams.set("client_secret", requiredEnv("META_APP_SECRET"));
+  url.searchParams.set("client_secret", config?.appSecret || requiredEnv("META_APP_SECRET"));
   url.searchParams.set("access_token", shortLivedToken);
   const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(12_000) });
   return tokenFrom(await readProviderResponse(response));
@@ -143,7 +147,8 @@ export async function subscribeInstagramMessagingWebhooks(accountId: string, acc
 }
 
 export async function getWhatsAppPhoneNumber(wabaId: string, phoneNumberId: string, accessToken: string): Promise<MetaPhoneNumber> {
-  const url = new URL(`https://graph.facebook.com/${graphVersion()}/${encodeURIComponent(wabaId)}/phone_numbers`);
+  const config = await getPlatformProviderConfig("meta");
+  const url = new URL(`https://graph.facebook.com/${graphVersion(config?.graphVersion)}/${encodeURIComponent(wabaId)}/phone_numbers`);
   url.searchParams.set("fields", "id,display_phone_number,verified_name");
   url.searchParams.set("access_token", accessToken);
   const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(12_000) });
@@ -163,7 +168,8 @@ export async function getWhatsAppPhoneNumber(wabaId: string, phoneNumberId: stri
 }
 
 export async function subscribeWhatsAppWebhooks(wabaId: string, accessToken: string) {
-  const url = new URL(`https://graph.facebook.com/${graphVersion()}/${encodeURIComponent(wabaId)}/subscribed_apps`);
+  const config = await getPlatformProviderConfig("meta");
+  const url = new URL(`https://graph.facebook.com/${graphVersion(config?.graphVersion)}/${encodeURIComponent(wabaId)}/subscribed_apps`);
   url.searchParams.set("access_token", accessToken);
   const response = await fetch(url, {
     method: "POST",
