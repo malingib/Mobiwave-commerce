@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { createPresignedS3Url, createS3AuthorizationHeaders } from "@/lib/media/sigv4";
+import { getPlatformProviderConfig } from "@/lib/platform-provider-config";
 
 let configCache: {
   bucket: string;
@@ -8,28 +9,28 @@ let configCache: {
   secretAccessKey: string;
 } | undefined;
 
-function configuration() {
+async function configuration() {
   if (configCache) return configCache;
-  const accountId = process.env.R2_ACCOUNT_ID || "";
-  const bucket = process.env.R2_BUCKET_NAME || "";
-  const endpoint = (process.env.R2_S3_ENDPOINT || "").replace(/\/+$/, "");
-  const accessKeyId = process.env.R2_ACCESS_KEY_ID || "";
-  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY || "";
+  const saved = await getPlatformProviderConfig("r2");
+  const accountId = saved?.accountId || process.env.R2_ACCOUNT_ID || "";
+  const bucket = saved?.bucketName || process.env.R2_BUCKET_NAME || "";
+  const endpoint = (saved?.endpoint || process.env.R2_S3_ENDPOINT || "").replace(/\\/+$/, "");
+  const accessKeyId = saved?.accessKeyId || process.env.R2_ACCESS_KEY_ID || "";
+  const secretAccessKey = saved?.secretAccessKey || process.env.R2_SECRET_ACCESS_KEY || "";
   if (!/^[a-f0-9]{32}$/i.test(accountId) || !/^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/.test(bucket)) {
     throw new Error("R2 account or bucket configuration is invalid");
   }
   const parsed = new URL(endpoint);
   if (parsed.protocol !== "https:" || parsed.hostname !== accountId + ".r2.cloudflarestorage.com" || parsed.pathname !== "") {
-    throw new Error("R2_S3_ENDPOINT must be the HTTPS endpoint for the configured Cloudflare account");
+    throw new Error("R2 endpoint must match the configured Cloudflare account");
   }
   if (!accessKeyId || !secretAccessKey) throw new Error("R2 S3 credentials are not configured");
   configCache = { bucket, endpoint: parsed.origin, accessKeyId, secretAccessKey };
   return configCache;
 }
 
-function credentials() {
-  const config = configuration();
-  return { ...config };
+async function credentials() {
+  return { ...(await configuration()) };
 }
 
 async function signedRequest(input: {
@@ -37,14 +38,14 @@ async function signedRequest(input: {
   method: "GET" | "HEAD" | "PUT" | "DELETE";
   headers?: Record<string, string>;
 }) {
-  const config = credentials();
+  const config = await credentials();
   const headers = createS3AuthorizationHeaders({ ...config, ...input });
   const url = config.endpoint + "/" + config.bucket + "/" + input.key.split("/").map(encodeURIComponent).join("/");
   return fetch(url, { method: input.method, headers, cache: "no-store", redirect: "error" });
 }
 
 export async function createPrivateUploadUrl(input: { key: string; contentType: string }) {
-  const config = credentials();
+  const config = await credentials();
   return createPresignedS3Url({
     ...config,
     key: input.key,
