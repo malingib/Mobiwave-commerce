@@ -42,6 +42,14 @@ CREATE POLICY wallet_topup_attempts_initiation ON wallet_topup_attempts FOR INSE
   WITH CHECK (current_setting('app.wallet_topup',true)='true' AND EXISTS (
     SELECT 1 FROM store_memberships m WHERE m.store_id=wallet_topup_attempts.store_id
       AND m.user_id=nullif(current_setting('app.user_id',true),'')::uuid AND m.role='owner'));
+DROP POLICY IF EXISTS wallet_topup_attempts_initiation_update ON wallet_topup_attempts;
+CREATE POLICY wallet_topup_attempts_initiation_update ON wallet_topup_attempts FOR UPDATE
+  USING (current_setting('app.wallet_topup',true)='true' AND EXISTS (
+    SELECT 1 FROM store_memberships m WHERE m.store_id=wallet_topup_attempts.store_id
+      AND m.user_id=nullif(current_setting('app.user_id',true),'')::uuid AND m.role='owner'))
+  WITH CHECK (current_setting('app.wallet_topup',true)='true' AND EXISTS (
+    SELECT 1 FROM store_memberships m WHERE m.store_id=wallet_topup_attempts.store_id
+      AND m.user_id=nullif(current_setting('app.user_id',true),'')::uuid AND m.role='owner'));
 DROP POLICY IF EXISTS wallet_topup_attempts_callback ON wallet_topup_attempts;
 CREATE POLICY wallet_topup_attempts_callback ON wallet_topup_attempts FOR ALL
   USING (current_setting('app.mpesa_callback',true)='true')
