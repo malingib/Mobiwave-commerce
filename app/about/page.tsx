@@ -19,6 +19,7 @@ export default function AboutPage() {
       <nav className="cm-nav" aria-label="Main navigation"><Link href="/">Home</Link><Link href="/#features">Features</Link><Link href="/#pricing">Pricing</Link><Link href="/about" aria-current="page">About</Link><Link href="/contact">Contact</Link></nav>
       <div className="cm-header-actions"><Link className="cm-login" href="/login">Log in</Link><Link className="cm-button cm-button-primary cm-button-small" href="/signup">Get started <ArrowRight size={15}/></Link></div>
     </header>
+    <nav className="cm-inner-mobile-nav" aria-label="Mobile navigation"><Link href="/">Home</Link><Link href="/#features">Features</Link><Link href="/#pricing">Pricing</Link><Link href="/about">About</Link><Link href="/contact">Contact</Link></nav>
 
     <section className="cm-inner-hero">
       <div className="cm-inner-copy">
