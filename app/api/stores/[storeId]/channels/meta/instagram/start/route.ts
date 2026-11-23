@@ -4,7 +4,6 @@ import { getRequestUser } from "@/lib/request-user";
 import { buildInstagramAuthorizationUrl } from "@/lib/channels/meta-oauth";
 import { issueMetaOAuthState, type AssetOwnerType, type OnboardingMode } from "@/lib/channels/oauth-state";
 import { getPlatformProviderConfig } from "@/lib/platform-provider-config";
-import { getPlatformProviderConfig } from "@/lib/platform-provider-config";
 
 export const runtime = "nodejs";
 
@@ -43,7 +42,7 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
     });
     await client.query("COMMIT");
     return NextResponse.json({
-      authorizationUrl: await buildInstagramAuthorizationUrl(state, redirectUri),
+      authorizationUrl: buildInstagramAuthorizationUrl(state, redirectUri, meta?.appId || process.env.META_APP_ID),
     }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     await client.query("ROLLBACK").catch(() => undefined);
