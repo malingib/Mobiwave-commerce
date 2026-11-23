@@ -53,7 +53,7 @@ export function renderCommerceSms(templateKey: SmsEventInput["templateKey"], pay
 }
 
 export async function sendMobiWaveSms(recipient: string, message: string, reference: string, providerConfig?: { apiUrl: string; apiKey: string; senderId: string }) {
-  const saved = providerConfig || await getPlatformProviderConfig("mobiwave_sms");
+  const saved = providerConfig || (process.env.DATABASE_URL ? await getPlatformProviderConfig("mobiwave_sms") : null);
   const configuredUrl = saved?.apiUrl || process.env.MOBIWAVE_SMS_API_URL || "https://sms.mobiwave.co.ke/api/v3";
   const apiKey = saved?.apiKey || process.env.MOBIWAVE_SMS_API_KEY;
   const senderId = saved?.senderId || process.env.MOBIWAVE_SMS_SENDER_ID;
@@ -99,7 +99,7 @@ export async function sendMobiWaveSms(recipient: string, message: string, refere
 }
 
 export async function processQueuedSmsBatch(batchSize = 20) {
-  const saved = await getPlatformProviderConfig("mobiwave_sms");
+  const saved = process.env.DATABASE_URL ? await getPlatformProviderConfig("mobiwave_sms") : null;
   const providerConfig = saved?.apiUrl && saved.apiKey && saved.senderId
     ? { apiUrl: saved.apiUrl, apiKey: saved.apiKey, senderId: saved.senderId }
     : null;
