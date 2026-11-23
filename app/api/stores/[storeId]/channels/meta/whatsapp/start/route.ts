@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getRequestUser } from "@/lib/request-user";
 import { issueMetaOAuthState, type AssetOwnerType, type OnboardingMode } from "@/lib/channels/oauth-state";
+import { getPlatformProviderConfig } from "@/lib/platform-provider-config";
 
 export const runtime = "nodejs";
 
@@ -14,8 +15,9 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
 
   const ownershipMode = body.ownershipMode === "mobiwave_managed" ? "mobiwave_managed" : "merchant_owned";
   const assetOwnerType = body.assetOwnerType === "mobiwave" ? "mobiwave" : "merchant";
-  if (!process.env.META_APP_ID || !process.env.META_WHATSAPP_CONFIG_ID ||
-      !process.env.META_APP_SECRET || !process.env.CHANNEL_CREDENTIALS_ENCRYPTION_KEY) {
+  const meta = await getPlatformProviderConfig("meta");
+  if (!(meta?.appId || process.env.META_APP_ID) || !(meta?.whatsappConfigId || process.env.META_WHATSAPP_CONFIG_ID) ||
+      !(meta?.appSecret || process.env.META_APP_SECRET) || !process.env.CHANNEL_CREDENTIALS_ENCRYPTION_KEY) {
     return NextResponse.json({ error: "WhatsApp onboarding is not configured on the server" }, { status: 503 });
   }
 
