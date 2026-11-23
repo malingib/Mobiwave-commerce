@@ -9,6 +9,7 @@ import {
   subscribeInstagramMessagingWebhooks,
 } from "@/lib/channels/meta-oauth";
 import { saveMetaChannelConnection } from "@/lib/channels/save-connection";
+import { getPlatformProviderConfig } from "@/lib/platform-provider-config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -52,7 +53,8 @@ export async function GET(request: Request) {
   }
 
   try {
-    const redirectUri = process.env.META_INSTAGRAM_REDIRECT_URI || "";
+    const meta = await getPlatformProviderConfig("meta");
+    const redirectUri = meta?.instagramRedirectUri || process.env.META_INSTAGRAM_REDIRECT_URI || "";
     if (!redirectUri) throw new Error("instagram_redirect_uri_missing");
     const shortLived = await exchangeInstagramAuthorizationCode(code, redirectUri);
     const token = await exchangeInstagramLongLivedToken(shortLived.accessToken);
