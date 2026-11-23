@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
-import { ArrowRight, Mail, MapPin, MessageSquareText, Phone } from "lucide-react";
+import { ArrowRight, Mail, MapPin, Phone } from "lucide-react";
 
 type FormState = { name: string; email: string; business: string; subject: string; message: string; website: string };
 
