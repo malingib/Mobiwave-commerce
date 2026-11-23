@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import {
-  ArrowDownRight, ArrowRight, Check, ChevronDown, CircleHelp, Globe2,
+  ArrowDownRight, ArrowRight, Check, ChevronDown, Globe2,
   MessageSquareText, Package, ShoppingBag, Store, Truck, Menu, X,
 } from "lucide-react";
 
@@ -57,10 +57,10 @@ export default function HomePage() {
             <h1>Your business deserves <span>its own place online.</span></h1>
             <p className="cm-hero-lede">Open a simple online shop, organise your orders and keep customers in the loop — all in one calm workspace built for Kenyan businesses.</p>
             <div className="cm-hero-actions">
-              <a className="cm-button cm-button-primary" href="/signup">Start your free shop <ArrowRight size={16} /></a>
+              <a className="cm-button cm-button-primary" href="/signup">Create your shop <ArrowRight size={16} /></a>
               <a className="cm-text-link" href="#how-it-works">See how it works <ArrowDownRight size={16} /></a>
             </div>
-            <div className="cm-trust-line"><span><Check size={12} /></span> Start free <i /> No coding required <i /> Built for mobile</div>
+            <div className="cm-trust-line"><span><Check size={12} /></span> No coding required <i /> Built for mobile</div>
           </div>
           <div className="cm-hero-visual">
             <div className="cm-visual-glow" aria-hidden="true" />
@@ -112,20 +112,34 @@ export default function HomePage() {
 
       <section className="cm-section cm-pricing" id="pricing">
         <div className="cm-section-heading">
-          <div><span className="cm-section-kicker">SIMPLE BY DESIGN</span><h2>Start free. <span>Grow when ready.</span></h2></div>
-          <p>Get the essentials for your first online shop, then add capabilities as your business needs them.</p>
+          <div><span className="cm-section-kicker">TRANSPARENT, VOLUME-BASED RATES</span><h2>Pay for messaging <span>as you use it.</span></h2></div>
+          <p>SMS usage is billed by monthly volume. Higher volumes receive a lower per-message rate, with no subscription package pricing.</p>
         </div>
-        <div className="cm-pricing-row">
-          <div><span className="cm-plan-label">FREE TO START</span><h3>KES 0 <small>/ month</small></h3><p>For merchants getting their first shop online.</p></div>
-          <ul><li><Check size={15} /> Hosted shop address</li><li><Check size={15} /> Product catalogue and storefront</li><li><Check size={15} /> Essential order management</li><li><Check size={15} /> Manual payment and cash-on-delivery workflow</li></ul>
-          <div className="cm-pricing-note"><CircleHelp size={16} /><span>Custom domains, advanced automation and payment integrations can be added as your store grows.</span></div>
+        <div className="cm-usage-pricing">
+          <div className="cm-usage-pricing-intro">
+            <span className="cm-plan-label">MOBIWAVE SMS USAGE</span>
+            <h3>One clear rate per SMS.</h3>
+            <p>Choose the volume that matches your business. Rates are in Kenyan shillings and are charged per SMS sent.</p>
+          </div>
+          <div className="cm-usage-table-wrap">
+            <table className="cm-usage-table">
+              <thead><tr><th scope="col">Monthly SMS volume</th><th scope="col">Rate per SMS</th></tr></thead>
+              <tbody>
+                <tr><td>1 – 50,000</td><td><strong>KES 0.35</strong></td></tr>
+                <tr><td>50,001 – 500,000</td><td><strong>KES 0.30</strong></td></tr>
+                <tr><td>500,001 – 2,000,000</td><td><strong>KES 0.25</strong></td></tr>
+                <tr><td>Above 2,000,000</td><td><strong>KES 0.20</strong></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="cm-usage-footnote">Volume-based SMS usage rates. Sender ID registration and any applicable third-party channel charges are handled separately where required.</p>
         </div>
       </section>
 
       <section className="cm-cta" id="get-started">
         <div className="cm-cta-glow" aria-hidden="true" />
         <div className="cm-cta-content"><span className="cm-section-kicker">YOUR NEXT CHAPTER STARTS HERE</span><h2>Give your business <span>a home online.</span></h2><p>Create your shop, add your products and make it easier for customers to find and order from you.</p>
-          <a className="cm-button cm-button-cta" href="/signup">Create your free shop <ArrowRight size={16} /></a>
+          <a className="cm-button cm-button-cta" href="/signup">Create your shop <ArrowRight size={16} /></a>
           <small><Truck size={14} /> Built for the realities of local commerce.</small>
         </div>
       </section>
