@@ -18,7 +18,7 @@ export async function GET(request: Request) {
   const mode = url.searchParams.get("hub.mode") || url.searchParams.get("hub[mode]");
   const token = url.searchParams.get("hub.verify_token") || url.searchParams.get("hub[verify_token]") || "";
   const challenge = url.searchParams.get("hub.challenge") || url.searchParams.get("hub[challenge]") || "";
-  const expected = process.env.META_WEBHOOK_VERIFY_TOKEN || "";
+  const meta = await getPlatformProviderConfig("meta").catch(() => null);\n  const expected = meta?.webhookVerifyToken || process.env.META_WEBHOOK_VERIFY_TOKEN || "";
   if (mode !== "subscribe" || !expected || !constantTimeMatch(expected, token) || !challenge) {
     return new NextResponse("Forbidden", { status: 403 });
   }
@@ -29,7 +29,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const appSecret = process.env.META_APP_SECRET || "";
+  const meta = await getPlatformProviderConfig("meta").catch(() => null);\n  const appSecret = meta?.appSecret || process.env.META_APP_SECRET || "";
   if (!appSecret) return NextResponse.json({ error: "Webhook is not configured" }, { status: 503 });
 
   const contentLength = Number(request.headers.get("content-length") || 0);
