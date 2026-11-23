@@ -13,7 +13,7 @@ async function configuration() {
     throw new Error("R2 account or bucket configuration is invalid");
   }
   const parsed = new URL(endpoint);
-  if (parsed.protocol !== "https:" || parsed.hostname !== accountId + ".r2.cloudflarestorage.com" || parsed.pathname !== "") {
+  if (parsed.protocol !== "https:" || parsed.hostname !== accountId + ".r2.cloudflarestorage.com" || parsed.pathname !== "/" && parsed.pathname !== "" || parsed.search || parsed.hash) {
     throw new Error("R2 endpoint must match the configured Cloudflare account");
   }
   if (!accessKeyId || !secretAccessKey) throw new Error("R2 S3 credentials are not configured");
