@@ -5,6 +5,13 @@ export type ProviderName = "meta" | "mobiwave_sms" | "r2" | "media_scanner";
 export type ProviderStatus = "not_configured" | "configured" | "verified" | "error";
 export type ProviderConfig = Record<string, string>;
 
+const ALLOWED: Record<ProviderName, string[]> = {
+  meta: ["appId", "appSecret", "whatsappConfigId", "graphVersion", "instagramRedirectUri", "webhookVerifyToken"],
+  mobiwave_sms: ["apiUrl", "apiKey", "senderId"],
+  r2: ["accountId", "endpoint", "bucketName", "accessKeyId", "secretAccessKey"],
+  media_scanner: ["provider", "scannerUrl", "scannerToken"],
+};
+
 const REQUIRED: Record<ProviderName, string[]> = {
   meta: ["appId", "appSecret", "whatsappConfigId", "graphVersion", "instagramRedirectUri", "webhookVerifyToken"],
   mobiwave_sms: ["apiUrl", "apiKey", "senderId"],
@@ -40,6 +47,8 @@ export async function savePlatformProviderConfig(provider: ProviderName, updates
   try {
     await client.query("BEGIN");
     await client.query("SELECT set_config('app.admin','true',true)");
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", ["platform-provider:" + provider]);
+    for (const key of Object.keys(updates)) if (!ALLOWED[provider].includes(key)) throw new Error("unsupported_provider_field");
     // Lock the provider row so simultaneous partial rotations cannot overwrite
     // one another or temporarily discard credentials omitted by the form.
     const current = await client.query(
