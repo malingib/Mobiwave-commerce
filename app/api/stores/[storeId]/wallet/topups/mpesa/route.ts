@@ -44,6 +44,9 @@ export async function POST(request: Request, context: Context) {
     await client.query("BEGIN");
     await client.query("SELECT set_config('app.user_id',$1,true)",[user.id]);
     await client.query("SELECT set_config('app.wallet_topup','true',true)");
+    // Serialize concurrent top-up requests for this store before checking the
+    // idempotency key and the single-open-attempt constraint.
+    await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",[storeId]);
     const member=await client.query(
       "SELECT role FROM store_memberships WHERE store_id=$1 AND user_id=$2 AND role='owner'",
       [storeId,user.id],
