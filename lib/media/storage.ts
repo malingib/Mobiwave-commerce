@@ -3,7 +3,7 @@ import { createPresignedS3Url, createS3AuthorizationHeaders } from "@/lib/media/
 import { getPlatformProviderConfig } from "@/lib/platform-provider-config";
 
 async function configuration() {
-  const saved = await getPlatformProviderConfig("r2");
+  const saved = process.env.DATABASE_URL ? await getPlatformProviderConfig("r2") : null;
   const accountId = saved?.accountId || process.env.R2_ACCOUNT_ID || "";
   const bucket = saved?.bucketName || process.env.R2_BUCKET_NAME || "";
   const endpoint = (saved?.endpoint || process.env.R2_S3_ENDPOINT || "").replace(/\/+$/, "");
