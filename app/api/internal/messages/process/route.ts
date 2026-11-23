@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 function authorized(request: Request) {
   const expected = process.env.CHANNEL_WORKER_SECRET;
   const supplied = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") || "";
-  if (!expected || !supplied) return false;
+  if (!expected || Buffer.byteLength(expected) < 32 || !supplied) return false;
   const a = Buffer.from(expected);
   const b = Buffer.from(supplied);
   return a.length === b.length && timingSafeEqual(a, b);
@@ -24,4 +24,4 @@ async function handle(request: Request) {
 }
 
 export async function POST(request: Request) { return handle(request); }
-export async function GET(request: Request) { return handle(request); }
+export async function GET() { return NextResponse.json({ error: "Method not allowed" }, { status: 405, headers: { Allow: "POST", "Cache-Control": "no-store" } }); }

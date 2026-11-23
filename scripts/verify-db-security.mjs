@@ -34,6 +34,8 @@ const migrationPaths = [
   "db/migrations/0021-social-commerce-outbound.sql",
   "db/migrations/0022-conversation-attachment-security.sql",
   "db/migrations/0023-platform-provider-configurations.sql",
+  "db/migrations/0024-store-wallet-ledger.sql",
+  "db/migrations/0025-sms-delivery-idempotency.sql",
 ];
 
 const appUrl = new URL(databaseUrl);
@@ -56,6 +58,18 @@ try {
   }
   await owner.query(await readFile(join(root, "db/roles/commerce-runtime.sql"), "utf8"));
   await owner.query(await readFile(join(root, "db/roles/commerce-auth-runtime.sql"), "utf8"));
+
+  const walletSecurity = await owner.query(
+    `SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity
+       FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+      WHERE n.nspname='public' AND c.relname IN ('store_wallet_accounts','store_wallet_transactions','store_wallet_reservations')
+      ORDER BY c.relname`,
+  );
+  assert.deepEqual(walletSecurity.rows, [
+    { relname: "store_wallet_accounts", relrowsecurity: true, relforcerowsecurity: true },
+    { relname: "store_wallet_reservations", relrowsecurity: true, relforcerowsecurity: true },
+    { relname: "store_wallet_transactions", relrowsecurity: true, relforcerowsecurity: true },
+  ], "all wallet tables must enforce RLS");
 
   const roleChecks = await owner.query(`
     SELECT rolname, rolcanlogin, rolbypassrls
@@ -141,6 +155,35 @@ try {
     `INSERT INTO message_events (store_id,channel,recipient,template_key,dedupe_key)
      VALUES ($1,'sms','254700000001','order_created','tenant-a-message'),($2,'sms','254700000002','order_created','tenant-b-message')`,
     [storeA, storeB],
+  );
+  await owner.query(
+    "INSERT INTO store_wallet_accounts (store_id,available_balance_minor) VALUES ($1,5000),($2,7000)",
+    [storeA, storeB],
+  );
+  await owner.query(
+    `INSERT INTO store_wallet_transactions (store_id,transaction_type,amount_minor,idempotency_key,description)
+     VALUES ($1,'top_up',5000,'seed-topup-a','security test seed'),($2,'top_up',7000,'seed-topup-b','security test seed')`,
+    [storeA, storeB],
+  );
+  await owner.query(
+    `INSERT INTO store_wallet_reservations (store_id,amount_minor,idempotency_key,status)
+     VALUES ($1,100,'seed-reservation-a','reserved'),($2,200,'seed-reservation-b','reserved')`,
+    [storeA, storeB],
+  );
+  await assert.rejects(
+    owner.query("UPDATE store_wallet_transactions SET description='tampered' WHERE idempotency_key='seed-topup-a'"),
+    /append_only/i,
+    "wallet financial movements must be immutable",
+  );
+  await assert.rejects(
+    owner.query("DELETE FROM store_wallet_transactions WHERE idempotency_key='seed-topup-a'"),
+    /append_only/i,
+    "wallet financial movements must not be deletable",
+  );
+  await assert.rejects(
+    owner.query("UPDATE store_wallet_reservations SET amount_minor=999 WHERE idempotency_key='seed-reservation-a'"),
+    /identity_is_immutable/i,
+    "wallet reservation identity must be immutable",
   );
   await owner.query(
     "INSERT INTO store_domains (store_id,hostname) VALUES ($1,'tenant-a.example.test'),($2,'tenant-b.example.test')",
@@ -243,6 +286,9 @@ try {
       "payment_attempts",
       "subscriptions",
       "message_events",
+      "store_wallet_accounts",
+      "store_wallet_transactions",
+      "store_wallet_reservations",
       "store_domains",
       "audit_events",
       "channel_connections",
@@ -336,6 +382,23 @@ try {
     assert.equal(oauthCredentials.rows[0].count, 2, "OAuth capability must access the encrypted credential vault");
     assert.equal(oauthStates.rows[0].count, 2, "OAuth capability must access one-time transaction state");
     await runtime.query("SELECT set_config($1,$2,true)", ["app.channel_oauth","false"]);
+
+    const crossTenantWalletUpdate = await runtime.query(
+      "UPDATE store_wallet_accounts SET available_balance_minor=0 WHERE store_id=$1",
+      [storeB],
+    );
+    assert.equal(crossTenantWalletUpdate.rowCount, 0, "merchant A must not mutate tenant B wallet balance");
+    await runtime.query("SAVEPOINT before_cross_tenant_wallet_reservation");
+    await assert.rejects(
+      runtime.query(
+        "INSERT INTO store_wallet_reservations (store_id,amount_minor,idempotency_key) VALUES ($1,10,'forged-cross-tenant-wallet')",
+        [storeB],
+      ),
+      /row-level security/i,
+      "merchant A must not create a wallet reservation for tenant B",
+    );
+    await runtime.query("ROLLBACK TO SAVEPOINT before_cross_tenant_wallet_reservation");
+    await runtime.query("RELEASE SAVEPOINT before_cross_tenant_wallet_reservation");
 
     const crossTenantUpdate = await runtime.query(
       "UPDATE orders SET customer_note='unauthorized' WHERE store_id=$1",
