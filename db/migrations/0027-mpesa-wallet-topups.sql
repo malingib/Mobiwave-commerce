@@ -62,7 +62,7 @@ GRANT SELECT,INSERT,UPDATE ON wallet_topup_attempts TO commerce_runtime;
 REVOKE DELETE ON wallet_topup_attempts FROM commerce_runtime;
 
 CREATE OR REPLACE FUNCTION enforce_wallet_topup_attempt_transition()
-RETURNS trigger LANGUAGE plpgsql AS $
+RETURNS trigger LANGUAGE plpgsql AS $wallet_topup_fn$
 BEGIN
   IF TG_OP='DELETE' THEN RAISE EXCEPTION 'wallet_topup_attempts_cannot_be_deleted'; END IF;
   IF OLD.store_id IS DISTINCT FROM NEW.store_id OR OLD.provider IS DISTINCT FROM NEW.provider
@@ -96,7 +96,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$;
+$wallet_topup_fn$;
 DROP TRIGGER IF EXISTS wallet_topup_attempt_transition ON wallet_topup_attempts;
 CREATE TRIGGER wallet_topup_attempt_transition BEFORE UPDATE OR DELETE ON wallet_topup_attempts
   FOR EACH ROW EXECUTE FUNCTION enforce_wallet_topup_attempt_transition();
