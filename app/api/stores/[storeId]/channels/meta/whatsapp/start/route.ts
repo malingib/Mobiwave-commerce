@@ -3,7 +3,6 @@ import { db } from "@/lib/db";
 import { getRequestUser } from "@/lib/request-user";
 import { issueMetaOAuthState, type AssetOwnerType, type OnboardingMode } from "@/lib/channels/oauth-state";
 import { getPlatformProviderConfig } from "@/lib/platform-provider-config";
-import { getPlatformProviderConfig } from "@/lib/platform-provider-config";
 
 export const runtime = "nodejs";
 
