@@ -34,7 +34,7 @@ export async function PUT(request: Request) {
     return NextResponse.json({ ok: true, status: "configured" }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "provider_config_save_failed";
-    const status = message.startsWith("missing_") || message.startsWith("invalid_") || message.endsWith("_requires_https") ? 400 : 503;
+    const status = /^(missing_|invalid_|unsupported_|sms_|r2_|scanner_)/.test(message) ? 400 : 503;
     return NextResponse.json({ error: status === 400 ? message : "Could not securely save provider configuration" }, { status });
   }
 }
