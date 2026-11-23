@@ -68,7 +68,7 @@ export async function readPrivateObject(key: string) {
 }
 
 export async function copyPrivateObject(input: { sourceKey: string; destinationKey: string }) {
-  const config = credentials();
+  const config = await credentials();
   const copySource = "/" + config.bucket + "/" + input.sourceKey.split("/").map(encodeURIComponent).join("/");
   const response = await signedRequest({
     key: input.destinationKey,
