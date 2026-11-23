@@ -28,8 +28,9 @@ export async function POST(request: Request) {
       const data = await response.json().catch(() => null) as { id?: string; error?: { code?: number } } | null;
       if (!response.ok || data?.id !== config.appId) throw new Error(`meta_check_${data?.error?.code ?? response.status}`);
     } else if (provider === "mobiwave_sms") {
-      const base = new URL(config.apiUrl);
-      const response = await fetch(base, {
+      const profileUrl = new URL(config.apiUrl);
+      profileUrl.pathname = profileUrl.pathname.replace(/\\/+$/, "") + "/me";
+      const response = await fetch(profileUrl, {
         method: "GET",
         headers: { Authorization: `Bearer ${config.apiKey}`, Accept: "application/json" },
         cache: "no-store",
@@ -37,6 +38,8 @@ export async function POST(request: Request) {
       });
       if (response.status === 401 || response.status === 403) throw new Error("sms_credentials_rejected");
       if (!response.ok) throw new Error(`sms_provider_http_${response.status}`);
+      const profile = await response.json().catch(() => null) as { status?: string } | null;
+      if (profile?.status !== "success") throw new Error("sms_profile_check_rejected");
     } else if (provider === "r2") {
       await verifyPrivateStorageAccess();
     } else {
