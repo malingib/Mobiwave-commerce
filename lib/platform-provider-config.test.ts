@@ -32,7 +32,7 @@ describe("platform provider configuration validation", () => {
 
   it("rejects sender IDs that exceed the provider limit", () => {
     assert.throws(() => validateProviderConfig("mobiwave_sms", {
-      apiUrl: "https://sms.example.test/api", apiKey: "key", senderId: "MOBIWAVE-STORE",
+      apiUrl: "https://sms.mobiwave.co.ke/api/v3", apiKey: "key", senderId: "MOBIWAVE-STORE",
     }), /sms_sender_id_too_long/);
   });
 });
