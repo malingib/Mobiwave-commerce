@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "@/lib/test-runtime";
 import { renderCommerceSms, sendMobiWaveSms, stableSmsProviderKey, SmsProviderError } from "@/lib/message-outbox";
 
+async function captureProviderError(promise: Promise<string>): Promise<SmsProviderError> {
+  try { await promise; }
+  catch (error) { if (error instanceof SmsProviderError) return error; throw error; }
+  throw new Error("expected SMS provider request to reject");
+}
+
 describe("transactional commerce SMS templates", () => {
   it("renders order received details without trusting HTML", () => {
     const message=renderCommerceSms("order_received",{storeName:"Kilifi Store",customerName:"Amina",orderNumber:"MW-1001",totalMinor:125050,currency:"KES"});
@@ -19,16 +25,6 @@ describe("SMS idempotency", () => {
     expect(key).toMatch(/^[a-f0-9]{64}$/);
   });
 });
-async function captureProviderError(promise: Promise<string>): Promise<SmsProviderError> {
-  try {
-    await promise;
-  } catch (error) {
-    if (error instanceof SmsProviderError) return error;
-    throw error;
-  }
-  throw new Error("expected SMS provider request to reject");
-}
-
 describe("MobiWave v3 SMS adapter", () => {
   afterEach(()=>{vi.unstubAllGlobals();vi.unstubAllEnvs();});
   const configure=()=>{vi.stubEnv("MOBIWAVE_SMS_API_URL","https://sms.mobiwave.co.ke/api/v3");vi.stubEnv("MOBIWAVE_SMS_API_KEY","test-api-token");vi.stubEnv("MOBIWAVE_SMS_SENDER_ID","MOBIWAVE");};
@@ -44,22 +40,22 @@ describe("MobiWave v3 SMS adapter", () => {
   });
   it("treats HTTP 429 as retryable and honours Retry-After",async()=>{
     configure(); vi.stubGlobal("fetch",vi.fn<typeof fetch>(async()=>new Response("",{status:429,headers:{"Retry-After":"45"}})));
-    const error=captureProviderError(sendMobiWaveSms("254700000000","Hello","key"));
+    const error=await captureProviderError(sendMobiWaveSms("254700000000","Hello","key"));
     expect(error.kind).toBe("retryable_rejection"); expect(error.code).toBe("sms_provider_rate_limited"); expect(error.retryAfterSeconds).toBe(45);
   });
   it("treats HTTP 5xx as ambiguous, never as a safe retry",async()=>{
     configure(); vi.stubGlobal("fetch",vi.fn<typeof fetch>(async()=>new Response("",{status:503})));
-    const error=await sendMobiWaveSms("254700000000","Hello","key").catch(e=>e as SmsProviderError);
+    const error=await captureProviderError(sendMobiWaveSms("254700000000","Hello","key"));
     expect(error.kind).toBe("ambiguous"); expect(error.code).toBe("sms_provider_http_503_outcome_unknown");
   });
   it("treats network timeouts as ambiguous",async()=>{
     configure(); vi.stubGlobal("fetch",vi.fn<typeof fetch>(async()=>{throw new Error("socket timeout");}));
-    const error=await sendMobiWaveSms("254700000000","Hello","key").catch(e=>e as SmsProviderError);
+    const error=await captureProviderError(sendMobiWaveSms("254700000000","Hello","key"));
     expect(error.kind).toBe("ambiguous"); expect(error.code).toBe("sms_provider_network_outcome_unknown");
   });
   it("treats explicit 4xx rejection as permanent",async()=>{
     configure(); vi.stubGlobal("fetch",vi.fn<typeof fetch>(async()=>new Response("",{status:400})));
-    const error=await sendMobiWaveSms("254700000000","Hello","key").catch(e=>e as SmsProviderError);
+    const error=await captureProviderError(sendMobiWaveSms("254700000000","Hello","key"));
     expect(error.kind).toBe("permanent_rejection"); expect(error.code).toBe("sms_provider_http_400");
   });
   it("rejects invalid sender ID before sending",async()=>{
