@@ -6,7 +6,7 @@ export type ProviderStatus = "not_configured" | "configured" | "verified" | "err
 export type ProviderConfig = Record<string, string>;
 
 const REQUIRED: Record<ProviderName, string[]> = {
-  meta: ["appId", "appSecret", "whatsappConfigId", "graphVersion", "instagramRedirectUri"],
+  meta: ["appId", "appSecret", "whatsappConfigId", "graphVersion", "instagramRedirectUri", "webhookVerifyToken"],
   mobiwave_sms: ["apiUrl", "apiKey", "senderId"],
   r2: ["accountId", "endpoint", "bucketName", "accessKeyId", "secretAccessKey"],
   media_scanner: ["provider", "scannerUrl", "scannerToken"],
@@ -107,7 +107,7 @@ export async function setPlatformProviderStatus(provider: ProviderName, status: 
   const client = await db.connect();
   try {
     await client.query("BEGIN");
-    await client.query("SELECT set_config('app.provider_config_read','true',true)");
+    await client.query("SELECT set_config('app.admin','true',true)");
     await client.query(
       "UPDATE platform_provider_configurations SET status=$2,last_verified_at=CASE WHEN $2='verified' THEN now() ELSE last_verified_at END,last_error_code=$3,updated_at=now() WHERE provider=$1",
       [provider, status, errorCode],
