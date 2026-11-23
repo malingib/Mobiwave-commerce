@@ -1,5 +1,39 @@
 import type { PoolClient } from "pg";
 
+export async function creditStoreWalletFromMpesa(client: PoolClient, input: {
+  storeId: string; attemptId: string; amountMinor: number; currency: string; receipt: string;
+}) {
+  if (!input.storeId || !input.attemptId || !input.receipt || !Number.isSafeInteger(input.amountMinor) || input.amountMinor < 100 || input.amountMinor % 100 !== 0) {
+    throw new Error("invalid_mpesa_wallet_credit");
+  }
+  if (input.currency !== "KES") return { ok:false as const, reason:"unsupported_wallet_currency" as const };
+  await client.query("SELECT set_config('app.mpesa_callback','true',true)");
+  await client.query(
+    "INSERT INTO store_wallet_accounts (store_id,currency,available_balance_minor,status) VALUES ($1,$2,0,'active') ON CONFLICT (store_id) DO NOTHING",
+    [input.storeId,input.currency],
+  );
+  const account = await client.query(
+    "SELECT currency,status,available_balance_minor FROM store_wallet_accounts WHERE store_id=$1 FOR UPDATE",
+    [input.storeId],
+  );
+  if (!account.rowCount) return {ok:false as const,reason:"wallet_not_configured" as const};
+  if (String(account.rows[0].currency).trim() !== input.currency) return {ok:false as const,reason:"wallet_currency_mismatch" as const};
+  if (account.rows[0].status === "closed") return {ok:false as const,reason:"wallet_closed" as const};
+  const ledger = await client.query(
+    "INSERT INTO store_wallet_transactions (store_id,transaction_type,amount_minor,currency,idempotency_key,reference_type,reference_id,description,metadata) " +
+    "VALUES ($1,'top_up',$2,$3,$4,'mpesa',$5,'M-Pesa wallet top-up',$6::jsonb) " +
+    "ON CONFLICT (store_id,idempotency_key) DO NOTHING RETURNING id",
+    [input.storeId,input.amountMinor,input.currency,"mpesa-topup:"+input.attemptId,input.receipt,
+      JSON.stringify({provider:"mpesa",attemptId:input.attemptId,receipt:input.receipt})],
+  );
+  if (!ledger.rowCount) return {ok:false as const,reason:"duplicate_wallet_credit" as const};
+  const updated = await client.query(
+    "UPDATE store_wallet_accounts SET available_balance_minor=available_balance_minor+$2::bigint,updated_at=now() WHERE store_id=$1 RETURNING available_balance_minor",
+    [input.storeId,input.amountMinor],
+  );
+  return {ok:true as const,balanceMinor:Number(updated.rows[0].available_balance_minor)};
+}
+
 export type SmsWalletCharge = {
   totalSegments: number;
   includedSegments: number;
