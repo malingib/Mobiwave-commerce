@@ -17,7 +17,7 @@ MobiWave Commerce is MobiWave-owned, multi-tenant B2C commerce SaaS for Kenyan m
 - Official Meta webhook ingress for WhatsApp Cloud API and Instagram Messaging, including raw-body signature verification, account matching, event normalization and deduplicated durable webhook storage.
 - Authenticated inbound event worker that creates channel-scoped identities/conversations, persists inbound messages and applies provider delivery/read statuses with replay-safe writes and bounded retries.
 - Meta WhatsApp Embedded Signup v4 and Instagram Login onboarding foundation, one-time tenant-bound OAuth state, encrypted provider-token vault, asset verification and webhook subscription.
-- GitHub Actions CI for tests, typecheck, lint, dependency audit and production build.
+- Public Commerce landing page, About and Contact pages with MobiWave brand styling and responsive navigation. The Contact form sends directly through TalkSasa SMTP, with database-backed rate limiting, input validation and a honeypot; it does not use Brevo.\n- GitHub Actions CI for tests, typecheck, lint, dependency audit and production build.
 
 ## Environment and secrets
 
@@ -35,7 +35,7 @@ Copy .env.example to .env.local and configure:
 
 - DATABASE_URL, BETTER_AUTH_SECRET, BETTER_AUTH_URL, NEXT_PUBLIC_APP_URL.
 - NEXT_PUBLIC_ROOT_DOMAIN and SUPERADMIN_EMAILS.
-- BREVO_API_KEY, BREVO_SENDER_EMAIL, BREVO_SENDER_NAME to enable account verification and recovery email.
+- BREVO_API_KEY, BREVO_SENDER_EMAIL, BREVO_SENDER_NAME to enable account verification and recovery email.\n- SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD and SMTP_ENCRYPTION plus CONTACT_MAIL_FROM, CONTACT_MAIL_FROM_NAME and CONTACT_MAIL_TO for direct contact-form delivery. Keep SMTP_PASSWORD encrypted in Vercel; the configured TalkSasa SMTP sender is no-reply@mobiwave.co.ke and enquiries go to sales@mobiwave.co.ke.
 - MPESA_CREDENTIALS_ENCRYPTION_KEY (base64-encoded 32-byte key) and MPESA_CALLBACK_TOKEN.
 - MOBIWAVE_SMS_API_URL, MOBIWAVE_SMS_API_KEY, MOBIWAVE_SMS_SENDER_ID.
 - CRON_SECRET for the authenticated message worker endpoint.
