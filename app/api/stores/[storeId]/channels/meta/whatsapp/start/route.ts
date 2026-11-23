@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getRequestUser } from "@/lib/request-user";
 import { issueMetaOAuthState, type AssetOwnerType, type OnboardingMode } from "@/lib/channels/oauth-state";
 import { getPlatformProviderConfig } from "@/lib/platform-provider-config";
+import { getPlatformProviderConfig } from "@/lib/platform-provider-config";
 
 export const runtime = "nodejs";
 
@@ -41,9 +42,9 @@ export async function POST(request: Request, context: { params: Promise<{ storeI
     });
     await client.query("COMMIT");
     return NextResponse.json({
-      appId: process.env.META_APP_ID,
-      configId: process.env.META_WHATSAPP_CONFIG_ID,
-      graphVersion: process.env.META_GRAPH_API_VERSION || "v27.0",
+      appId: meta?.appId || process.env.META_APP_ID,
+      configId: meta?.whatsappConfigId || process.env.META_WHATSAPP_CONFIG_ID,
+      graphVersion: meta?.graphVersion || process.env.META_GRAPH_API_VERSION || "v27.0",
       state,
     }, { headers: { "Cache-Control": "no-store" } });
   } catch {
