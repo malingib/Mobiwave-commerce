@@ -114,7 +114,7 @@ export async function POST(request: Request, context: Context) {
         BusinessShortCode:shortcode,Password:password,Timestamp:time,TransactionType:transactionType,
         Amount:amountMinor/100,PartyA:phone,PartyB:shortcode,PhoneNumber:phone,
         CallBackURL:`${appUrl.replace(/\/$/,"")}/api/payments/mpesa/callback?token=${encodeURIComponent(callbackToken)}`,
-        AccountReference:`MW-W-${storeId.replace(/-/g,"").slice(0,8).toUpperCase()}`,
+        AccountReference:`MW-${storeId.replace(/-/g,"").slice(0,8).toUpperCase()}`,
         TransactionDesc:"MW Wallet",
       }),
       cache:"no-store",signal:AbortSignal.timeout(15_000),
