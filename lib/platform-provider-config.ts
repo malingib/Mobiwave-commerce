@@ -69,14 +69,14 @@ export async function savePlatformProviderConfig(provider: ProviderName, updates
   } finally { client.release(); }
 }
 
-export async function getPlatformProviderConfig(provider: ProviderName): Promise<ProviderConfig | null> {
+export async function getPlatformProviderConfig(provider: ProviderName, includeError = false): Promise<ProviderConfig | null> {
   const client = await db.connect();
   try {
     await client.query("BEGIN");
     await client.query("SELECT set_config('app.provider_config_read','true',true)");
     const result = await client.query(
-      "SELECT config_ciphertext FROM platform_provider_configurations WHERE provider=$1 AND status IN ('configured','verified')",
-      [provider],
+      "SELECT config_ciphertext FROM platform_provider_configurations WHERE provider=$1 AND (status IN ('configured','verified') OR ($2::boolean AND status='error'))",
+      [provider, includeError],
     );
     await client.query("COMMIT");
     if (!result.rowCount) return null;
