@@ -156,13 +156,19 @@ export async function processQueuedSmsBatch(batchSize = 20) {
         failed++;
         continue;
       }
+      if (billing.alreadyCommitted) {
+        await updateClient.query("COMMIT");
+        await updateDeliveryState(updateClient,event,"delivery_unknown",{errorCode:"sms_usage_committed_delivery_state_unconfirmed"});
+        deliveryUnknown++;
+        continue;
+      }
       billingReserved = true;
       await updateClient.query("COMMIT");
       const key = stableSmsProviderKey(event.store_id,event.dedupe_key);
       const providerReference = await sendMobiWaveSms(event.recipient,message,key,providerConfig || undefined);
       providerAccepted = true;
       await updateClient.query("BEGIN");
-      await settleSmsUsage(updateClient,{storeId:event.store_id,eventId:event.id,outcome:"commit"});
+      await settleSmsUsage(updateClient,{storeId:event.store_id,eventId:event.id,outcome:"commit",providerReference});
       await updateClient.query("COMMIT");
       const recorded = await updateDeliveryState(updateClient,event,"sent",{providerReference});
       if (recorded) sent++; else deliveryUnknown++;
