@@ -12,7 +12,7 @@
 - A provider 429 is a definite rejection: the existing reservation remains held while the event is queued for retry.
 - A permanent provider rejection releases the reservation.
 - Provider timeout, network failure, 5xx, unreadable response, or lost worker lease remains `delivery_unknown`; the reservation is retained and the event is not automatically resent.
-- A successful provider response commits the reservation. If recording the delivery state subsequently fails, the usage remains committed because the provider accepted the message.
+- A successful provider response commits the reservation and stores the provider reference in the usage ledger in the same transaction. If recording the outbox delivery state subsequently fails, the provider reference remains available for reconciliation and the event is never sent again.
 
 ## Configuration contract
 
