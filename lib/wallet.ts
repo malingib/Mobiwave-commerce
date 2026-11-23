@@ -75,9 +75,12 @@ export async function reserveSmsUsage(client: PoolClient, input: {
   );
   const allowance = Number(config.rows[0].included_segments_per_month);
   const alreadyUsed = Number(consumed.rows[0].used);
+  const unitRateMinor = Number(config.rows[0].unit_rate_minor);
+  if (!Number.isSafeInteger(allowance) || !Number.isSafeInteger(alreadyUsed) || !Number.isSafeInteger(unitRateMinor) || unitRateMinor < 0) {
+    throw new Error("sms_billing_configuration_out_of_range");
+  }
   const includedSegments = Math.min(input.totalSegments,Math.max(0,allowance-alreadyUsed));
   const billableSegments = input.totalSegments-includedSegments;
-  const unitRateMinor = Number(config.rows[0].unit_rate_minor);
   const amountMinor = billableSegments*unitRateMinor;
   if (!Number.isSafeInteger(amountMinor)) throw new Error("sms_charge_overflow");
   let walletReservationId: string | null = null;
