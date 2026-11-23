@@ -99,7 +99,7 @@ export async function POST(request: Request) {
     host,
     port,
     secure: port === 465,
-    requireTLS: port === 587,
+    requireTLS: encryption === "tls" && port === 587,
     auth: { user, pass },
     tls: { minVersion: "TLSv1.2" },
     connectionTimeout: 10_000,
