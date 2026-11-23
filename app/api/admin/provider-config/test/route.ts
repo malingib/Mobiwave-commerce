@@ -29,7 +29,7 @@ export async function POST(request: Request) {
       if (!response.ok || data?.id !== config.appId) throw new Error(`meta_check_${data?.error?.code ?? response.status}`);
     } else if (provider === "mobiwave_sms") {
       const profileUrl = new URL(config.apiUrl);
-      profileUrl.pathname = profileUrl.pathname.replace(/\\/+$/, "") + "/me";
+      profileUrl.pathname = profileUrl.pathname.replace(/\/+$/, "") + "/me";
       const response = await fetch(profileUrl, {
         method: "GET",
         headers: { Authorization: `Bearer ${config.apiKey}`, Accept: "application/json" },
