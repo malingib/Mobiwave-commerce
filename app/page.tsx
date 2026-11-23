@@ -1,95 +1,140 @@
 "use client";
 
-import { ArrowDownRight, ArrowRight, Check, ChevronDown, CircleHelp, Globe2, MessageSquareText, Package, ShoppingBag, Store, Truck } from "lucide-react";
+import { useState } from "react";
+import {
+  ArrowDownRight, ArrowRight, Check, ChevronDown, CircleHelp, Globe2,
+  MessageSquareText, Package, ShoppingBag, Store, Truck, Menu, X,
+} from "lucide-react";
 
 const benefits = [
-  { icon: Store, title: "Your own online shop", text: "A clean storefront on your own MobiWave address. No web development needed." },
-  { icon: Package, title: "Orders in one place", text: "Keep products, customer details and order status together instead of scattered chats." },
-  { icon: MessageSquareText, title: "Customer updates", text: "Build on MobiWave SMS for useful order and delivery notifications." },
+  { icon: Store, title: "Your own online shop", text: "A clean, shareable storefront on your MobiWave address. Set up your catalogue without building a website from scratch." },
+  { icon: Package, title: "Orders in one place", text: "Keep products, customer details and order progress together instead of scattered across chats and spreadsheets." },
+  { icon: MessageSquareText, title: "Customer updates", text: "Connect commerce with MobiWave messaging to keep customers informed about orders and delivery." },
 ];
 
 const steps = [
-  ["01", "Create your shop", "Choose a store name and get your own shop address."],
-  ["02", "Add your products", "Upload product details and prices, then publish when ready."],
-  ["03", "Receive orders", "Manage incoming orders and keep customers informed."],
+  ["01", "Create your shop", "Choose a store name and set up your online storefront."],
+  ["02", "Add your products", "Publish product details, images and prices in your catalogue."],
+  ["03", "Manage every order", "Keep incoming orders organised and customers up to date."],
 ];
 
 export default function HomePage() {
+  const [mobileOpen, setMobileOpen] = useState(false);
   return (
-    <main>
-      <header className="site-header">
-        <a className="brand" href="#" aria-label="MobiWave Commerce home">
-          <span className="brand-mark"><ShoppingBag size={19} strokeWidth={2.3} /></span>
-          <span>MobiWave <strong>Commerce</strong></span>
+    <main className="commerce-marketing">
+      <header className="cm-header">
+        <a className="cm-brand" href="/" aria-label="MobiWave Commerce home">
+          <img src="/branding/mw-logo.svg" alt="MobiWave Innovations" />
+          <span className="cm-brand-divider" />
+          <strong>Commerce</strong>
         </a>
-        <nav className="desktop-nav" aria-label="Main navigation">
+        <nav className="cm-nav" aria-label="Main navigation">
           <a href="#how-it-works">How it works</a>
           <a href="#features">Features</a>
           <a href="#pricing">Pricing</a>
         </nav>
-        <a className="button button-dark button-small" href="/signup">Get started <ArrowRight size={15} /></a>
+        <div className="cm-header-actions">
+          <a className="cm-login" href="/login">Log in</a>
+          <a className="cm-button cm-button-primary cm-button-small" href="/signup">Get started <ArrowRight size={15} /></a>
+          <button className="cm-menu-toggle" type="button" aria-label={mobileOpen ? "Close navigation" : "Open navigation"} aria-expanded={mobileOpen} onClick={() => setMobileOpen(v => !v)}>
+            {mobileOpen ? <X size={21} /> : <Menu size={21} />}
+          </button>
+        </div>
+        {mobileOpen && <nav className="cm-mobile-nav" aria-label="Mobile navigation">
+          <a href="#how-it-works" onClick={() => setMobileOpen(false)}>How it works</a>
+          <a href="#features" onClick={() => setMobileOpen(false)}>Features</a>
+          <a href="#pricing" onClick={() => setMobileOpen(false)}>Pricing</a>
+          <a href="/login" onClick={() => setMobileOpen(false)}>Log in</a>
+          <a href="/signup" onClick={() => setMobileOpen(false)}>Create your shop <ArrowRight size={15} /></a>
+        </nav>}
       </header>
 
-      <section className="hero">
-        <div className="hero-copy">
-          <div className="eyebrow"><span className="status-dot" /> MADE FOR KENYAN BUSINESSES</div>
-          <h1>Your business deserves <span>its own place online.</span></h1>
-          <p className="hero-lede">Open a simple online shop, organise your orders and keep customers in the loop — without starting with an expensive website.</p>
-          <div className="hero-actions">
-            <a className="button button-dark" href="/signup">Start your free shop <ArrowRight size={16} /></a>
-            <a className="text-link" href="#how-it-works">See how it works <ArrowDownRight size={16} /></a>
-          </div>
-          <div className="trust-line"><span className="check-icon"><Check size={12} /></span> Start free · No coding required · Built for mobile</div>
-        </div>
-        <div className="store-preview" aria-label="Illustrative storefront preview">
-          <div className="preview-browser">
-            <div className="browser-dots"><i /><i /><i /></div>
-            <span>shop.mobiwave.co.ke</span>
-            <Globe2 size={14} />
-          </div>
-          <div className="preview-shop">
-            <div className="preview-shop-head"><div><span className="mini-label">YOUR STORE</span><h2>Atelier & Co.</h2></div><button aria-label="Open store menu"><ChevronDown size={16} /></button></div>
-            <p className="preview-intro">Everyday pieces, thoughtfully made.</p>
-            <div className="product-grid">
-              <div className="product-tile product-one"><span>NEW ARRIVAL</span><div className="product-art art-bag"><ShoppingBag size={45} strokeWidth={1.2} /></div><b>Everyday tote</b><small>KES 1,800</small></div>
-              <div className="product-tile product-two"><div className="product-art art-vase"><div className="vase" /></div><b>Studio vase</b><small>KES 2,400</small></div>
+      <section className="cm-hero">
+        <div className="cm-hero-glow" aria-hidden="true" />
+        <div className="cm-hero-inner">
+          <div className="cm-hero-copy">
+            <div className="cm-eyebrow"><span className="cm-eyebrow-dot" /> COMMERCE, CONNECTED BY MOBIWAVE</div>
+            <h1>Your business deserves <span>its own place online.</span></h1>
+            <p className="cm-hero-lede">Open a simple online shop, organise your orders and keep customers in the loop — all in one calm workspace built for Kenyan businesses.</p>
+            <div className="cm-hero-actions">
+              <a className="cm-button cm-button-primary" href="/signup">Start your free shop <ArrowRight size={16} /></a>
+              <a className="cm-text-link" href="#how-it-works">See how it works <ArrowDownRight size={16} /></a>
             </div>
-            <div className="preview-order"><span className="order-icon"><Package size={16} /></span><span><b>New order received</b><small>Order #MW-1042 · Just now</small></span><span className="order-status">NEW</span></div>
+            <div className="cm-trust-line"><span><Check size={12} /></span> Start free <i /> No coding required <i /> Built for mobile</div>
           </div>
-          <div className="floating-note"><span className="floating-check"><Check size={14} /></span><span><b>Your shop is live</b><small>Ready to share with customers</small></span></div>
+          <div className="cm-hero-visual">
+            <div className="cm-visual-glow" aria-hidden="true" />
+            <img
+              className="cm-hero-image"
+              src="/branding/martex-hero-nobg.webp"
+              alt="MobiWave customer engagement illustration"
+              fetchPriority="high"
+              decoding="async"
+            />
+            <div className="cm-floating-card cm-floating-top"><span className="cm-floating-icon"><Globe2 size={16} /></span><span><b>Your shop, online</b><small>Ready to share with customers</small></span></div>
+            <div className="cm-floating-card cm-floating-bottom"><span className="cm-floating-check"><Check size={14} /></span><span><b>New order received</b><small>Keep every order moving</small></span></div>
+          </div>
+        </div>
+        <svg className="cm-wave" viewBox="0 0 1440 110" preserveAspectRatio="none" aria-hidden="true">
+          <path d="M0 54 C240 105 480 5 720 45 C960 85 1200 25 1440 65 L1440 110 L0 110Z" fill="#fff" />
+        </svg>
+      </section>
+
+      <section className="cm-proof" aria-label="Platform highlights">
+        <div><span>01</span><b>Simple setup</b></div>
+        <div><span>02</span><b>Mobile-first storefronts</b></div>
+        <div><span>03</span><b>Local commerce workflows</b></div>
+        <div><span>04</span><b>MobiWave messaging</b></div>
+      </section>
+
+      <section className="cm-section cm-features" id="features">
+        <div className="cm-section-heading">
+          <div><span className="cm-section-kicker">THE ESSENTIALS, DONE WELL</span><h2>Less admin. <span>More selling.</span></h2></div>
+          <p>The tools to start taking orders online, without the complexity that gets in the way.</p>
+        </div>
+        <div className="cm-feature-grid">
+          {benefits.map(({ icon: Icon, title, text }) => <article className="cm-feature-item" key={title}>
+            <span className="cm-feature-icon"><Icon size={21} strokeWidth={1.7} /></span>
+            <h3>{title}</h3><p>{text}</p>
+            <a href="/signup">Explore the platform <ArrowRight size={14} /></a>
+          </article>)}
         </div>
       </section>
 
-      <section className="proof-strip" aria-label="Platform highlights">
-        <div><span className="proof-number">01</span><span>Simple setup</span></div>
-        <div><span className="proof-number">02</span><span>Mobile-first shopping</span></div>
-        <div><span className="proof-number">03</span><span>Local payment workflows</span></div>
-        <div><span className="proof-number">04</span><span>MobiWave messaging</span></div>
-      </section>
-
-      <section className="section features-section" id="features">
-        <div className="section-heading"><div><span className="eyebrow">THE ESSENTIALS, DONE WELL</span><h2>Less admin. More selling.</h2></div><p>The tools to start taking orders online, without the complexity that gets in the way.</p></div>
-        <div className="feature-grid">{benefits.map(({ icon: Icon, title, text }) => <article className="feature-item" key={title}><span className="feature-icon"><Icon size={21} strokeWidth={1.7} /></span><h3>{title}</h3><p>{text}</p><a href="/signup">Explore the platform <ArrowRight size={14} /></a></article>)}</div>
-      </section>
-
-      <section className="workflow-section" id="how-it-works">
-        <div className="section workflow-inner"><div className="workflow-intro"><span className="eyebrow">A SMALL START. ROOM TO GROW.</span><h2>From first product to first order.</h2><p>Start with the essentials. Add more tools as your business grows.</p></div><div className="step-list">{steps.map(([number, title, text]) => <div className="step-row" key={number}><span className="step-number">{number}</span><div><h3>{title}</h3><p>{text}</p></div><ArrowRight size={17} /></div>)}</div></div>
-      </section>
-
-      <section className="section pricing-section" id="pricing">
-        <div className="section-heading"><div><span className="eyebrow">SIMPLE BY DESIGN</span><h2>Start free. Grow when ready.</h2></div><p>Core storefront and everyday order management should be useful from day one. Paid plans add capabilities as you need them.</p></div>
-        <div className="pricing-row"><div><span className="plan-label">FREE</span><h3>KES 0 <small>/ forever</small></h3><p>For merchants getting their first shop online.</p></div><ul><li><Check size={15} /> Hosted shop address</li><li><Check size={15} /> Product catalogue and storefront</li><li><Check size={15} /> Essential order management</li><li><Check size={15} /> Manual payment and cash-on-delivery workflow</li></ul><div className="pricing-note"><CircleHelp size={16} /><span>Paid upgrades such as custom domains and advanced automation will be introduced transparently.</span></div></div>
-        <p className="pricing-disclaimer">Product direction preview. Plans, allowances and payment integrations are still being implemented; no live merchant account or checkout is available yet.</p>
-      </section>
-
-      <section className="cta-section" id="get-started">
-        <div className="cta-content"><span className="eyebrow">YOUR NEXT CHAPTER STARTS HERE</span><h2>Give your business a home online.</h2><p>Create your free account, set up your store and start adding products.</p>
-          <a className="button button-light" href="/signup">Create your free shop <ArrowRight size={16} /></a>
-          <small className="cta-footnote"><Truck size={14} /> Built for the realities of local commerce.</small>
+      <section className="cm-workflow" id="how-it-works">
+        <div className="cm-section cm-workflow-inner">
+          <div className="cm-workflow-intro"><span className="cm-section-kicker">A SMALL START. ROOM TO GROW.</span><h2>From first product <span>to first order.</span></h2><p>Start with the essentials. Add more tools as your business grows.</p></div>
+          <div className="cm-step-list">{steps.map(([number, title, text]) => <div className="cm-step-row" key={number}>
+            <span className="cm-step-number">{number}</span><div><h3>{title}</h3><p>{text}</p></div><ArrowRight size={17} />
+          </div>)}</div>
         </div>
       </section>
 
-      <footer className="site-footer"><a className="brand footer-brand" href="#"><span className="brand-mark"><ShoppingBag size={17} /></span><span>MobiWave <strong>Commerce</strong></span></a><span>Commerce tools for businesses ready to grow.</span><span>© {new Date().getFullYear()} MobiWave Innovations Ltd</span></footer>
+      <section className="cm-section cm-pricing" id="pricing">
+        <div className="cm-section-heading">
+          <div><span className="cm-section-kicker">SIMPLE BY DESIGN</span><h2>Start free. <span>Grow when ready.</span></h2></div>
+          <p>Get the essentials for your first online shop, then add capabilities as your business needs them.</p>
+        </div>
+        <div className="cm-pricing-row">
+          <div><span className="cm-plan-label">FREE TO START</span><h3>KES 0 <small>/ month</small></h3><p>For merchants getting their first shop online.</p></div>
+          <ul><li><Check size={15} /> Hosted shop address</li><li><Check size={15} /> Product catalogue and storefront</li><li><Check size={15} /> Essential order management</li><li><Check size={15} /> Manual payment and cash-on-delivery workflow</li></ul>
+          <div className="cm-pricing-note"><CircleHelp size={16} /><span>Custom domains, advanced automation and payment integrations can be added as your store grows.</span></div>
+        </div>
+      </section>
+
+      <section className="cm-cta" id="get-started">
+        <div className="cm-cta-glow" aria-hidden="true" />
+        <div className="cm-cta-content"><span className="cm-section-kicker">YOUR NEXT CHAPTER STARTS HERE</span><h2>Give your business <span>a home online.</span></h2><p>Create your shop, add your products and make it easier for customers to find and order from you.</p>
+          <a className="cm-button cm-button-cta" href="/signup">Create your free shop <ArrowRight size={16} /></a>
+          <small><Truck size={14} /> Built for the realities of local commerce.</small>
+        </div>
+      </section>
+
+      <footer className="cm-footer">
+        <a className="cm-brand cm-footer-brand" href="/" aria-label="MobiWave Commerce home"><img src="/branding/mw-logo.svg" alt="MobiWave Innovations" /><span className="cm-brand-divider" /><strong>Commerce</strong></a>
+        <span>Commerce tools for businesses ready to grow.</span>
+        <span>© {new Date().getFullYear()} MobiWave Innovations Ltd</span>
+      </footer>
     </main>
   );
 }
