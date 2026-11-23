@@ -39,12 +39,35 @@ export async function GET(_request: Request, context: { params: Promise<{ storeI
       "SELECT id, plan_code, amount_minor, currency, status, created_at FROM subscription_payment_attempts WHERE store_id=$1 ORDER BY created_at DESC LIMIT 1",
       [storeId],
     );
+    const walletAccount = await client.query(
+      "SELECT available_balance_minor,currency,status,updated_at FROM store_wallet_accounts WHERE store_id=$1",
+      [storeId],
+    );
+    const walletTransactions = await client.query(
+      "SELECT id,transaction_type,amount_minor,currency,description,created_at FROM store_wallet_transactions WHERE store_id=$1 ORDER BY created_at DESC LIMIT 10",
+      [storeId],
+    );
+    const walletTopups = await client.query(
+      "SELECT id,amount_minor,currency,status,checkout_request_id,created_at FROM wallet_topup_attempts WHERE store_id=$1 ORDER BY created_at DESC LIMIT 5",
+      [storeId],
+    );
+    const smsUsage = await client.query(
+      "SELECT COALESCE(SUM(total_segments),0)::bigint AS monthly_segments,COALESCE(SUM(amount_minor),0)::bigint AS monthly_amount_minor FROM store_sms_usage WHERE store_id=$1 AND period_start=date_trunc('month',now() AT TIME ZONE 'UTC')::date AND status IN ('reserved','committed')",
+      [storeId],
+    );
     await client.query("COMMIT");
     return NextResponse.json({
       billing: result.rows[0],
       plans: plans.rows,
       platformPaymentsEnabled: Boolean(mpesa.rows[0]?.enabled),
       latestPayment: latestPayment.rows[0] || null,
+      canTopUp: member.rows[0].role === "owner",
+      wallet: {
+        account: walletAccount.rows[0] || null,
+        transactions: walletTransactions.rows,
+        topups: walletTopups.rows,
+        smsUsage: smsUsage.rows[0] || { monthly_segments: 0, monthly_amount_minor: 0 },
+      },
     }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     await client.query("ROLLBACK");

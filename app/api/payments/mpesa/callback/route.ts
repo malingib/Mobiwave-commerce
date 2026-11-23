@@ -4,6 +4,7 @@ import { after, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { matchesKenyanPhone } from "@/lib/mpesa-utils";
 import { enqueueSms, processQueuedSmsBatch } from "@/lib/message-outbox";
+import { creditStoreWalletFromMpesa } from "@/lib/wallet";
 
 type CallbackData = {
   ResultCode: number;
@@ -20,6 +21,10 @@ type SubscriptionAttempt = {
   status: string;
   customer_phone: string;
   store_name: string;
+};
+type WalletTopupAttempt = {
+  id:string; store_id:string; amount_minor:string|number; currency:string;
+  status:string; customer_phone:string;
 };
 
 export const runtime = "nodejs";
@@ -90,6 +95,7 @@ async function processSubscriptionCallback(client: PoolClient, attempt: Subscrip
     `SELECT 1 FROM mpesa_receipt_claims WHERE receipt_number=$1
      UNION ALL SELECT 1 FROM payment_attempts WHERE provider='mpesa' AND provider_reference=$1
      UNION ALL SELECT 1 FROM subscription_payment_attempts WHERE provider_reference=$1 AND id<>$2
+     UNION ALL SELECT 1 FROM wallet_topup_attempts WHERE provider_reference=$1
      LIMIT 1`,
     [receipt, attempt.id],
   );
@@ -135,6 +141,79 @@ async function processSubscriptionCallback(client: PoolClient, attempt: Subscrip
   return NextResponse.json({ ResultCode: 0, ResultDesc: "Subscription payment recorded" });
 }
 
+async function markWalletTopupReview(client: PoolClient, attempt: WalletTopupAttempt, callback: CallbackData, reason: string) {
+  const { amount, receipt, phone } = callbackMetadata(callback);
+  await client.query(
+    "UPDATE wallet_topup_attempts SET status='review_required',callback_payload=$1::jsonb,updated_at=now() WHERE id=$2 AND status<>'paid'",
+    [JSON.stringify({resultCode:callback.ResultCode,amount:Number.isFinite(amount)?amount:null,
+      receipt:typeof receipt==="string"?receipt.slice(0,32):null,
+      phone:typeof phone==="string"||typeof phone==="number"?String(phone).slice(0,20):null,reason}),attempt.id],
+  );
+  await client.query("COMMIT");
+  return NextResponse.json({ResultCode:0,ResultDesc:"Wallet top-up requires reconciliation"});
+}
+
+async function processWalletTopupCallback(client: PoolClient, attempt: WalletTopupAttempt, callback: CallbackData) {
+  if (attempt.status==="paid") {
+    await client.query("COMMIT");
+    return NextResponse.json({ResultCode:0,ResultDesc:"Already processed"});
+  }
+  if (attempt.status==="review_required") {
+    await client.query("COMMIT");
+    return NextResponse.json({ResultCode:0,ResultDesc:"Wallet top-up remains under reconciliation"});
+  }
+  if (attempt.status==="failed" && callback.ResultCode!==0) {
+    await client.query("COMMIT");
+    return NextResponse.json({ResultCode:0,ResultDesc:"Already processed"});
+  }
+  if (attempt.status==="failed" && callback.ResultCode===0) {
+    return markWalletTopupReview(client,attempt,callback,"success_callback_after_failure");
+  }
+  if (callback.ResultCode!==0) {
+    await client.query(
+      "UPDATE wallet_topup_attempts SET status='failed',callback_payload=$1::jsonb,updated_at=now() WHERE id=$2 AND status<>'paid'",
+      [JSON.stringify({resultCode:callback.ResultCode,resultDescription:String(callback.ResultDesc||"").slice(0,300)}),attempt.id],
+    );
+    await client.query("COMMIT");
+    return NextResponse.json({ResultCode:0,ResultDesc:"Wallet top-up failure recorded"});
+  }
+  const {amount,receipt,phone,transactionDate}=callbackMetadata(callback);
+  const validAmount=Number.isFinite(amount)&&Number.isSafeInteger(amount*100)
+    && amount*100===Number(attempt.amount_minor)&&attempt.currency==="KES";
+  const validReceipt=typeof receipt==="string"&&/^[A-Z0-9]{6,20}$/.test(receipt);
+  const validPhone=(typeof phone==="string"||typeof phone==="number")
+    && matchesKenyanPhone(attempt.customer_phone,String(phone));
+  if(!validAmount||!validReceipt||!validPhone) {
+    return markWalletTopupReview(client,attempt,callback,
+      !validAmount?"amount_or_currency_mismatch":!validReceipt?"invalid_receipt":"phone_mismatch");
+  }
+  const duplicate=await client.query(
+    `SELECT 1 FROM mpesa_receipt_claims WHERE receipt_number=$1
+     UNION ALL SELECT 1 FROM payment_attempts WHERE provider='mpesa' AND provider_reference=$1
+     UNION ALL SELECT 1 FROM subscription_payment_attempts WHERE provider_reference=$1
+     UNION ALL SELECT 1 FROM wallet_topup_attempts WHERE provider_reference=$1 AND id<>$2
+     LIMIT 1`,
+    [receipt,attempt.id],
+  );
+  if(duplicate.rowCount) return markWalletTopupReview(client,attempt,callback,"receipt_already_used");
+  const claim=await client.query(
+    "INSERT INTO mpesa_receipt_claims (receipt_number,payment_type,payment_attempt_id,store_id) VALUES ($1,'wallet_topup',$2,$3) ON CONFLICT DO NOTHING RETURNING receipt_number",
+    [receipt,attempt.id,attempt.store_id],
+  );
+  if(!claim.rowCount) return markWalletTopupReview(client,attempt,callback,"receipt_claim_race");
+  const credit=await creditStoreWalletFromMpesa(client,{
+    storeId:attempt.store_id,attemptId:attempt.id,amountMinor:Number(attempt.amount_minor),currency:attempt.currency,receipt,
+  });
+  if(!credit.ok) return markWalletTopupReview(client,attempt,callback,credit.reason);
+  await client.query(
+    "UPDATE wallet_topup_attempts SET status='paid',provider_reference=$1,callback_payload=$2::jsonb,updated_at=now() WHERE id=$3 AND status='pending'",
+    [receipt,JSON.stringify({resultCode:callback.ResultCode,amount,receipt,phone:String(phone).slice(0,20),
+      transactionDate:typeof transactionDate==="string"||typeof transactionDate==="number"?String(transactionDate).slice(0,20):null}),attempt.id],
+  );
+  await client.query("COMMIT");
+  return NextResponse.json({ResultCode:0,ResultDesc:"Wallet top-up credited"});
+}
+
 export async function POST(request: Request) {
   const expectedToken = process.env.MPESA_CALLBACK_TOKEN;
   if (!expectedToken || !secureTokenMatch(expectedToken, new URL(request.url).searchParams.get("token"))) {
@@ -165,6 +244,14 @@ export async function POST(request: Request) {
     );
     if (subscriptionResult.rowCount) {
       return await processSubscriptionCallback(client, subscriptionResult.rows[0] as SubscriptionAttempt, callback);
+    }
+
+    const walletTopupResult = await client.query(
+      "SELECT id,store_id,amount_minor,currency,status,customer_phone FROM wallet_topup_attempts WHERE provider='mpesa' AND checkout_request_id=$1 FOR UPDATE",
+      [checkoutRequestId],
+    );
+    if (walletTopupResult.rowCount) {
+      return await processWalletTopupCallback(client,walletTopupResult.rows[0] as WalletTopupAttempt,callback);
     }
 
     const result = await client.query(
@@ -246,6 +333,7 @@ export async function POST(request: Request) {
       `SELECT 1 FROM mpesa_receipt_claims WHERE receipt_number=$1
        UNION ALL SELECT 1 FROM payment_attempts WHERE provider='mpesa' AND provider_reference=$1 AND id<>$2
        UNION ALL SELECT 1 FROM subscription_payment_attempts WHERE provider_reference=$1
+       UNION ALL SELECT 1 FROM wallet_topup_attempts WHERE provider_reference=$1
        LIMIT 1`,
       [receipt, attempt.id],
     );

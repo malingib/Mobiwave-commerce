@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSuperAdmin } from "@/lib/admin";
 import { matchesKenyanPhone } from "@/lib/mpesa-utils";
+import { creditStoreWalletFromMpesa } from "@/lib/wallet";
 
 export const runtime = "nodejs";
 
@@ -27,6 +28,13 @@ export async function GET() {
          FROM subscription_payment_attempts p
          JOIN stores s ON s.id=p.store_id
         WHERE p.provider='mpesa' AND p.status='review_required'
+       UNION ALL
+       SELECT p.id,p.store_id,p.amount_minor,p.currency,p.status,p.provider_reference,
+              p.checkout_request_id,p.customer_phone,s.name AS store_name,
+              'Wallet top-up' AS resource_label,p.created_at,'wallet_topup' AS attempt_type
+         FROM wallet_topup_attempts p
+         JOIN stores s ON s.id=p.store_id
+        WHERE p.provider='mpesa' AND p.status='review_required'
        ORDER BY created_at DESC`,
     );
     await client.query("COMMIT");
@@ -45,7 +53,7 @@ export async function POST(request: Request) {
     providerReference?: unknown; verifiedAmountMinor?: unknown; verifiedPhone?: unknown; reason?: unknown;
   };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Invalid request body" }, { status: 400 }); }
-  if ((body.attemptType !== "order" && body.attemptType !== "subscription")
+  if ((body.attemptType !== "order" && body.attemptType !== "subscription" && body.attemptType !== "wallet_topup")
     || typeof body.attemptId !== "string"
     || (body.action !== "mark_paid" && body.action !== "mark_failed")
     || typeof body.reason !== "string" || body.reason.trim().length < 12 || body.reason.length > 1000) {
@@ -68,8 +76,11 @@ export async function POST(request: Request) {
           "SELECT p.id,p.store_id,p.order_id,p.amount_minor,p.currency,p.status,o.customer_phone FROM payment_attempts p JOIN orders o ON o.id=p.order_id AND o.store_id=p.store_id WHERE p.id=$1 AND p.provider='mpesa' FOR UPDATE OF p,o",
           [body.attemptId],
         )
-      : await client.query(
+      : body.attemptType === "subscription" ? await client.query(
           "SELECT id,store_id,subscription_id,plan_code,amount_minor,currency,status,customer_phone FROM subscription_payment_attempts WHERE id=$1 AND provider='mpesa' FOR UPDATE",
+          [body.attemptId],
+        ) : await client.query(
+          "SELECT id,store_id,amount_minor,currency,status,customer_phone FROM wallet_topup_attempts WHERE id=$1 AND provider='mpesa' FOR UPDATE",
           [body.attemptId],
         );
     if (!selected.rowCount || selected.rows[0].status !== "review_required") {
@@ -83,18 +94,41 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "The verified amount or phone does not match the payment attempt." }, { status: 409 });
       }
       const duplicate = await client.query(
-        "SELECT 1 FROM mpesa_receipt_claims WHERE receipt_number=$1 UNION ALL SELECT 1 FROM payment_attempts WHERE provider_reference=$1 UNION ALL SELECT 1 FROM subscription_payment_attempts WHERE provider_reference=$1 LIMIT 1",
-        [receipt],
+        "SELECT 1 FROM mpesa_receipt_claims WHERE receipt_number=$1 AND payment_attempt_id<>$2 UNION ALL SELECT 1 FROM payment_attempts WHERE provider_reference=$1 AND id<>$2 UNION ALL SELECT 1 FROM subscription_payment_attempts WHERE provider_reference=$1 AND id<>$2 UNION ALL SELECT 1 FROM wallet_topup_attempts WHERE provider_reference=$1 AND id<>$2 LIMIT 1",
+        [receipt, attempt.id],
       );
       if (duplicate.rowCount) {
         await client.query("ROLLBACK");
         return NextResponse.json({ error: "That M-Pesa receipt is already assigned to another payment." }, { status: 409 });
       }
-      await client.query(
-        "INSERT INTO mpesa_receipt_claims (receipt_number,payment_type,payment_attempt_id,store_id) VALUES ($1,$2,$3,$4)",
+      const receiptClaim = await client.query(
+        "INSERT INTO mpesa_receipt_claims (receipt_number,payment_type,payment_attempt_id,store_id) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING receipt_number",
         [receipt, body.attemptType, attempt.id, attempt.store_id],
       );
-      if (body.attemptType === "order") {
+      if (!receiptClaim.rowCount) {
+        const sameAttemptClaim = await client.query(
+          "SELECT 1 FROM mpesa_receipt_claims WHERE receipt_number=$1 AND payment_attempt_id=$2 AND payment_type=$3",
+          [receipt,attempt.id,body.attemptType],
+        );
+        if (!sameAttemptClaim.rowCount) {
+          await client.query("ROLLBACK");
+          return NextResponse.json({error:"That M-Pesa receipt is already assigned to another payment."},{status:409});
+        }
+      }
+      if (body.attemptType === "wallet_topup") {
+        const credit = await creditStoreWalletFromMpesa(client,{
+          storeId:attempt.store_id,attemptId:attempt.id,amountMinor:Number(attempt.amount_minor),
+          currency:attempt.currency,receipt,
+        });
+        if (!credit.ok) {
+          await client.query("ROLLBACK");
+          return NextResponse.json({error:"Wallet credit could not be posted: "+credit.reason},{status:409});
+        }
+        await client.query(
+          "UPDATE wallet_topup_attempts SET status='paid',provider_reference=$1,callback_payload=jsonb_build_object('manualReconciliation',true,'reason',$2,'verifiedAmountMinor',$3,'verifiedPhone',$4),updated_at=now() WHERE id=$5",
+          [receipt,body.reason,verifiedAmount,verifiedPhone,attempt.id],
+        );
+      } else if (body.attemptType === "order") {
         await client.query(
           "UPDATE payment_attempts SET status='paid',provider_reference=$1,callback_payload=jsonb_build_object('manualReconciliation',true,'reason',$2,'verifiedAmountMinor',$3,'verifiedPhone',$4),updated_at=now() WHERE id=$5",
           [receipt, body.reason, verifiedAmount, verifiedPhone, attempt.id],
@@ -118,8 +152,10 @@ export async function POST(request: Request) {
       if (body.attemptType === "order") {
         await client.query("UPDATE payment_attempts SET status='failed',callback_payload=jsonb_build_object('manualReconciliation',true,'reason',$1),updated_at=now() WHERE id=$2", [body.reason, attempt.id]);
         await client.query("UPDATE orders SET payment_status='failed',updated_at=now() WHERE id=$1 AND store_id=$2 AND payment_status <> 'paid'", [attempt.order_id, attempt.store_id]);
-      } else {
+      } else if (body.attemptType === "subscription") {
         await client.query("UPDATE subscription_payment_attempts SET status='failed',callback_payload=jsonb_build_object('manualReconciliation',true,'reason',$1),updated_at=now() WHERE id=$2", [body.reason, attempt.id]);
+      } else {
+        await client.query("UPDATE wallet_topup_attempts SET status='failed',callback_payload=jsonb_build_object('manualReconciliation',true,'reason',$1),updated_at=now() WHERE id=$2", [body.reason,attempt.id]);
       }
     }
     await client.query(
