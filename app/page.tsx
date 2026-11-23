@@ -132,7 +132,7 @@ export default function HomePage() {
               </tbody>
             </table>
           </div>
-          <p className="cm-usage-footnote">Volume-based SMS usage rates. Sender ID registration and any applicable third-party channel charges are handled separately where required.</p>
+          <p className="cm-usage-footnote">Rates are per SMS sent. Monthly volume determines the applicable per-message rate.</p>
         </div>
       </section>
 
