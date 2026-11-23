@@ -10,7 +10,7 @@ export type SmsWalletCharge = {
 
 export function calculateSmsWalletCharge(totalSegments: number, includedSegments: number, unitRateMinor: number): SmsWalletCharge {
   for (const [name, value] of Object.entries({ totalSegments, includedSegments, unitRateMinor })) {
-    if (!Number.isSafeInteger(value) || value < 0) throw new Error(\`invalid_\${name}\`);
+    if (!Number.isSafeInteger(value) || value < 0) throw new Error("invalid_" + name);
   }
   const billableSegments = Math.max(0, totalSegments - includedSegments);
   const amountMinor = billableSegments * unitRateMinor;
@@ -27,9 +27,13 @@ export async function reserveStoreWalletFunds(client: PoolClient, input: {
 }): Promise<WalletReservationResult> {
   if (!Number.isSafeInteger(input.amountMinor) || input.amountMinor <= 0) throw new Error("invalid_wallet_reservation_amount");
   if (!input.idempotencyKey.trim() || input.idempotencyKey.length > 180) throw new Error("invalid_wallet_idempotency_key");
+  if (input.expiresInMinutes !== undefined && (!Number.isSafeInteger(input.expiresInMinutes) || input.expiresInMinutes <= 0)) {
+    throw new Error("invalid_wallet_reservation_expiry");
+  }
   await client.query("SELECT set_config('app.wallet_worker', 'true', true)");
   const account = await client.query(
-    "SELECT available_balance_minor, currency, status FROM store_wallet_accounts WHERE store_id=$1 FOR UPDATE", [input.storeId],
+    "SELECT available_balance_minor, currency, status FROM store_wallet_accounts WHERE store_id=$1 FOR UPDATE",
+    [input.storeId],
   );
   if (!account.rowCount) return { ok: false, reason: "wallet_not_configured" };
   // The account lock serializes spend attempts. Re-check idempotency after acquiring it.
@@ -48,19 +52,21 @@ export async function reserveStoreWalletFunds(client: PoolClient, input: {
     return { ok: false, reason: "insufficient_funds" };
   }
   const inserted = await client.query(
-    \`INSERT INTO store_wallet_reservations
-      (store_id, amount_minor, currency, idempotency_key, reference_type, reference_id, expires_at)
-     VALUES ($1,$2,$3,$4,'sms',$5,CASE WHEN $6::int IS NULL THEN NULL ELSE now()+($6::int * interval '1 minute') END)
-     RETURNING id, status\`,
+    "INSERT INTO store_wallet_reservations " +
+      "(store_id, amount_minor, currency, idempotency_key, reference_type, reference_id, expires_at) " +
+      "VALUES ($1,$2,$3,$4,'sms',$5,CASE WHEN $6::int IS NULL THEN NULL ELSE now()+($6::int * interval '1 minute') END) " +
+      "RETURNING id, status",
     [input.storeId, input.amountMinor, account.rows[0].currency, input.idempotencyKey, input.referenceId || null, input.expiresInMinutes ?? null],
   );
-  await client.query("UPDATE store_wallet_accounts SET available_balance_minor=available_balance_minor-$2, updated_at=now() WHERE store_id=$1",
-    [input.storeId, input.amountMinor]);
   await client.query(
-    \`INSERT INTO store_wallet_transactions
-      (store_id, transaction_type, amount_minor, currency, idempotency_key, reference_type, reference_id, description)
-     VALUES ($1,'sms_reserve',$2,$3,$4,'sms',$5,'SMS overage reservation')\`,
-    [input.storeId, -input.amountMinor, account.rows[0].currency, \`reserve:\${input.idempotencyKey}\`, input.referenceId || null],
+    "UPDATE store_wallet_accounts SET available_balance_minor=available_balance_minor-$2, updated_at=now() WHERE store_id=$1",
+    [input.storeId, input.amountMinor],
+  );
+  await client.query(
+    "INSERT INTO store_wallet_transactions " +
+      "(store_id, transaction_type, amount_minor, currency, idempotency_key, reference_type, reference_id, description) " +
+      "VALUES ($1,'sms_reserve',$2,$3,$4,'sms',$5,'SMS overage reservation')",
+    [input.storeId, -input.amountMinor, account.rows[0].currency, "reserve:" + input.idempotencyKey, input.referenceId || null],
   );
   return { ok: true, reservationId: inserted.rows[0].id, status: "reserved" };
 }
@@ -82,19 +88,25 @@ export async function settleStoreWalletReservation(client: PoolClient, input: {
   if (reservation.status === "released" && input.outcome === "release") return { status: "released" as const };
   if (reservation.status !== "reserved") throw new Error("wallet_reservation_already_settled");
   if (input.outcome === "release") {
-    await client.query("UPDATE store_wallet_accounts SET available_balance_minor=available_balance_minor+$2, updated_at=now() WHERE store_id=$1",
-      [input.storeId, reservation.amount_minor]);
     await client.query(
-      \`INSERT INTO store_wallet_transactions
-        (store_id, transaction_type, amount_minor, currency, idempotency_key, reference_type, reference_id, description)
-       VALUES ($1,'sms_release',$2,$3,$4,'sms',$5,'Release unused SMS reservation')\`,
-      [input.storeId, reservation.amount_minor, reservation.currency, \`release:\${input.idempotencyKey}\`, reservation.id],
+      "UPDATE store_wallet_accounts SET available_balance_minor=available_balance_minor+$2, updated_at=now() WHERE store_id=$1",
+      [input.storeId, reservation.amount_minor],
     );
-    await client.query("UPDATE store_wallet_reservations SET status='released', released_at=now() WHERE store_id=$1 AND id=$2",
-      [input.storeId, reservation.id]);
+    await client.query(
+      "INSERT INTO store_wallet_transactions " +
+        "(store_id, transaction_type, amount_minor, currency, idempotency_key, reference_type, reference_id, description) " +
+        "VALUES ($1,'sms_release',$2,$3,$4,'sms',$5,'Release unused SMS reservation')",
+      [input.storeId, reservation.amount_minor, reservation.currency, "release:" + reservation.id, reservation.id],
+    );
+    await client.query(
+      "UPDATE store_wallet_reservations SET status='released', released_at=now() WHERE store_id=$1 AND id=$2",
+      [input.storeId, reservation.id],
+    );
     return { status: "released" as const };
   }
-  await client.query("UPDATE store_wallet_reservations SET status='committed', committed_at=now() WHERE store_id=$1 AND id=$2",
-    [input.storeId, reservation.id]);
+  await client.query(
+    "UPDATE store_wallet_reservations SET status='committed', committed_at=now() WHERE store_id=$1 AND id=$2",
+    [input.storeId, reservation.id],
+  );
   return { status: "committed" as const };
 }
