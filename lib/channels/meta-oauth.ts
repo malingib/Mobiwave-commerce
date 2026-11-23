@@ -65,9 +65,9 @@ function tokenFrom(payload: JsonObject): MetaToken {
   };
 }
 
-export function buildInstagramAuthorizationUrl(state: string, redirectUri: string) {
+export function buildInstagramAuthorizationUrl(state: string, redirectUri: string, appId?: string) {
   const url = new URL("https://www.instagram.com/oauth/authorize");
-  url.searchParams.set("client_id", requiredEnv("META_APP_ID"));
+  url.searchParams.set("client_id", appId || requiredEnv("META_APP_ID"));
   url.searchParams.set("redirect_uri", redirectUri);
   url.searchParams.set("response_type", "code");
   url.searchParams.set("scope", "instagram_business_basic,instagram_business_manage_messages");
