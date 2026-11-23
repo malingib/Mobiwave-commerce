@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, CheckCircle2, CreditCard, Store } from "lucide-react";
+import { ArrowLeft, CheckCircle2, CreditCard, Store, Wallet } from "lucide-react";
 
 type Attempt = {
   id: string; store_id: string; amount_minor: string | number; currency: string; status: string;
   provider_reference: string | null; checkout_request_id: string | null; customer_phone: string;
-  store_name: string; resource_label: string; created_at: string; attempt_type: "order" | "subscription";
+  store_name: string; resource_label: string; created_at: string; attempt_type: "order" | "subscription" | "wallet_topup";
 };
 
 export default function ReconciliationClient({ email }: { email: string }) {
@@ -104,10 +104,10 @@ export default function ReconciliationClient({ email }: { email: string }) {
             {attempts.map(attempt => {
               const value = values[attempt.id] || { receipt: "", phone: "", amountKes: "", reason: "" };
               return <article className="admin-store-row" key={attempt.id} style={{alignItems:"flex-start"}}>
-                <div className="store-avatar"><CreditCard size={18}/></div>
+                <div className="store-avatar">{attempt.attempt_type === "wallet_topup" ? <Wallet size={18}/> : <CreditCard size={18}/>}</div>
                 <div className="admin-store-info" style={{flex:1,minWidth:200}}>
                   <b>{attempt.store_name} · {attempt.resource_label}</b>
-                  <small>{attempt.attempt_type} · {money(attempt.amount_minor,attempt.currency)} · {attempt.customer_phone}</small>
+                  <small>{attempt.attempt_type.replaceAll("_"," ")} · {money(attempt.amount_minor,attempt.currency)} · {attempt.customer_phone}</small>
                   <small>Checkout: {attempt.checkout_request_id || "Not available"} · {new Date(attempt.created_at).toLocaleString("en-KE")}</small>
                   <label>Safaricom receipt number</label><input value={value.receipt} onChange={e=>update(attempt.id,{receipt:e.target.value.toUpperCase()})} placeholder="e.g. QAB12XYZ34"/>
                   <label>Amount confirmed in Safaricom statement (KES)</label><input type="number" min="0" step="0.01" value={value.amountKes} onChange={e=>update(attempt.id,{amountKes:e.target.value})} placeholder={(Number(attempt.amount_minor)/100).toFixed(2)}/>
