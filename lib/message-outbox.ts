@@ -1,6 +1,7 @@
 import type { PoolClient } from "pg";
 import { db } from "@/lib/db";
 import { normalizeKenyanPhone } from "@/lib/mpesa-utils";
+import { getPlatformProviderConfig } from "@/lib/platform-provider-config";
 
 type SmsEventInput = {
   storeId: string;
@@ -139,7 +140,7 @@ export async function processQueuedSmsBatch(batchSize = 20) {
     const updateClient = await db.connect();
     try {
       const message = renderCommerceSms(event.template_key, event.payload || {});
-      const providerReference = await sendMobiWaveSms(event.recipient, message, event.dedupe_key);
+      const providerReference = await sendMobiWaveSms(event.recipient, message, event.dedupe_key, providerConfig || undefined);
       await updateClient.query("BEGIN");
       await updateClient.query("SELECT set_config('app.message_worker', 'true', true)");
       await updateClient.query(
