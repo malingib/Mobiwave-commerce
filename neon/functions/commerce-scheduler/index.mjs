@@ -49,6 +49,8 @@ export default {
     const secret = process.env.CHANNEL_WORKER_SECRET;
     if (!secret) return json({ error: "worker_secret_not_configured" }, 503);
 
+    console.info("Commerce scheduled worker started", { trigger: route.triggerName, invocationId: headerInvocationId });
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), route.timeoutMs);
     try {
@@ -73,6 +75,7 @@ export default {
         });
         return json({ ok: false, trigger: route.triggerName, upstreamStatus: response.status, result }, 502);
       }
+      console.info("Commerce scheduled worker completed", { trigger: route.triggerName, invocationId: headerInvocationId, upstreamStatus: response.status });
       return json({ ok: true, trigger: route.triggerName, invocationId: headerInvocationId, result });
     } catch (error) {
       console.error("Commerce worker invocation failed", {
