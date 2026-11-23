@@ -67,6 +67,7 @@ test("M-Pesa wallet credit rejects currency mismatch and closed wallets", async 
   const makeClient=(currency:string,status:string)=>({
     query:async(sql:string)=>{
       if(sql.includes("SELECT currency,status,available_balance_minor"))return {rowCount:1,rows:[{currency,status,available_balance_minor:"0"}]};
+      if(sql.includes("INSERT INTO store_wallet_accounts"))return {rowCount:1,rows:[]};
       throw new Error("ledger should not be written for invalid wallet state");
     },
   } as unknown as import("pg").PoolClient);
