@@ -47,7 +47,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No complete deployment configuration exists for this provider" }, { status: 409 });
   }
   try {
-    await savePlatformProviderConfig(provider, config, user.id);
+    await savePlatformProviderConfig(provider, config, user.id, "environment");
     return NextResponse.json({
       ok: true,
       status: "configured",
