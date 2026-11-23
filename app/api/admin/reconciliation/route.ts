@@ -94,17 +94,27 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "The verified amount or phone does not match the payment attempt." }, { status: 409 });
       }
       const duplicate = await client.query(
-        "SELECT 1 FROM mpesa_receipt_claims WHERE receipt_number=$1 UNION ALL SELECT 1 FROM payment_attempts WHERE provider_reference=$1 UNION ALL SELECT 1 FROM subscription_payment_attempts WHERE provider_reference=$1 UNION ALL SELECT 1 FROM wallet_topup_attempts WHERE provider_reference=$1 AND id<>$2 LIMIT 1",
+        "SELECT 1 FROM mpesa_receipt_claims WHERE receipt_number=$1 AND payment_attempt_id<>$2 UNION ALL SELECT 1 FROM payment_attempts WHERE provider_reference=$1 AND id<>$2 UNION ALL SELECT 1 FROM subscription_payment_attempts WHERE provider_reference=$1 AND id<>$2 UNION ALL SELECT 1 FROM wallet_topup_attempts WHERE provider_reference=$1 AND id<>$2 LIMIT 1",
         [receipt, attempt.id],
       );
       if (duplicate.rowCount) {
         await client.query("ROLLBACK");
         return NextResponse.json({ error: "That M-Pesa receipt is already assigned to another payment." }, { status: 409 });
       }
-      await client.query(
-        "INSERT INTO mpesa_receipt_claims (receipt_number,payment_type,payment_attempt_id,store_id) VALUES ($1,$2,$3,$4)",
+      const receiptClaim = await client.query(
+        "INSERT INTO mpesa_receipt_claims (receipt_number,payment_type,payment_attempt_id,store_id) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING receipt_number",
         [receipt, body.attemptType, attempt.id, attempt.store_id],
       );
+      if (!receiptClaim.rowCount) {
+        const sameAttemptClaim = await client.query(
+          "SELECT 1 FROM mpesa_receipt_claims WHERE receipt_number=$1 AND payment_attempt_id=$2 AND payment_type=$3",
+          [receipt,attempt.id,body.attemptType],
+        );
+        if (!sameAttemptClaim.rowCount) {
+          await client.query("ROLLBACK");
+          return NextResponse.json({error:"That M-Pesa receipt is already assigned to another payment."},{status:409});
+        }
+      }
       if (body.attemptType === "wallet_topup") {
         const credit = await creditStoreWalletFromMpesa(client,{
           storeId:attempt.store_id,attemptId:attempt.id,amountMinor:Number(attempt.amount_minor),
