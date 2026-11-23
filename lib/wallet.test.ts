@@ -23,6 +23,9 @@ test("GSM-7 and UCS-2 segment boundaries are calculated correctly", () => {
   assert.deepEqual(countSmsSegments("A".repeat(160)), {encoding:"GSM-7",units:160,segments:1});
   assert.equal(countSmsSegments("A".repeat(161)).segments,2);
   assert.deepEqual(countSmsSegments("^"), {encoding:"GSM-7",units:2,segments:1});
+  assert.deepEqual(countSmsSegments("\f"), {encoding:"GSM-7",units:2,segments:1});
+  assert.equal(countSmsSegments("A".repeat(306)).segments,2);
+  assert.equal(countSmsSegments("A".repeat(307)).segments,3);
   assert.equal(countSmsSegments("€".repeat(81)).segments,2);
   assert.deepEqual(countSmsSegments("😀"), {encoding:"UCS-2",units:2,segments:1});
   assert.equal(countSmsSegments("漢".repeat(71)).segments,2);
