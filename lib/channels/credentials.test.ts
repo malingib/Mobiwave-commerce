@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { afterEach, describe, expect, it } from "@/lib/test-runtime";
 import { decryptChannelCredential, encryptChannelCredential } from "@/lib/channels/credentials";
 
@@ -20,9 +21,9 @@ describe("Meta channel credential vault", () => {
     process.env.CHANNEL_CREDENTIALS_ENCRYPTION_KEY = Buffer.alloc(32, 9).toString("base64");
     const encrypted = encryptChannelCredential("secret-token");
     const [iv, tag, cipher] = encrypted.split(".");
-    const tampered = [iv, tag, cipher.slice(0, -1) + "A"].join(".");
-    expect(() => decryptChannelCredential(tampered)).toThrow();
-    expect(() => decryptChannelCredential("not-a-ciphertext")).toThrow();
+    const tampered = [iv, tag, (cipher[0] === "A" ? "B" : "A") + cipher.slice(1)].join(".");
+    assert.throws(() => decryptChannelCredential(tampered));
+    assert.throws(() => decryptChannelCredential("not-a-ciphertext"));
   });
 
   it("fails closed without a 32-byte key", () => {

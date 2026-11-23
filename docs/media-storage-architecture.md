@@ -1,77 +1,97 @@
-# Social Commerce private media architecture
+# MobiWave Commerce private media storage
 
-Status: architecture decision; bucket existence verified 22 November 2026; credentials, runtime integration and security scanning remain gated.
+Status: upload reservation, presigned R2 transfer, verification, quarantine, promotion and signed-download endpoints are implemented. The R2 bucket is private, CORS is restricted to the production app origins, and staging objects expire after one day. Production R2 credentials and the Cloudmersive scanner token are configured in Vercel; the authenticated production smoke check verifies live read/write and scanner connectivity after deployment. Inbound WhatsApp and Instagram media retrieval is wired into the webhook worker.
 
-## Decision
+## Storage model
 
-Use a **private Cloudflare R2 bucket** for WhatsApp/Instagram conversation media. Keep PostgreSQL as the metadata and authorization source of truth. Use the R2 S3-compatible API from the existing Node.js application; do not expose a public bucket, `r2.dev` URL, or permanent object URL. Issue short-lived, operation-specific presigned URLs only after tenant membership and attachment authorization checks.
+- Provider: Cloudflare R2 through its S3-compatible API.
+- Bucket: `mobiwave-commerce-media`.
+- Visibility: private; do not enable the public R2 development domain.
+- Application credentials: bucket-scoped Object Read & Write S3 credentials stored only in Vercel server-side environment variables.
+- Object keys: random attachment IDs under `staging/` before verification and `stores/` after promotion.
+- Database metadata: `conversation_attachments`, with checksum, detected MIME type, scan state and timestamps.
 
-This fits the existing Next.js/Node runtime without introducing a second database. The private bucket `mobiwave-commerce-media` was verified in the connected Cloudflare account on 22 November 2026. Application-scoped S3 credentials and the runtime integration are not yet configured.
+## Upload lifecycle
 
-## Required infrastructure configuration
+1. An authenticated store member requests an upload reservation using POST `/api/stores/{storeId}/conversations/{conversationId}/attachments` with `messageId`, `fileName`, `mimeType` and `byteSize`.
+2. The server verifies store membership and that the message belongs to the requested conversation. It creates a pending metadata row and returns a five-minute presigned PUT URL for a random staging key.
+3. The browser uploads directly to R2 using the returned URL and exact Content-Type header. No R2 credentials are sent to the browser.
+4. The browser calls POST `/api/stores/{storeId}/conversations/{conversationId}/attachments/{attachmentId}/complete`.
+5. The server verifies the stored byte size, downloads the object privately, checks the file signature against the declared MIME type, enforces the file limit and computes SHA-256.
+6. If the scanner returns clean, the server copies the staging object to its final key, updates the database to available, then deletes the staging object. The presigned upload URL can no longer overwrite the final object.
+7. If the scanner returns infected, the object is deleted and metadata is marked rejected. If no scanner is configured or the scanner is unavailable, metadata remains quarantined and downloads are denied. Verification can be retried after the scanner is configured.
+8. Authenticated members can request a download URL through GET `/api/stores/{storeId}/conversations/{conversationId}/attachments/{attachmentId}`. Only available objects receive a 60-second presigned GET URL.
 
-Create a dedicated bucket for production media, separate from public storefront assets. Configure application server-only environment variables:
+## File policy
+
+| MIME type | Maximum size |
+|---|---:|
+| JPEG | 10 MiB |
+| PNG | 10 MiB |
+| WebP | 10 MiB |
+| PDF | 20 MiB |
+| MP4 | 25 MiB |
+
+SVG, HTML, archives, executable formats and unknown MIME types are rejected. The server trusts file signatures, not the filename or browser MIME declaration.
+
+## Required environment variables
 
 - `R2_ACCOUNT_ID`
 - `R2_BUCKET_NAME`
+- `R2_S3_ENDPOINT` (must be the HTTPS endpoint for the configured account)
 - `R2_ACCESS_KEY_ID`
 - `R2_SECRET_ACCESS_KEY`
-- `R2_S3_ENDPOINT` (the account's R2 S3 endpoint)
+- `MEDIA_SCANNER_URL` (optional until an HTTPS scanner is available)
+- `MEDIA_SCANNER_TOKEN` (optional until an HTTPS scanner is available)
 
-Use a scoped R2 token limited to the dedicated bucket and the minimum object read/write permissions. Do not reuse Cloudflare Global API keys. Do not place credentials in browser bundles, database rows, GitHub commits, logs, or client-visible API responses.
+Create the R2 S3 credentials in Cloudflare Dashboard → Storage & databases → R2 → Overview → Manage API Tokens. Select Object Read & Write and restrict access to the `mobiwave-commerce-media` bucket. Store the Access Key ID and Secret Access Key as Vercel sensitive environment variables. Do not use a general Cloudflare account API token.
 
-Configure bucket CORS only for the exact production and approved preview origins, and only the required methods/headers. CORS is not authorization.
+## Malware scanner contract
 
-## Object key and metadata contract
+The application sends an HTTPS POST to `MEDIA_SCANNER_URL` with:
+- Bearer token from `MEDIA_SCANNER_TOKEN`
+- Raw object bytes as `application/octet-stream`
+- `X-File-Mime-Type` and `X-File-SHA256` headers
 
-Generate keys server-side; never accept a caller-supplied key or path:
+The scanner must return JSON `{"status":"clean"}` or `{"status":"infected"}`. Any timeout, non-2xx response, invalid JSON or unknown status is treated as inconclusive and leaves the attachment quarantined. The scanner must not store or redistribute uploaded content.
 
-`stores/{store_uuid}/conversations/{conversation_uuid}/{attachment_uuid}`
+## Bucket CORS
 
-The original filename is display metadata only and must never be used as a path component. Persist the object key, declared and detected MIME types, byte size, SHA-256 checksum, provider media ID, scan state, and creation/retention timestamps in `conversation_attachments`. Enforce tenant-consistent foreign keys and RLS on all attachment reads/writes.
+The configured R2 CORS rule allows PUT, GET and HEAD from:
+- `https://mobiwave-commerce.vercel.app`
+- `https://commerce.mobiwave.co.ke`
 
-Recommended lifecycle states: `pending`, `quarantined`, `available`, `rejected`, `deleted`. A file must not become downloadable or eligible for outbound sending until verification has completed.
+Only the `Content-Type` request header is allowed; `ETag` is exposed. Add a new exact origin only after verifying the app domain. Do not use a wildcard origin. The `r2.dev` managed public domain is disabled. A lifecycle rule deletes objects under `staging/` after 24 hours and aborts incomplete multipart uploads after seven days.
 
-## Inbound Meta media flow
+## Database migration
 
-1. Webhook ingress persists the signed, deduplicated provider event only; it does not trust a provider URL as a durable attachment URL.
-2. The channel worker extracts the provider media ID and records a pending attachment against the normalized message.
-3. A media-processing worker obtains the channel credential server-side, asks Meta for media metadata, and downloads bytes from the verified Meta Graph host only. Reject redirects to untrusted hosts; enforce connection/read timeouts and a hard streaming byte limit.
-4. Validate the actual file signature (magic bytes) against the allowlist; do not trust the extension, provider MIME header, or user-supplied filename. Compute SHA-256 while streaming.
-5. Upload to the private R2 bucket using the server-generated key. Mark the attachment available only after upload and verification succeed. Retry transient failures safely; make the media job idempotent by provider media ID and attachment ID.
-6. Never persist Meta access tokens, temporary Meta download URLs, or public R2 URLs in message content or logs.
+Migration `0022-conversation-attachment-security.sql` adds checksum and scan lifecycle metadata. It is a forward-only migration and must be applied once, after migrations 0018–0021 have been applied to the target branch. Do not run it against a different Neon project or replay the initial schema.
 
-## Initial allowlist and limits
+## Operational safeguards
 
-Initial conservative limits pending a product-level media matrix:
+- Staging objects are never downloadable.
+- Only rows with `scan_status = 'available'` can receive signed download URLs.
+- Final objects use random immutable keys, separate from temporary upload keys.
+- Upload URLs expire after five minutes; download URLs expire after 60 seconds.
+- No scanner means quarantine, not fail-open access.
+- Never put R2 secrets in `NEXT_PUBLIC_*` variables, HTML, logs or client bundles.
 
-- Images: JPEG, PNG, WebP; 10 MiB maximum.
-- Documents: PDF; 20 MiB maximum.
-- Audio: OGG/Opus, MPEG audio, MP4/AAC where confirmed by the relevant Meta channel API; 16 MiB maximum.
-- Video: MP4; 25 MiB maximum.
-- Reject SVG, HTML, XML, executable formats, archives, unknown MIME types, and mismatched file signatures.
-- Treat all media as untrusted. Add malware scanning/quarantine before enabling downloads or outbound re-use; if no scanner is configured, keep files quarantined and fail closed.
+## Meta channel media follow-up
 
-These are application limits, not claims about Meta's platform limits. Confirm the current channel-specific Meta media constraints before enabling each type.
+The current implementation provides secure merchant-uploaded conversation attachments. It does not yet fetch inbound Meta media by provider media ID or send media through WhatsApp/Instagram APIs. Before enabling those flows:
 
-## Download and outbound use
+- Download inbound media only through the official Meta Graph API using the tenant's stored channel credential; validate the provider media URL and do not follow arbitrary redirects.
+- Stream provider bytes into the same private staging pipeline, then run signature, size, checksum and malware checks before promotion.
+- For outbound media, retrieve only an attachment marked available, upload it to the correct Meta media endpoint using the connected channel credential, persist the returned provider media ID, and enqueue the message through the existing idempotent outbox.
+- Never send a private R2 URL to Meta as a public media URL or expose provider access tokens to the browser.
 
-- Authorize store membership and confirm the attachment belongs to the requested store/conversation before issuing a short-lived GET URL (target 60 seconds).
-- Set `Content-Disposition: attachment`, a sanitized filename, and the verified MIME type. Use `X-Content-Type-Options: nosniff`.
-- Do not proxy arbitrary URLs or accept arbitrary object keys from clients.
-- For outbound media, upload the verified object to the appropriate Meta media endpoint using the connected channel credential, persist the returned provider media ID, then enqueue the message through the existing idempotent outbox. Never send an R2 URL to Meta as if it were a public media URL.
-- Delete abandoned pending uploads and expired/rejected objects through a retention job. Keep metadata/audit records according to the product retention policy.
-
-## Required tests before activation
+## Additional release tests
 
 - Cross-tenant attachment lookup and signed URL issuance are denied.
 - Guessed attachment IDs and modified conversation IDs do not disclose objects.
-- MIME spoofing, extension mismatch, oversized streams, truncated files, redirect-to-untrusted-host, and timeout cases fail closed.
-- Presigned URLs expire and cannot be used for a different method/key.
-- Duplicate webhook/media jobs do not create duplicate attachment rows or outbound sends.
+- MIME spoofing, extension mismatch, oversized streams, truncated files and scanner timeouts fail closed.
+- Presigned upload URLs are short-lived and scoped to one staging key; promotion copies verified content to a separate final key so a still-valid upload URL cannot overwrite an approved object.
+- Duplicate completion calls cannot promote or expose a different tenant's object.
 - RLS tests prove the application role cannot enumerate another tenant's attachment metadata.
 - Verify inbound WhatsApp image/document/audio/video test assets and outbound Meta media sends with real test assets before enabling the UI.
-
-## Current release gate
-
-The schema has a `conversation_attachments` table, but that table is not a functioning storage pipeline. No R2 bucket, credentials, media downloader, scanner, signed download endpoint, or outbound media upload flow is currently configured. Do not mark media support complete until the implementation and tests above are present and real Meta test assets pass.
+- A retention job or R2 lifecycle policy removes abandoned staging objects; the bucket currently expires the staging prefix after 24 hours.

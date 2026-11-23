@@ -10,15 +10,15 @@ jobs:
     steps:
       - name: Process queued transactional messages
         env:
-          COMMERCE_BASE_URL: ${{ secrets.COMMERCE_BASE_URL }}
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          COMMERCE_BASE_URL: https://mobiwave-commerce.vercel.app
+          CHANNEL_WORKER_SECRET: ${{ secrets.CHANNEL_WORKER_SECRET }}
         run: |
-          if [ -z "$COMMERCE_BASE_URL" ] || [ -z "$CRON_SECRET" ]; then
-            echo "::error::Message outbox secrets are not configured. Set COMMERCE_BASE_URL and CRON_SECRET."
+          if [ -z "$CHANNEL_WORKER_SECRET" ]; then
+            echo "::error::Message outbox secrets are not configured. Set the CHANNEL_WORKER_SECRET repository secret."
             exit 1
           fi
           curl --fail --silent --show-error --max-time 45 \
             -X POST "${COMMERCE_BASE_URL%/}/api/internal/messages/process" \
-            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "Authorization: Bearer $CHANNEL_WORKER_SECRET" \
             -H "Content-Type: application/json" \
             -d '{}'

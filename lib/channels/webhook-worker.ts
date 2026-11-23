@@ -1,4 +1,9 @@
 import type { PoolClient } from "pg";
+import { decryptChannelCredential } from "@/lib/channels/credentials";
+import { downloadInstagramMedia, downloadMetaMedia } from "@/lib/channels/meta-media";
+import { createPrivateUploadUrl, deletePrivateObject } from "@/lib/media/storage";
+import { detectSupportedMedia, sanitizeMediaFileName } from "@/lib/media/validation";
+import { scanMediaObject } from "@/lib/media/scanner";
 import { db } from "@/lib/db";
 
 type JsonObject = Record<string, unknown>;
@@ -161,6 +166,9 @@ async function persistMessage(
 
   // A provider retry must not create a second message or increment unread count.
   if (inserted.rowCount) {
+    if (direction === "inbound") {
+      await persistInboundAttachments(client, event, channel, message, String(inserted.rows[0].id));
+    }
     await client.query(
       `UPDATE conversations
           SET last_message_at = GREATEST(COALESCE(last_message_at, '-infinity'::timestamptz), COALESCE($1::timestamptz, now())),
@@ -170,6 +178,105 @@ async function persistMessage(
               updated_at = now()
         WHERE store_id = $4 AND id = $5`,
       [occurredAt, direction === "inbound" ? 1 : 0, direction === "inbound", event.store_id, conversationId],
+    );
+  }
+}
+
+
+type IncomingMediaDescriptor = { providerMediaId: string | null; url: string | null; fileName: string; mimeType: string | null };
+
+function incomingMediaDescriptors(message: JsonObject, channel: "whatsapp" | "instagram"): IncomingMediaDescriptor[] {
+  if (channel === "instagram") {
+    if (!Array.isArray(message.attachments)) return [];
+    return message.attachments.filter(isObject).map((attachment) => {
+      const payload = nestedObject(attachment, "payload");
+      const url = typeof payload?.url === "string" ? payload.url : null;
+      const type = typeof attachment.type === "string" ? attachment.type : "attachment";
+      return { providerMediaId: null, url, fileName: type + "-attachment", mimeType: null };
+    }).filter((item) => item.url !== null);
+  }
+  const kinds = ["image", "video", "audio", "document", "sticker"] as const;
+  const result: IncomingMediaDescriptor[] = [];
+  for (const kind of kinds) {
+    const media = nestedObject(message, kind);
+    if (!media) continue;
+    result.push({
+      providerMediaId: typeof media.id === "string" ? media.id : null,
+      url: null,
+      fileName: typeof media.filename === "string" ? media.filename : kind + "-attachment",
+      mimeType: typeof media.mime_type === "string" ? media.mime_type : null,
+    });
+  }
+  return result;
+}
+
+async function persistInboundAttachments(
+  client: PoolClient,
+  event: ClaimedWebhook,
+  channel: "whatsapp" | "instagram",
+  message: JsonObject,
+  messageId: string,
+) {
+  const descriptors = incomingMediaDescriptors(message, channel);
+  if (!descriptors.length) return;
+  if (descriptors.length > 5) throw new Error("too_many_inbound_attachments");
+  let accessToken: string | null = null;
+  if (channel === "whatsapp") {
+    const credential = await client.query(
+      `SELECT token_ciphertext FROM channel_credentials
+        WHERE store_id=$1 AND connection_id=$2 AND revoked_at IS NULL
+          AND (expires_at IS NULL OR expires_at > now())
+        LIMIT 1`,
+      [event.store_id, event.connection_id],
+    );
+    if (!credential.rowCount) throw new Error("channel_credential_unavailable");
+    accessToken = decryptChannelCredential(String(credential.rows[0].token_ciphertext));
+  }
+
+  for (const descriptor of descriptors) {
+    let downloaded: { bytes: Buffer; mimeType: string; sha256: string };
+    if (channel === "whatsapp") {
+      if (!descriptor.providerMediaId || !accessToken) throw new Error("invalid_whatsapp_media_payload");
+      downloaded = await downloadMetaMedia({ mediaId: descriptor.providerMediaId, accessToken });
+    } else {
+      if (!descriptor.url) continue;
+      downloaded = await downloadInstagramMedia({ url: descriptor.url });
+    }
+    const detected = detectSupportedMedia(downloaded.bytes, downloaded.mimeType);
+    if (!detected || (descriptor.mimeType && descriptor.mimeType !== detected.mimeType) ||
+        (downloaded.mimeType !== detected.mimeType && downloaded.mimeType !== "application/octet-stream")) {
+      throw new Error("unsupported_or_mismatched_media_type");
+    }
+    if (downloaded.bytes.length > detected.maxBytes) throw new Error("incoming_media_too_large");
+    const fileName = sanitizeMediaFileName(descriptor.fileName);
+    const storageKey = `stores/${event.store_id}/conversations/${messageId}/${downloaded.sha256}.${detected.extension}`;
+    const uploadUrl = await createPrivateUploadUrl({ key: storageKey, contentType: detected.mimeType });
+    const upload = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: { "content-type": detected.mimeType },
+      body: new Uint8Array(downloaded.bytes),
+      cache: "no-store",
+      redirect: "error",
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!upload.ok) throw new Error("private_media_storage_failed");
+    const scanStatus = await scanMediaObject({
+      bytes: downloaded.bytes,
+      mimeType: detected.mimeType,
+      sha256: downloaded.sha256,
+      scannerUrl: process.env.MEDIA_SCANNER_URL,
+      scannerToken: process.env.MEDIA_SCANNER_TOKEN,
+      scannerProvider: process.env.MEDIA_SCANNER_PROVIDER,
+    });
+    if (scanStatus === "rejected") await deletePrivateObject(storageKey).catch(() => undefined);
+    await client.query(
+      `INSERT INTO conversation_attachments
+        (store_id, message_id, storage_key, mime_type, detected_mime_type, file_name,
+         byte_size, provider_media_id, sha256, scan_status, scanned_at)
+       VALUES ($1,$2,$3,$4,$4,$5,$6,$7,$8,$9,CASE WHEN $9 = 'quarantined' THEN NULL ELSE now() END)
+       ON CONFLICT (storage_key) DO NOTHING`,
+      [event.store_id, messageId, storageKey, detected.mimeType, fileName,
+       downloaded.bytes.length, descriptor.providerMediaId, downloaded.sha256, scanStatus],
     );
   }
 }

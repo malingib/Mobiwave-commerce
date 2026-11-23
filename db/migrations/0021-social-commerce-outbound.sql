@@ -37,4 +37,4 @@ CREATE POLICY conversation_messages_worker_access ON conversation_messages
   WITH CHECK (current_setting('app.channel_worker', true) = 'true');
 
 COMMENT ON COLUMN message_outbox.request_hash IS
-  'SHA-256 of the canonical outbound request; rejects reuse of an idempotency key with different content.';
+  'SHA-256 of the canonical outbound request, rejecting reuse of an idempotency key with different content.';

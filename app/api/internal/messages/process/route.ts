@@ -5,7 +5,7 @@ import { processQueuedSmsBatch } from "@/lib/message-outbox";
 export const runtime = "nodejs";
 
 function authorized(request: Request) {
-  const expected = process.env.CRON_SECRET;
+  const expected = process.env.CHANNEL_WORKER_SECRET;
   const supplied = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") || "";
   if (!expected || !supplied) return false;
   const a = Buffer.from(expected);
@@ -14,7 +14,7 @@ function authorized(request: Request) {
 }
 
 async function handle(request: Request) {
-  if (!process.env.CRON_SECRET) return NextResponse.json({ error: "Message worker is not configured." }, { status: 503 });
+  if (!process.env.CHANNEL_WORKER_SECRET) return NextResponse.json({ error: "Message worker is not configured." }, { status: 503 });
   if (!authorized(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
     return NextResponse.json(await processQueuedSmsBatch(30), { headers: { "Cache-Control": "no-store" } });

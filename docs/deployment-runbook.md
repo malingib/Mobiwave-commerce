@@ -2,7 +2,7 @@
 
 ## 1. Release branch and review
 
-- Current implementation branch: codex/commerce-complete-roadmap.
+- Current remediation branch: feat/commerce-production-remediation.
 - Review the draft pull request before merging.
 - Do not deploy while CI is queued or failing.
 - Keep production untouched until the migration plan, secrets and provider tests are approved.
@@ -53,7 +53,14 @@ Set these as server-side Vercel environment variables for Preview and Production
 - MOBIWAVE_SMS_API_URL
 - MOBIWAVE_SMS_API_KEY
 - MOBIWAVE_SMS_SENDER_ID
-- CRON_SECRET
+- CHANNEL_WORKER_SECRET
+- R2_ACCOUNT_ID
+- R2_BUCKET_NAME
+- R2_S3_ENDPOINT
+- R2_ACCESS_KEY_ID
+- R2_SECRET_ACCESS_KEY
+- MEDIA_SCANNER_URL (optional; media remains quarantined without it)
+- MEDIA_SCANNER_TOKEN (optional; media remains quarantined without it)
 
 Generate a 32-byte encryption key with openssl rand -base64 32. Generate a strong callback/worker secret with openssl rand -hex 32. Keep the M-Pesa encryption key stable; rotating it without re-encrypting stored credentials makes the saved Daraja configuration unreadable.
 
@@ -93,14 +100,21 @@ Free subdomains require wildcard DNS and TLS for the configured NEXT_PUBLIC_ROOT
 
 The outbox sends through the MobiWave v3 API. The default base URL is https://sms.mobiwave.co.ke/api/v3 and the adapter posts to /sms/send using Bearer authentication and JSON fields recipient, sender_id, type=plain and message. The API response must contain status=success; the returned data.uid is stored as the provider reference. The sender ID is limited to 11 characters. Provider documentation does not guarantee idempotency-key support or publish the delivery-webhook payload/signature contract, so confirm duplicate-send behavior and delivery callback details before enabling production retries or marking messages delivered.
 
-Set MOBIWAVE_SMS_API_URL, MOBIWAVE_SMS_API_KEY, MOBIWAVE_SMS_SENDER_ID and CRON_SECRET in Vercel. Add GitHub repository secrets:
+Set MOBIWAVE_SMS_API_URL, MOBIWAVE_SMS_API_KEY and MOBIWAVE_SMS_SENDER_ID in Vercel. Set CHANNEL_WORKER_SECRET as a sensitive Vercel production variable and add the same value as the GitHub repository Actions secret CHANNEL_WORKER_SECRET. The scheduled workflows use https://mobiwave-commerce.vercel.app until the custom platform domain is verified and active.
 
-- COMMERCE_BASE_URL: canonical production app URL.
-- COMMERCE_CRON_SECRET: exactly the same value as Vercel CRON_SECRET.
+The GitHub scheduled workflows call POST /api/internal/messages/process, /api/internal/channels/process and /api/internal/channels/send every five minutes. Do not mark worker operations healthy until each scheduled run succeeds. Next.js after() attempts immediate delivery after checkout, payment and order status updates. Verify provider idempotency behavior and delivery receipts before relying on automatic retry.
 
-The GitHub scheduled workflow calls POST /api/internal/messages/process every five minutes for retries. Next.js after() attempts immediate delivery after checkout, payment and order status updates. Verify provider idempotency behavior and delivery receipts before relying on automatic retry.
+## 7. Private R2 media
 
-## 7. Production acceptance
+The bucket mobiwave-commerce-media is private. Configure the S3-compatible R2 credentials in Vercel production: R2_ACCOUNT_ID, R2_BUCKET_NAME, R2_S3_ENDPOINT, R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY. Create an R2 API token with Object Read & Write permissions scoped only to this bucket; never use an account-wide Cloudflare API token or expose credentials to browser code.
+
+The bucket CORS policy currently permits PUT, GET and HEAD only from https://mobiwave-commerce.vercel.app and https://commerce.mobiwave.co.ke. The app reserves an attachment row, issues a five-minute staging PUT URL, verifies object size and file signatures on completion, computes SHA-256, and promotes clean objects to immutable final keys. Downloads are signed for 60 seconds and only available for attachments marked available.
+
+The selected provider is Cloudmersive Virus Scan over HTTPS (POST https://api.cloudmersive.com/virus/scan/file, Apikey header, multipart inputFile). Add the Cloudmersive API key as the sensitive Vercel production variable MEDIA_SCANNER_TOKEN. The code accepts only an explicit CleanResult=true as clean and an explicit false as rejected; provider errors, malformed responses or missing credentials leave the object quarantined. Do not make quarantined files downloadable. See docs/media-storage-architecture.md for the scanner contract and upload sequence.
+
+Apply db/migrations/0022-conversation-attachment-security.sql to the intended Neon production branch only after reviewing the complete migration history and verifying that migrations 0018–0021 are already applied. Do not replay the baseline schema or apply this migration twice.
+
+## 8. Production acceptance
 
 - [ ] Confirm target Vercel project and production domain.
 - [ ] Confirm all CI jobs pass on the exact merge commit.

@@ -75,6 +75,6 @@ CREATE POLICY channel_oauth_states_service_access ON channel_oauth_states
 GRANT SELECT, INSERT, UPDATE, DELETE ON channel_credentials, channel_oauth_states TO commerce_runtime;
 
 COMMENT ON TABLE channel_credentials IS
-  'Server-only encrypted provider credentials. token_ciphertext is AES-256-GCM ciphertext; the encryption key exists only in server runtime secrets.';
+  'Server-only encrypted provider credentials. token_ciphertext is AES-256-GCM ciphertext, while the encryption key exists only in server runtime secrets.';
 COMMENT ON TABLE channel_oauth_states IS
   'One-time, hashed OAuth transaction state bound to a store membership; never exposed after consumption.';

@@ -233,19 +233,24 @@ CREATE INDEX message_outbox_due_idx
 
 -- All new merchant data is protected by forced RLS. The channel worker receives
 -- a narrow transaction-local policy flag after authenticating its internal token.
-DO $$
-DECLARE
-  table_name text;
-BEGIN
-  FOREACH table_name IN ARRAY ARRAY[
-    'channel_connections', 'channel_connection_events', 'channel_webhook_events',
-    'channel_identities', 'conversations', 'conversation_messages',
-    'conversation_attachments', 'conversation_notes', 'message_outbox'
-  ] LOOP
-    EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', table_name);
-    EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', table_name);
-  END LOOP;
-END $$;
+ALTER TABLE channel_connections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE channel_connections FORCE ROW LEVEL SECURITY;
+ALTER TABLE channel_connection_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE channel_connection_events FORCE ROW LEVEL SECURITY;
+ALTER TABLE channel_webhook_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE channel_webhook_events FORCE ROW LEVEL SECURITY;
+ALTER TABLE channel_identities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE channel_identities FORCE ROW LEVEL SECURITY;
+ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE conversations FORCE ROW LEVEL SECURITY;
+ALTER TABLE conversation_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE conversation_messages FORCE ROW LEVEL SECURITY;
+ALTER TABLE conversation_attachments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE conversation_attachments FORCE ROW LEVEL SECURITY;
+ALTER TABLE conversation_notes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE conversation_notes FORCE ROW LEVEL SECURITY;
+ALTER TABLE message_outbox ENABLE ROW LEVEL SECURITY;
+ALTER TABLE message_outbox FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY channel_connections_member_access ON channel_connections
   FOR SELECT USING (EXISTS (
@@ -356,6 +361,6 @@ TO commerce_runtime;
 COMMENT ON TABLE channel_connections IS
   'Official provider channel connections. credential_ref points to a server-side secret-manager entry; raw access tokens must never be stored here.';
 COMMENT ON TABLE channel_webhook_events IS
-  'Raw provider webhook event inbox. Payload is retained for dedupe, replay and audit; access is worker-only.';
+  'Raw provider webhook event inbox. Payload is retained for dedupe, replay and audit, access is worker-only.';
 COMMENT ON TABLE message_outbox IS
   'Durable outbound channel message queue. Provider sends must use idempotency_key and update delivery state from webhooks.';

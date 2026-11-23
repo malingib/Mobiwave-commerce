@@ -32,6 +32,7 @@ const migrationPaths = [
   "db/migrations/0019-meta-webhook-worker-access.sql",
   "db/migrations/0020-meta-channel-onboarding.sql",
   "db/migrations/0021-social-commerce-outbound.sql",
+  "db/migrations/0022-conversation-attachment-security.sql",
 ];
 
 const appUrl = new URL(databaseUrl);
@@ -196,6 +197,10 @@ try {
      VALUES ($1,$2,'tenant-a/object','image/jpeg'),($3,$4,'tenant-b/object','image/jpeg')`,
     [storeA,messageA,storeB,messageB],
   );
+  const quarantinedAttachments = await owner.query(
+    "SELECT count(*)::int AS count FROM conversation_attachments WHERE scan_status='quarantined' AND sha256 IS NULL",
+  );
+  assert.equal(quarantinedAttachments.rows[0].count, 2, "legacy and unscanned attachments must default to quarantine");
   await owner.query(
     `INSERT INTO conversation_notes (store_id,conversation_id,author_user_id,body)
      VALUES ($1,$2,$3,'private note A'),($4,$5,$6,'private note B')`,
@@ -315,6 +320,21 @@ try {
       [storeB],
     );
     assert.equal(crossTenantUpdate.rowCount, 0, "user A must not update tenant B orders");
+
+    const crossTenantAttachmentUpdate = await runtime.query(
+      "UPDATE conversation_attachments SET scan_status='available' WHERE store_id=$1",
+      [storeB],
+    );
+    assert.equal(crossTenantAttachmentUpdate.rowCount, 0, "user A must not change tenant B attachment visibility");
+
+    await assert.rejects(
+      runtime.query(
+        "INSERT INTO conversation_attachments (store_id,message_id,storage_key,mime_type) VALUES ($1,$2,'tenant-b/forged-object','image/jpeg')",
+        [storeB, messageB],
+      ),
+      /row-level security/i,
+      "user A must not attach media to tenant B messages",
+    );
 
     await assert.rejects(
       runtime.query(

@@ -10,11 +10,11 @@ jobs:
     steps:
       - name: Process queued Meta webhook events
         env:
-          COMMERCE_BASE_URL: ${{ secrets.COMMERCE_BASE_URL }}
+          COMMERCE_BASE_URL: https://mobiwave-commerce.vercel.app
           CHANNEL_WORKER_SECRET: ${{ secrets.CHANNEL_WORKER_SECRET }}
         run: |
-          if [ -z "$COMMERCE_BASE_URL" ] || [ -z "$CHANNEL_WORKER_SECRET" ]; then
-            echo "::error::Channel worker secrets are not configured. Set COMMERCE_BASE_URL and CHANNEL_WORKER_SECRET."
+          if [ -z "$CHANNEL_WORKER_SECRET" ]; then
+            echo "::error::Channel worker secrets are not configured. Set the CHANNEL_WORKER_SECRET repository secret."
             exit 1
           fi
           curl --fail --silent --show-error --max-time 45 \

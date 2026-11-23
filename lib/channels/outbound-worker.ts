@@ -1,6 +1,8 @@
 import { db } from "@/lib/db";
 import { decryptChannelCredential } from "@/lib/channels/credentials";
 import { sendMetaTextMessage } from "@/lib/channels/meta-send";
+import { sendMetaMediaMessage, uploadMetaMedia } from "@/lib/channels/meta-media";
+import { readPrivateObject } from "@/lib/media/storage";
 import { sendMetaTemplateMessage } from "@/lib/channels/meta-template-send";
 
 type ClaimedMessage = {
@@ -21,6 +23,10 @@ type ClaimedMessage = {
   credential_scopes: string[];
   credential_expires_at: string | null;
   last_inbound_at: string | null;
+  attachment_storage_key: string | null;
+  attachment_mime_type: string | null;
+  attachment_file_name: string | null;
+  attachment_scan_status: string | null;
 };
 
 async function markFailure(item: ClaimedMessage, code: string) {
@@ -116,13 +122,24 @@ export async function processOutboundMessageBatch(batchSize = 20) {
                  FROM conversation_messages inbound
                 WHERE inbound.store_id=o.store_id AND inbound.conversation_id=o.conversation_id
                   AND inbound.direction='inbound'
-                ORDER BY COALESCE(inbound.provider_timestamp,inbound.created_at) DESC LIMIT 1) AS last_inbound_at
+                ORDER BY COALESCE(inbound.provider_timestamp,inbound.created_at) DESC LIMIT 1) AS last_inbound_at,
+              attachment.storage_key AS attachment_storage_key,
+              attachment.detected_mime_type AS attachment_mime_type,
+              attachment.file_name AS attachment_file_name,
+              attachment.scan_status AS attachment_scan_status
          FROM message_outbox o
          JOIN conversation_messages m ON m.store_id=o.store_id AND m.id=o.message_id
          JOIN conversations c ON c.store_id=o.store_id AND c.id=o.conversation_id
          JOIN channel_connections cc ON cc.store_id=o.store_id AND cc.id=o.connection_id
          JOIN channel_identities ci ON ci.store_id=c.store_id AND ci.id=c.identity_id
          LEFT JOIN channel_credentials cred ON cred.store_id=cc.store_id AND cred.id=cc.credential_ref
+         LEFT JOIN LATERAL (
+           SELECT a.storage_key,a.detected_mime_type,a.file_name,a.scan_status
+             FROM conversation_attachments a
+            WHERE a.store_id=m.store_id AND a.message_id=m.id
+            ORDER BY a.created_at
+            LIMIT 1
+         ) attachment ON true
         WHERE o.status='queued' AND o.next_attempt_at<=now()
         ORDER BY o.created_at
         LIMIT $1
@@ -161,21 +178,51 @@ export async function processOutboundMessageBatch(batchSize = 20) {
       const accountId = item.channel === "whatsapp" ? item.provider_address_id : item.provider_account_id;
       if (!accountId) throw new Error("provider_account_missing");
       const token = decryptChannelCredential(item.token_ciphertext);
-      const result = item.message_type === "template"
-        ? await sendMetaTemplateMessage({
-            phoneNumberId: accountId,
-            wabaId: item.provider_account_id || "",
-            recipientId: item.recipient_id,
-            accessToken: token,
-            template: item.raw_metadata,
-          })
-        : await sendMetaTextMessage({
-            channel: item.channel,
-            accountId,
-            recipientId: item.recipient_id,
-            accessToken: token,
-            text: item.content || "",
-          });
+      let result: { messageId: string };
+      if (item.message_type === "template") {
+        result = await sendMetaTemplateMessage({
+          phoneNumberId: accountId,
+          wabaId: item.provider_account_id || "",
+          recipientId: item.recipient_id,
+          accessToken: token,
+          template: item.raw_metadata,
+        });
+      } else if (["image", "video", "audio", "document"].includes(item.message_type)) {
+        if (item.channel !== "whatsapp") throw new Error("instagram_media_send_unsupported");
+        if (!item.attachment_storage_key || item.attachment_scan_status !== "available" || !item.attachment_mime_type) {
+          throw new Error("outbound_media_not_available");
+        }
+        const bytes = await readPrivateObject(item.attachment_storage_key);
+        const mime = item.attachment_mime_type.toLowerCase();
+        const mediaType = mime.startsWith("image/") ? "image"
+          : mime.startsWith("video/") ? "video"
+          : mime.startsWith("audio/") ? "audio" : "document";
+        if (mediaType !== item.message_type) throw new Error("outbound_media_type_mismatch");
+        const mediaId = await uploadMetaMedia({
+          phoneNumberId: accountId,
+          accessToken: token,
+          bytes,
+          mimeType: mime,
+          fileName: item.attachment_file_name || "attachment",
+        });
+        result = await sendMetaMediaMessage({
+          phoneNumberId: accountId,
+          recipientId: item.recipient_id,
+          accessToken: token,
+          mediaId,
+          mediaType,
+          caption: item.content,
+          fileName: item.attachment_file_name,
+        });
+      } else {
+        result = await sendMetaTextMessage({
+          channel: item.channel,
+          accountId,
+          recipientId: item.recipient_id,
+          accessToken: token,
+          text: item.content || "",
+        });
+      }
       await markSent(item, result.messageId);
       sent++;
     } catch (error) {
