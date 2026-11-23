@@ -3,7 +3,7 @@
 :root{--ink:#17251f;--muted:#68756f;--line:#e4e9e5;--paper:#fff;--soft:#f5f7f4;--green:#1d5b45;--green-dark:#153e31;--lime:#d8ef8b;--max:1160px}
 *{box-sizing:border-box}
 html{scroll-behavior:smooth;scroll-padding-top:88px}
-body{margin:0;background:var(--paper);color:var(--ink);font-family:'DM Sans',sans-serif;font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:'Instrument Sans',sans-serif;font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
 a{color:inherit;text-decoration:none}
 button,input{font:inherit}
 button,a,input{-webkit-tap-highlight-color:transparent}
@@ -526,3 +526,57 @@ h1 span{color:var(--green)}
  .cm-cta{padding:60px 20px}.cm-cta h2{font-size:35px}.cm-footer{margin:0 20px}.cm-footer>span:last-child{font-size:9px}
 }
 @media(prefers-reduced-motion:reduce){.commerce-marketing *{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+
+
+/* MobiWave shared brand tokens and Commerce workspace treatment */
+:root{
+  --ink:#0c243c;--muted:#696981;--line:#eeeef3;--paper:#fff;--soft:#f6f7fb;
+  --green:#5955d1;--green-dark:#4a46bd;--lime:#e6e6ff;--max:1160px;
+}
+body{font-family:"Instrument Sans",sans-serif;color:#0c243c}
+h1,h2,h3,h4,h5,h6{font-family:"Outfit",sans-serif;letter-spacing:-.025em}
+.dashboard-shell{background:#f6f7fb;color:#0c243c;font-family:"Instrument Sans",sans-serif}
+.dashboard-sidebar{border-color:#eeeef3;background:#fff}
+.dashboard-sidebar .brand{font-family:"Outfit",sans-serif;color:#0c243c}
+.brand-mark{background:#5955d1;color:#fff}
+.sidebar-label{color:#9a9ab0}
+.sidebar-link{color:#696981;transition:background .16s ease,color .16s ease}
+.sidebar-link:hover{background:#f6f7fb;color:#5955d1}
+.sidebar-link.active{background:#f2f2ff;color:#4a46bd}
+.sidebar-bottom{border-color:#eeeef3}
+.user-avatar{background:#e6e6ff;color:#4a46bd}
+.icon-button{border-color:#eeeef3;color:#696981}
+.icon-button:hover{background:#f2f2ff;color:#5955d1}
+.dashboard-topbar{border-color:#eeeef3;background:#fff}
+.dashboard-topbar h1,.dashboard-intro h2,.panel-heading h3,.billing-current h2{font-family:"Outfit",sans-serif;color:#0c243c}
+.dashboard-topbar .eyebrow,.eyebrow{color:#5955d1}
+.free-pill,.count-badge{background:#f2f2ff;color:#4a46bd}
+.workspace-panel,.billing-current,.billing-plan{border-color:#eeeef3;background:#fff}
+.panel-heading{border-color:#eeeef3}
+.panel-heading>svg{color:#5955d1}
+.store-avatar,.product-row-icon,.empty-icon{background:#f2f2ff;color:#5955d1}
+.store-row,.product-row{border-color:#eeeef3}
+.button-dark{background:#5955d1;color:#fff}
+.button-dark:hover{background:#4a46bd}
+.button-secondary{border-color:#e3e4ec;color:#0c243c;background:#fff}
+.button-secondary:hover{background:#f6f7fb}
+.auth-form input,.auth-form select,.auth-form textarea,.slug-input{border-color:#e3e4ec}
+.auth-form input:focus,.auth-form select:focus,.auth-form textarea:focus{border-color:#8f8bfa;box-shadow:0 0 0 3px rgba(89,85,209,.12)}
+.dashboard-footer{border-color:#eeeef3;color:#9a9ab0}
+.cm-usage-pricing{display:grid;grid-template-columns:.78fr 1.22fr;gap:34px 55px;align-items:center;padding:32px;border:1px solid #e4e4f0;border-radius:12px;background:#fff;box-shadow:0 10px 30px rgba(31,35,76,.035)}
+.cm-usage-pricing-intro h3{margin:12px 0 9px;font-family:"Outfit",sans-serif;font-size:27px;line-height:1.15;letter-spacing:-.035em;color:#0c243c}
+.cm-usage-pricing-intro p{max-width:340px;margin:0;color:#696981;font-size:13px;line-height:1.8}
+.cm-usage-table-wrap{min-width:0;overflow-x:auto}
+.cm-usage-table{width:100%;border-collapse:collapse;text-align:left;font-size:13px}
+.cm-usage-table th{padding:0 15px 13px;color:#696981;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.cm-usage-table td{padding:14px 15px;border-top:1px solid #eeeef3;color:#3c3c54}
+.cm-usage-table td:last-child{text-align:right}
+.cm-usage-table td strong{color:#4a46bd;font-family:"Outfit",sans-serif;font-size:17px;font-weight:700}
+.cm-usage-footnote{grid-column:1/-1;margin:0;padding-top:17px;border-top:1px solid #eeeef3;color:#8a8aa0;font-size:11px;line-height:1.7}
+@media(max-width:760px){
+  .cm-usage-pricing{grid-template-columns:1fr;gap:23px;padding:22px}
+  .cm-usage-footnote{grid-column:auto}
+}
+@media(prefers-reduced-motion:reduce){
+  .dashboard-shell *{scroll-behavior:auto!important;transition:none!important;animation:none!important}
+}
