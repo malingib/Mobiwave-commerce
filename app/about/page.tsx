@@ -1,11 +1,13 @@
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, Globe2, MessageSquareText, Package, Store } from "lucide-react";
+import { ArrowRight, Globe2, MessageSquareText, Package, Store } from "lucide-react";
 
 const principles = [
   { icon: Store, title: "Practical by design", text: "Commerce tools should make everyday work simpler. We focus on the essentials merchants need to present products and manage orders." },
   { icon: MessageSquareText, title: "Connected customer experiences", text: "A shop is more than a catalogue. MobiWave brings commerce closer to the communication businesses already use with their customers." },
   { icon: Globe2, title: "Built for local business", text: "We are building with the realities of Kenyan businesses in mind: mobile-first customers, local payments and the importance of trust." },
 ];
+
+export const metadata = { title: "About MobiWave Commerce | MobiWave Innovations", description: "Learn about MobiWave Commerce and how MobiWave Innovations is helping Kenyan businesses bring storefronts, orders and customer communication together." };
 
 export default function AboutPage() {
   return <main className="commerce-marketing cm-inner-page">
