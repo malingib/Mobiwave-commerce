@@ -37,6 +37,7 @@ const migrationPaths = [
   "db/migrations/0024-store-wallet-ledger.sql",
   "db/migrations/0025-sms-delivery-idempotency.sql",
   "db/migrations/0026-sms-wallet-enforcement.sql",
+  "db/migrations/0027-mpesa-wallet-topups.sql",
 ];
 
 const appUrl = new URL(databaseUrl);
@@ -63,7 +64,7 @@ try {
   const walletSecurity = await owner.query(
     `SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity
        FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-      WHERE n.nspname='public' AND c.relname IN ('store_sms_billing_config','store_sms_usage','store_wallet_accounts','store_wallet_transactions','store_wallet_reservations')
+      WHERE n.nspname='public' AND c.relname IN ('store_sms_billing_config','store_sms_usage','store_wallet_accounts','store_wallet_transactions','store_wallet_reservations','wallet_topup_attempts')
       ORDER BY c.relname`,
   );
   assert.deepEqual(walletSecurity.rows, [
@@ -72,6 +73,7 @@ try {
     { relname: "store_wallet_accounts", relrowsecurity: true, relforcerowsecurity: true },
     { relname: "store_wallet_reservations", relrowsecurity: true, relforcerowsecurity: true },
     { relname: "store_wallet_transactions", relrowsecurity: true, relforcerowsecurity: true },
+    { relname: "wallet_topup_attempts", relrowsecurity: true, relforcerowsecurity: true },
   ], "all wallet tables must enforce RLS");
 
   const roleChecks = await owner.query(`
@@ -186,6 +188,12 @@ try {
   await owner.query(
     "INSERT INTO store_sms_usage (store_id,event_id,period_start,total_segments,included_segments,billable_segments,unit_rate_minor,amount_minor,currency,status) VALUES ($1,$2,date_trunc('month',now())::date,120,100,20,25,500,'KES','reserved'),($3,$4,date_trunc('month',now())::date,250,200,50,30,1500,'KES','reserved')",
     [storeA,smsEventA,storeB,smsEventB],
+  );
+  const topupA = "82000000-0000-4000-8000-000000000001";
+  const topupB = "82000000-0000-4000-8000-000000000002";
+  await owner.query(
+    "INSERT INTO wallet_topup_attempts (id,store_id,amount_minor,customer_phone,idempotency_key,idempotency_hash) VALUES ($1,$2,1000,'254700000001','wallet-topup-a',$3),($4,$5,2000,'254700000002','wallet-topup-b',$6)",
+    [topupA,storeA,"a".repeat(64),topupB,storeB,"b".repeat(64)],
   );
   await assert.rejects(
     owner.query("UPDATE store_sms_usage SET amount_minor=1 WHERE event_id=$1",[smsEventA]),
@@ -313,6 +321,7 @@ try {
       "store_wallet_reservations",
       "store_sms_billing_config",
       "store_sms_usage",
+      "wallet_topup_attempts",
       "store_domains",
       "audit_events",
       "channel_connections",
@@ -423,6 +432,24 @@ try {
       [storeA],
     );
     assert.equal(merchantSmsConfigWrite.rowCount,0,"merchant sessions must not change platform-controlled SMS rates");
+    const merchantTopupStatusWrite = await runtime.query(
+      "UPDATE wallet_topup_attempts SET status='paid' WHERE store_id=$1",
+      [storeA],
+    );
+    assert.equal(merchantTopupStatusWrite.rowCount,0,"merchants must not mark wallet top-ups paid");
+    await runtime.query("SAVEPOINT before_cross_tenant_topup_insert");
+    await runtime.query("SELECT set_config('app.wallet_topup','true',true)");
+    await assert.rejects(
+      runtime.query(
+        "INSERT INTO wallet_topup_attempts (store_id,amount_minor,customer_phone,idempotency_key,idempotency_hash) VALUES ($1,1000,'254700000001','forged-topup-tenant-b',$2)",
+        [storeB,"c".repeat(64)],
+      ),
+      /row-level security/i,
+      "store owner A must not initiate a wallet top-up for store B",
+    );
+    await runtime.query("ROLLBACK TO SAVEPOINT before_cross_tenant_topup_insert");
+    await runtime.query("RELEASE SAVEPOINT before_cross_tenant_topup_insert");
+    await runtime.query("SELECT set_config('app.wallet_topup','false',true)");
     await runtime.query("SELECT set_config('app.message_worker','true',true)");
     const workerSmsConfig = await runtime.query("SELECT count(*)::int AS count FROM store_sms_billing_config");
     assert.equal(workerSmsConfig.rows[0].count,2,"message worker must read billing configuration across stores");
