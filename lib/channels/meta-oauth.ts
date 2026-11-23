@@ -77,7 +77,7 @@ export function buildInstagramAuthorizationUrl(state: string, redirectUri: strin
 }
 
 export async function exchangeWhatsAppEmbeddedSignupCode(code: string): Promise<MetaToken> {
-  const config = (process.env.DATABASE_URL ? await getPlatformProviderConfig("meta") : null);
+  const config = (process.env.DATABASE_URL ? (process.env.DATABASE_URL ? await getPlatformProviderConfig("meta") : null) : null);
   const url = new URL(`https://graph.facebook.com/${graphVersion(config?.graphVersion)}/oauth/access_token`);
   url.searchParams.set("client_id", config?.appId || requiredEnv("META_APP_ID"));
   url.searchParams.set("client_secret", config?.appSecret || requiredEnv("META_APP_SECRET"));
@@ -87,7 +87,7 @@ export async function exchangeWhatsAppEmbeddedSignupCode(code: string): Promise<
 }
 
 export async function exchangeInstagramAuthorizationCode(code: string, redirectUri: string): Promise<MetaToken> {
-  const config = await getPlatformProviderConfig("meta");
+  const config = (process.env.DATABASE_URL ? await getPlatformProviderConfig("meta") : null);
   const body = new URLSearchParams({
     client_id: config?.appId || requiredEnv("META_APP_ID"),
     client_secret: config?.appSecret || requiredEnv("META_APP_SECRET"),
@@ -106,7 +106,7 @@ export async function exchangeInstagramAuthorizationCode(code: string, redirectU
 }
 
 export async function exchangeInstagramLongLivedToken(shortLivedToken: string): Promise<MetaToken> {
-  const config = await getPlatformProviderConfig("meta");
+  const config = (process.env.DATABASE_URL ? await getPlatformProviderConfig("meta") : null);
   const url = new URL("https://graph.instagram.com/access_token");
   url.searchParams.set("grant_type", "ig_exchange_token");
   url.searchParams.set("client_secret", config?.appSecret || requiredEnv("META_APP_SECRET"));
@@ -147,7 +147,7 @@ export async function subscribeInstagramMessagingWebhooks(accountId: string, acc
 }
 
 export async function getWhatsAppPhoneNumber(wabaId: string, phoneNumberId: string, accessToken: string): Promise<MetaPhoneNumber> {
-  const config = await getPlatformProviderConfig("meta");
+  const config = (process.env.DATABASE_URL ? await getPlatformProviderConfig("meta") : null);
   const url = new URL(`https://graph.facebook.com/${graphVersion(config?.graphVersion)}/${encodeURIComponent(wabaId)}/phone_numbers`);
   url.searchParams.set("fields", "id,display_phone_number,verified_name");
   url.searchParams.set("access_token", accessToken);
@@ -168,7 +168,7 @@ export async function getWhatsAppPhoneNumber(wabaId: string, phoneNumberId: stri
 }
 
 export async function subscribeWhatsAppWebhooks(wabaId: string, accessToken: string) {
-  const config = await getPlatformProviderConfig("meta");
+  const config = (process.env.DATABASE_URL ? await getPlatformProviderConfig("meta") : null);
   const url = new URL(`https://graph.facebook.com/${graphVersion(config?.graphVersion)}/${encodeURIComponent(wabaId)}/subscribed_apps`);
   url.searchParams.set("access_token", accessToken);
   const response = await fetch(url, {
