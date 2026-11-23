@@ -450,6 +450,26 @@ try {
     await runtime.query("ROLLBACK TO SAVEPOINT before_cross_tenant_topup_insert");
     await runtime.query("RELEASE SAVEPOINT before_cross_tenant_topup_insert");
     await runtime.query("SELECT set_config('app.wallet_topup','false',true)");
+    await runtime.query("SELECT set_config('app.mpesa_callback','true',true)");
+    await runtime.query(
+      "INSERT INTO mpesa_receipt_claims (receipt_number,payment_type,payment_attempt_id,store_id) VALUES ('MPESA123456','wallet_topup',$1,$2)",
+      [topupA,storeA],
+    );
+    const topupLedger = await runtime.query(
+      "INSERT INTO store_wallet_transactions (store_id,transaction_type,amount_minor,currency,idempotency_key,reference_type,reference_id,description) VALUES ($1,'top_up',1000,'KES',$2,'mpesa','MPESA123456','Verified wallet top-up') ON CONFLICT (store_id,idempotency_key) DO NOTHING RETURNING id",
+      [storeA,"mpesa-topup:"+topupA],
+    );
+    assert.equal(topupLedger.rowCount,1,"first verified top-up must create one ledger credit");
+    await runtime.query("UPDATE store_wallet_accounts SET available_balance_minor=available_balance_minor+1000 WHERE store_id=$1",[storeA]);
+    const duplicateTopupLedger = await runtime.query(
+      "INSERT INTO store_wallet_transactions (store_id,transaction_type,amount_minor,currency,idempotency_key,reference_type,reference_id,description) VALUES ($1,'top_up',1000,'KES',$2,'mpesa','MPESA123456','Verified wallet top-up') ON CONFLICT (store_id,idempotency_key) DO NOTHING RETURNING id",
+      [storeA,"mpesa-topup:"+topupA],
+    );
+    assert.equal(duplicateTopupLedger.rowCount,0,"replayed top-up must not create a second credit");
+    const creditedBalance = await runtime.query("SELECT available_balance_minor FROM store_wallet_accounts WHERE store_id=$1",[storeA]);
+    assert.equal(Number(creditedBalance.rows[0].available_balance_minor),6000,"replayed top-up must not increment wallet balance twice");
+    await runtime.query("UPDATE wallet_topup_attempts SET status='paid',provider_reference='MPESA123456' WHERE id=$1",[topupA]);
+    await runtime.query("SELECT set_config('app.mpesa_callback','false',true)");
     await runtime.query("SELECT set_config('app.message_worker','true',true)");
     const workerSmsConfig = await runtime.query("SELECT count(*)::int AS count FROM store_sms_billing_config");
     assert.equal(workerSmsConfig.rows[0].count,2,"message worker must read billing configuration across stores");
