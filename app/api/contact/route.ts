@@ -84,8 +84,9 @@ export async function POST(request: Request) {
 
   const host = process.env.SMTP_HOST;
   const port = Number(process.env.SMTP_PORT || 587);
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
+  const user = process.env.SMTP_USERNAME || process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASSWORD || process.env.SMTP_PASS;
+  const encryption = (process.env.SMTP_ENCRYPTION || "tls").toLowerCase();
   const from = process.env.CONTACT_MAIL_FROM || user;
   const fromName = process.env.CONTACT_MAIL_FROM_NAME || "MobiWave Commerce";
   const to = process.env.CONTACT_MAIL_TO || "sales@mobiwave.co.ke";
