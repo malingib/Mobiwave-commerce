@@ -167,6 +167,9 @@ export async function processQueuedSmsBatch(batchSize = 20) {
       const recorded = await updateDeliveryState(updateClient,event,"sent",{providerReference});
       if (recorded) sent++; else deliveryUnknown++;
     } catch(error) {
+      // A failed reservation/settlement transaction must not poison the
+      // connection used for the delivery-state transaction below.
+      await updateClient.query("ROLLBACK").catch(()=>undefined);
       const failure = error instanceof SmsProviderError ? error :
         new SmsProviderError("ambiguous",providerAccepted ? "sms_provider_accepted_state_unconfirmed" : "sms_delivery_outcome_unknown");
       try {
