@@ -650,3 +650,11 @@ h1,h2,h3,h4,h5,h6{font-family:"Outfit",sans-serif;letter-spacing:-.025em}
  .cm-contact-form{padding:20px}
  .cm-footer-links{order:3;width:100%;padding:4px 0}
 }
+
+.cm-inner-mobile-nav{display:none}
+@media(max-width:760px){
+ .cm-inner-mobile-nav{display:flex;align-items:center;gap:21px;overflow-x:auto;padding:12px 20px;border-bottom:1px solid #eeeef3;background:#fff;white-space:nowrap;scrollbar-width:none}
+ .cm-inner-mobile-nav::-webkit-scrollbar{display:none}
+ .cm-inner-mobile-nav a{font-size:11px;color:#696981;font-weight:600}
+ .cm-inner-mobile-nav a:hover{color:#5955d1}
+}
