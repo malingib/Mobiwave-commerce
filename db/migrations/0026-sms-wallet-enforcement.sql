@@ -48,6 +48,12 @@ DROP POLICY IF EXISTS store_sms_billing_config_admin_write ON store_sms_billing_
 CREATE POLICY store_sms_billing_config_admin_write ON store_sms_billing_config FOR ALL
   USING (current_setting('app.admin',true)='true')
   WITH CHECK (current_setting('app.admin',true)='true');
+-- The worker may lock a config row to serialize allowance consumption, but
+-- WITH CHECK remains admin-only so it cannot alter billing terms.
+DROP POLICY IF EXISTS store_sms_billing_config_worker_lock ON store_sms_billing_config;
+CREATE POLICY store_sms_billing_config_worker_lock ON store_sms_billing_config FOR UPDATE
+  USING (current_setting('app.message_worker',true)='true' OR current_setting('app.admin',true)='true')
+  WITH CHECK (current_setting('app.admin',true)='true');
 
 DROP POLICY IF EXISTS store_sms_usage_member_read ON store_sms_usage;
 CREATE POLICY store_sms_usage_member_read ON store_sms_usage FOR SELECT
