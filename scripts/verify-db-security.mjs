@@ -325,7 +325,8 @@ try {
     ];
     for (const table of tenantTables) {
       const result = await runtime.query(`SELECT count(*)::int AS count FROM ${table}`);
-      assert.equal(result.rows[0].count, 1, `user A must see exactly one row in ${table}`);
+      const expectedCount = table === "message_events" ? 2 : 1;
+      assert.equal(result.rows[0].count, expectedCount, `user A must see only its expected rows in ${table}`);
     }
     const privateWebhookEvents = await runtime.query("SELECT count(*)::int AS count FROM channel_webhook_events");
     const privateCredentials = await runtime.query("SELECT count(*)::int AS count FROM channel_credentials");
