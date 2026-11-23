@@ -1,3 +1,4 @@
+import { getPlatformProviderConfig } from "@/lib/platform-provider-config";
 import { validateWhatsAppTemplateComponents } from "@/lib/channels/template-validation";
 
 type ProviderError = { code?: number };
@@ -13,8 +14,9 @@ export type WhatsAppTemplatePayload = {
   components: Array<Record<string, unknown>>;
 };
 
-function graphVersion() {
-  const version = process.env.META_GRAPH_API_VERSION || "v27.0";
+async function graphVersion() {
+  const config = process.env.DATABASE_URL ? await getPlatformProviderConfig("meta") : null;
+  const version = config?.graphVersion || process.env.META_GRAPH_API_VERSION || "v27.0";
   if (!/^v\d+\.\d+$/.test(version)) throw new Error("invalid_meta_graph_version");
   return version;
 }
@@ -40,7 +42,7 @@ export async function sendMetaTemplateMessage(input: {
       !/^[a-z]{2,3}(?:_[A-Z]{2})?$/.test(language) || !validateWhatsAppTemplateComponents(components)) {
     throw new Error("invalid_template_message");
   }
-  const version = graphVersion();
+  const version = await graphVersion();
   const headers = { Authorization: "Bearer " + input.accessToken, "Content-Type": "application/json" };
   const listUrl = new URL("https://graph.facebook.com/" + version + "/" + encodeURIComponent(input.wabaId) + "/message_templates");
   listUrl.searchParams.set("name", name);
