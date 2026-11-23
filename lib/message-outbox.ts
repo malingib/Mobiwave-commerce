@@ -3,6 +3,7 @@ import type { PoolClient } from "pg";
 import { db } from "@/lib/db";
 import { normalizeKenyanPhone } from "@/lib/mpesa-utils";
 import { getPlatformProviderConfig } from "@/lib/platform-provider-config";
+import { countSmsSegments, reserveSmsUsage, settleSmsUsage } from "@/lib/wallet";
 
 type SmsEventInput = {
   storeId: string; orderId?: string | null; recipient: string;
@@ -143,14 +144,38 @@ export async function processQueuedSmsBatch(batchSize = 20) {
   for (const event of events) {
     const updateClient = await db.connect();
     let providerAccepted = false;
+    let billingReserved = false;
     try {
       const message = renderCommerceSms(event.template_key,event.payload || {});
+      const segments = countSmsSegments(message);
+      await updateClient.query("BEGIN");
+      const billing = await reserveSmsUsage(updateClient,{storeId:event.store_id,eventId:event.id,totalSegments:segments.segments});
+      if (!billing.ok) {
+        await updateClient.query("COMMIT");
+        await updateDeliveryState(updateClient,event,"failed",{errorCode:billing.reason});
+        failed++;
+        continue;
+      }
+      if (billing.alreadyCommitted) {
+        await updateClient.query("COMMIT");
+        await updateDeliveryState(updateClient,event,"delivery_unknown",{errorCode:"sms_usage_committed_delivery_state_unconfirmed"});
+        deliveryUnknown++;
+        continue;
+      }
+      billingReserved = true;
+      await updateClient.query("COMMIT");
       const key = stableSmsProviderKey(event.store_id,event.dedupe_key);
       const providerReference = await sendMobiWaveSms(event.recipient,message,key,providerConfig || undefined);
       providerAccepted = true;
+      await updateClient.query("BEGIN");
+      await settleSmsUsage(updateClient,{storeId:event.store_id,eventId:event.id,outcome:"commit",providerReference});
+      await updateClient.query("COMMIT");
       const recorded = await updateDeliveryState(updateClient,event,"sent",{providerReference});
       if (recorded) sent++; else deliveryUnknown++;
     } catch(error) {
+      // A failed reservation/settlement transaction must not poison the
+      // connection used for the delivery-state transaction below.
+      await updateClient.query("ROLLBACK").catch(()=>undefined);
       const failure = error instanceof SmsProviderError ? error :
         new SmsProviderError("ambiguous",providerAccepted ? "sms_provider_accepted_state_unconfirmed" : "sms_delivery_outcome_unknown");
       try {
@@ -161,6 +186,11 @@ export async function processQueuedSmsBatch(batchSize = 20) {
           const delay = failure.retryAfterSeconds ?? exp + Math.floor(Math.random()*10);
           await updateDeliveryState(updateClient,event,"queued",{errorCode:failure.code,delaySeconds:delay}); retried++;
         } else {
+          if (billingReserved) {
+            await updateClient.query("BEGIN");
+            await settleSmsUsage(updateClient,{storeId:event.store_id,eventId:event.id,outcome:"release"});
+            await updateClient.query("COMMIT");
+          }
           await updateDeliveryState(updateClient,event,"failed",{errorCode:failure.code}); failed++;
         }
       } catch { deliveryUnknown++; }

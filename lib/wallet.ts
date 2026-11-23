@@ -18,6 +18,127 @@ export function calculateSmsWalletCharge(totalSegments: number, includedSegments
   return { totalSegments, includedSegments, billableSegments, unitRateMinor, amountMinor };
 }
 
+
+const GSM7_BASIC = new Set(Array.from("@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà"));
+const GSM7_EXTENSION = new Set(Array.from("\f^{}\\[~]|€"));
+
+export function countSmsSegments(message: string): { encoding: "GSM-7" | "UCS-2"; units: number; segments: number } {
+  if (typeof message !== "string") throw new Error("invalid_sms_message");
+  if (message.length === 0) return { encoding: "GSM-7", units: 0, segments: 0 };
+  let septets = 0;
+  let gsm = true;
+  for (const character of Array.from(message)) {
+    if (GSM7_BASIC.has(character)) septets += 1;
+    else if (GSM7_EXTENSION.has(character)) septets += 2;
+    else { gsm = false; break; }
+  }
+  if (gsm) return { encoding: "GSM-7", units: septets, segments: septets <= 160 ? 1 : Math.ceil(septets / 153) };
+  const units = message.length; // UTF-16 code units, matching UCS-2 surrogate-pair accounting.
+  return { encoding: "UCS-2", units, segments: units <= 70 ? 1 : Math.ceil(units / 67) };
+}
+
+export type SmsUsageReservation =
+  | { ok: true; usageId: string; walletReservationId: string | null; totalSegments: number; includedSegments: number; billableSegments: number; amountMinor: number; alreadyCommitted?: boolean }
+  | { ok: false; reason: "sms_billing_not_configured" | "wallet_not_configured" | "wallet_blocked" | "insufficient_funds" | "wallet_currency_mismatch" };
+
+export async function reserveSmsUsage(client: PoolClient, input: {
+  storeId: string; eventId: string; totalSegments: number;
+}): Promise<SmsUsageReservation> {
+  if (!input.storeId || !input.eventId || !Number.isSafeInteger(input.totalSegments) || input.totalSegments < 1) {
+    throw new Error("invalid_sms_usage_reservation");
+  }
+  await client.query("SELECT set_config('app.wallet_worker','true',true), set_config('app.message_worker','true',true)");
+  const findExisting = async () => client.query(
+    "SELECT id, wallet_reservation_id, total_segments, included_segments, billable_segments, amount_minor, status " +
+    "FROM store_sms_usage WHERE store_id=$1 AND event_id=$2",
+    [input.storeId,input.eventId],
+  );
+  const returnExisting = (existing: Awaited<ReturnType<typeof findExisting>>) => {
+    if (!existing.rowCount) return null;
+    const row = existing.rows[0];
+    if (Number(row.total_segments) !== input.totalSegments) throw new Error("sms_usage_idempotency_conflict");
+    if (row.status === "released") throw new Error("sms_usage_already_released");
+    return { ok:true as const, usageId:row.id, walletReservationId:row.wallet_reservation_id,
+      totalSegments:Number(row.total_segments), includedSegments:Number(row.included_segments),
+      billableSegments:Number(row.billable_segments), amountMinor:Number(row.amount_minor),
+      alreadyCommitted:row.status === "committed" };
+  };
+  // Reuse an existing reservation even if an administrator has since disabled
+  // billing. Then lock the configuration row and recheck to serialize allowance.
+  const prior = returnExisting(await findExisting());
+  if (prior) return prior;
+  const config = await client.query(
+    "SELECT included_segments_per_month, unit_rate_minor, currency FROM store_sms_billing_config WHERE store_id=$1 AND enabled=true FOR UPDATE",
+    [input.storeId],
+  );
+  if (!config.rowCount) return { ok: false, reason: "sms_billing_not_configured" };
+  const afterLock = returnExisting(await findExisting());
+  if (afterLock) return afterLock;
+  const period = await client.query("SELECT date_trunc('month', now() AT TIME ZONE 'UTC')::date AS period_start");
+  const periodStart = period.rows[0].period_start;
+  const consumed = await client.query(
+    "SELECT COALESCE(SUM(total_segments),0)::bigint AS used FROM store_sms_usage " +
+    "WHERE store_id=$1 AND period_start=$2 AND status IN ('reserved','committed')",
+    [input.storeId,periodStart],
+  );
+  const allowance = Number(config.rows[0].included_segments_per_month);
+  const alreadyUsed = Number(consumed.rows[0].used);
+  const unitRateMinor = Number(config.rows[0].unit_rate_minor);
+  if (!Number.isSafeInteger(allowance) || !Number.isSafeInteger(alreadyUsed) || !Number.isSafeInteger(unitRateMinor) || unitRateMinor < 0) {
+    throw new Error("sms_billing_configuration_out_of_range");
+  }
+  const includedSegments = Math.min(input.totalSegments,Math.max(0,allowance-alreadyUsed));
+  const billableSegments = input.totalSegments-includedSegments;
+  const amountMinor = billableSegments*unitRateMinor;
+  if (!Number.isSafeInteger(amountMinor)) throw new Error("sms_charge_overflow");
+  let walletReservationId: string | null = null;
+  if (amountMinor > 0) {
+    const account = await client.query("SELECT currency FROM store_wallet_accounts WHERE store_id=$1", [input.storeId]);
+    if (!account.rowCount) return { ok:false, reason:"wallet_not_configured" };
+    if (String(account.rows[0].currency).trim() !== String(config.rows[0].currency).trim()) {
+      return { ok:false, reason:"wallet_currency_mismatch" };
+    }
+    const reservation = await reserveStoreWalletFunds(client,{
+      storeId:input.storeId, amountMinor, idempotencyKey:"sms:"+input.eventId, referenceId:input.eventId,
+    });
+    if (!reservation.ok) return reservation;
+    walletReservationId=reservation.reservationId;
+  }
+  const inserted = await client.query(
+    "INSERT INTO store_sms_usage (store_id,event_id,period_start,total_segments,included_segments,billable_segments,unit_rate_minor,amount_minor,currency,wallet_reservation_id,status) " +
+    "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'reserved') RETURNING id",
+    [input.storeId,input.eventId,periodStart,input.totalSegments,includedSegments,billableSegments,unitRateMinor,amountMinor,
+      config.rows[0].currency,walletReservationId],
+  );
+  return {ok:true,usageId:inserted.rows[0].id,walletReservationId,totalSegments:input.totalSegments,
+    includedSegments,billableSegments,amountMinor};
+}
+
+export async function settleSmsUsage(client: PoolClient, input: {
+  storeId: string; eventId: string; outcome: "commit" | "release"; providerReference?: string;
+}) {
+  await client.query("SELECT set_config('app.wallet_worker','true',true), set_config('app.message_worker','true',true)");
+  const result = await client.query(
+    "SELECT id,wallet_reservation_id,status FROM store_sms_usage WHERE store_id=$1 AND event_id=$2 FOR UPDATE",
+    [input.storeId,input.eventId],
+  );
+  if (!result.rowCount) return { status:"not_found" as const };
+  const usage=result.rows[0];
+  if (usage.status === "committed" && input.outcome === "commit") return {status:"committed" as const};
+  if (usage.status === "released" && input.outcome === "release") return {status:"released" as const};
+  if (usage.status !== "reserved") throw new Error("sms_usage_already_settled");
+  if (usage.wallet_reservation_id) {
+    await settleStoreWalletReservation(client,{
+      storeId:input.storeId,reservationId:usage.wallet_reservation_id,
+      outcome:input.outcome,idempotencyKey:input.outcome+":"+input.eventId,
+    });
+  }
+  const status=input.outcome === "commit" ? "committed" : "released";
+  await client.query("UPDATE store_sms_usage SET status=$3, settled_at=now(), provider_reference=$4 WHERE store_id=$1 AND id=$2",
+    [input.storeId,usage.id,status,input.outcome === "commit" ? input.providerReference ?? null : null]);
+  return {status};
+}
+
 export type WalletReservationResult =
   | { ok: true; reservationId: string; status: "reserved" | "committed" }
   | { ok: false; reason: "wallet_not_configured" | "wallet_blocked" | "insufficient_funds" };
