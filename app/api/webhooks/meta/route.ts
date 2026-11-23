@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { normalizeMetaWebhook } from "@/lib/channels/meta-adapter";
 import { verifyMetaWebhookSignature } from "@/lib/channels/meta-signature";
+import { getPlatformProviderConfig } from "@/lib/platform-provider-config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
