@@ -12,7 +12,6 @@ function escapeHtml(value:string) {
 }
 function renderBillingEmail(template:string,payload:Record<string,unknown>,billingUrl:string) {
   const store=escapeHtml(String(payload.storeName || "your store").slice(0,100));
-  const url=escapeHtml(billingUrl);
   if(template==="subscription_dunning_day_1") return {
     subject:"Payment reminder: your MobiWave Commerce subscription is due",
     heading:"Your subscription payment is due",
