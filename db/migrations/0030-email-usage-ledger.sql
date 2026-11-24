@@ -30,3 +30,9 @@ DROP POLICY IF EXISTS message_events_email_worker_access ON message_events;
 CREATE POLICY message_events_email_worker_access ON message_events FOR ALL
  USING (current_setting('app.email_worker',true)='true')
  WITH CHECK (current_setting('app.email_worker',true)='true');
+
+-- The email delivery worker reads the subscription and plan allowance while holding
+-- the subscription row lock; it cannot read merchant subscriptions outside this flag.
+DROP POLICY IF EXISTS subscriptions_email_worker_read ON subscriptions;
+CREATE POLICY subscriptions_email_worker_read ON subscriptions FOR SELECT
+ USING (current_setting('app.email_worker',true)='true');
