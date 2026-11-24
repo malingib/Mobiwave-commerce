@@ -38,6 +38,9 @@ const migrationPaths = [
   "db/migrations/0025-sms-delivery-idempotency.sql",
   "db/migrations/0026-sms-wallet-enforcement.sql",
   "db/migrations/0027-mpesa-wallet-topups.sql",
+  "db/migrations/0028-commerce-plan-tiers.sql",
+  "db/migrations/0029-subscription-dunning.sql",
+  "db/migrations/0030-email-usage-ledger.sql",
 ];
 
 const appUrl = new URL(databaseUrl);
@@ -75,6 +78,32 @@ try {
     { relname: "store_wallet_transactions", relrowsecurity: true, relforcerowsecurity: true },
     { relname: "wallet_topup_attempts", relrowsecurity: true, relforcerowsecurity: true },
   ], "all wallet tables must enforce RLS");
+
+  const planEntitlements = await owner.query(
+    `SELECT code, amount_minor::text AS amount_minor,
+            limits->>'includedEmailSendsPerMonth' AS email_allowance,
+            limits->>'includedSmsSegmentsPerMonth' AS sms_allowance
+       FROM commerce_plans ORDER BY CASE code WHEN 'free' THEN 0 WHEN 'starter' THEN 1 WHEN 'growth' THEN 2 WHEN 'professional' THEN 3 WHEN 'business' THEN 4 ELSE 5 END`,
+  );
+  assert.deepEqual(planEntitlements.rows.map(row => ({
+    code: row.code, amount_minor: row.amount_minor,
+    email_allowance: row.email_allowance, sms_allowance: row.sms_allowance,
+  })), [
+    { code: "free", amount_minor: "0", email_allowance: "20", sms_allowance: "20" },
+    { code: "starter", amount_minor: "29900", email_allowance: "30", sms_allowance: "30" },
+    { code: "growth", amount_minor: "99900", email_allowance: "50", sms_allowance: "50" },
+    { code: "professional", amount_minor: "249900", email_allowance: "100", sms_allowance: "100" },
+    { code: "business", amount_minor: "499900", email_allowance: "200", sms_allowance: "200" },
+    { code: "enterprise", amount_minor: null, email_allowance: null, sms_allowance: null },
+  ], "the permanent Free plan and approved monthly plan catalogue must be seeded exactly");
+
+  const billingSecurity = await owner.query(
+    `SELECT c.relname,c.relrowsecurity,c.relforcerowsecurity FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname IN ('subscription_billing_events','email_usage_ledger') ORDER BY c.relname`,
+  );
+  assert.deepEqual(billingSecurity.rows,[
+    {relname:"email_usage_ledger",relrowsecurity:true,relforcerowsecurity:true},
+    {relname:"subscription_billing_events",relrowsecurity:true,relforcerowsecurity:true},
+  ],"billing and email usage ledgers must enforce RLS");
 
   const roleChecks = await owner.query(`
     SELECT rolname, rolcanlogin, rolbypassrls

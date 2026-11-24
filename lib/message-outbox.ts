@@ -7,7 +7,7 @@ import { countSmsSegments, reserveSmsUsage, settleSmsUsage } from "@/lib/wallet"
 
 type SmsEventInput = {
   storeId: string; orderId?: string | null; recipient: string;
-  templateKey: "order_received" | "order_status" | "order_payment_received" | "order_payment_failed" | "subscription_payment_received";
+  templateKey: "order_received" | "order_status" | "order_payment_received" | "order_payment_failed" | "subscription_payment_received" | "subscription_dunning_day_1" | "subscription_dunning_day_2" | "subscription_suspended";
   dedupeKey: string; payload: Record<string, unknown>;
 };
 type QueuedSms = {
@@ -52,6 +52,9 @@ export function renderCommerceSms(templateKey: SmsEventInput["templateKey"], pay
     case "order_payment_received": return "Hi " + customer + ", payment for order #" + order + " at " + store + " is confirmed. M-Pesa receipt: " + String(payload.receipt || "").slice(0, 20) + ".";
     case "order_payment_failed": return "Hi " + customer + ", payment for order #" + order + " at " + store + " was not confirmed. If you were charged, contact the store before paying again.";
     case "subscription_payment_received": return "MobiWave Commerce received the " + String(payload.planName || "subscription") + " payment for " + store + ". Your plan is active.";
+    case "subscription_dunning_day_1": return "MobiWave Commerce: payment for " + store + " is overdue. This is your Day 1 reminder. Please sign in to renew: " + String(payload.billingUrl || "");
+    case "subscription_dunning_day_2": return "MobiWave Commerce: payment for " + store + " remains overdue. This is your final Day 2 reminder before paid features are suspended on Day 3. Renew: " + String(payload.billingUrl || "");
+    case "subscription_suspended": return "MobiWave Commerce: paid features for " + store + " are now suspended due to unpaid subscription. Your data is safe. Sign in to billing to restore access: " + String(payload.billingUrl || "");
   }
 }
 export async function sendMobiWaveSms(recipient: string, message: string, reference: string, providerConfig?: { apiUrl: string; apiKey: string; senderId: string }) {

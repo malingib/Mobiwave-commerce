@@ -10,7 +10,7 @@ type Billing = {
 };
 type Plan = {
   code: string; name: string; description: string; amount_minor: number | string | null;
-  currency: string; billing_interval: string; limits: Record<string, number>; features: string[];
+  currency: string; billing_interval: string; limits: Record<string, number | null>; features: string[];
 };
 type Payment = { id: string; plan_code: string; amount_minor: number | string; currency: string; status: string; created_at: string } | null;
 type WalletData = { account:{available_balance_minor:number|string;currency:string;status:string;updated_at:string}|null; transactions:Array<{id:string;transaction_type:string;amount_minor:number|string;currency:string;description:string;created_at:string}>; topups:Array<{id:string;amount_minor:number|string;currency:string;status:string;checkout_request_id:string|null;created_at:string}>; smsUsage:{monthly_segments:number|string;monthly_amount_minor:number|string}; };
@@ -102,7 +102,7 @@ export default function BillingClient({ storeId, userName }: { storeId: string; 
         {notice && <p className="success-message dashboard-notice" role="status">{notice}</p>}
         {loading ? <p className="empty-state">Loading plan details…</p> : billing ? <>
           <section className="billing-current">
-            <div><span className="eyebrow">CURRENT PLAN</span><h2>{billing.plan_code.charAt(0).toUpperCase() + billing.plan_code.slice(1)}</h2><p>Your subscription is {billing.subscription_status}.</p>
+            <div><span className="eyebrow">CURRENT PLAN</span><h2>{billing.plan_code === "professional" ? "Professional" : billing.plan_code.charAt(0).toUpperCase() + billing.plan_code.slice(1)}</h2><p>{billing.plan_code === "free" ? "Free forever — no trial expiry or payment card required." : `Your subscription is ${billing.subscription_status}.`}</p>
               {billing.current_period_end && <small>Current period ends {new Date(billing.current_period_end).toLocaleDateString("en-KE")}.</small>}
             </div>
             <span className="order-status-pill status-active">{billing.subscription_status}</span>
@@ -151,7 +151,7 @@ export default function BillingClient({ storeId, userName }: { storeId: string; 
                 : <button className="button button-light" disabled>Online payments unavailable</button>}
             </article>)}
           </div>
-          <p className="billing-note">Prices and quotas are configured by MobiWave. A paid plan becomes active only after a verified Daraja callback; a browser redirect or STK request alone never activates a subscription.</p>
+          <p className="billing-note">Free is a permanent plan, not a trial. Paid plans become active only after a verified Daraja callback; a browser redirect or STK request alone never activates a subscription.</p>
         </> : null}
         <footer className="dashboard-footer">MobiWave Commerce · Billing and plan management</footer>
       </div>
