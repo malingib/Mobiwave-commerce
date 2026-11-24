@@ -125,6 +125,11 @@ async function processSubscriptionCallback(client: PoolClient, attempt: Subscrip
             current_period_end=GREATEST(COALESCE(current_period_end, now()), now()) + interval '1 month',
             provider='mpesa',
             provider_reference=$2,
+            past_due_since=NULL,
+            dunning_attempts=0,
+            next_dunning_at=NULL,
+            suspended_at=NULL,
+            billing_cycle_key=NULL,
             updated_at=now()
       WHERE id=$3 AND store_id=$4`,
     [attempt.plan_code, receipt, attempt.subscription_id, attempt.store_id],
