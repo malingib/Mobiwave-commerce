@@ -18,8 +18,8 @@ export async function POST(request: Request, context: Context) {
   }
   let body: { planCode?: unknown; phone?: unknown };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Invalid request body" }, { status: 400 }); }
-  if (typeof body.planCode !== "string" || !["growth", "pro", "business"].includes(body.planCode) || typeof body.phone !== "string") {
-    return NextResponse.json({ error: "Choose a paid plan and provide the M-Pesa phone number." }, { status: 400 });
+  if (typeof body.planCode !== "string" || !["starter", "growth", "professional", "business"].includes(body.planCode) || typeof body.phone !== "string") {
+    return NextResponse.json({ error: "Choose a purchasable paid plan and provide the M-Pesa phone number." }, { status: 400 });
   }
   const phone = normalizeKenyanPhone(body.phone);
   if (!phone) return NextResponse.json({ error: "Enter a valid Kenyan mobile number." }, { status: 400 });
