@@ -109,7 +109,7 @@ export default function PlansClient({ email }: { email: string }) {
                 <input type="number" min="0" step="1" value={plan.limits?.includedEmailSendsPerMonth??""} onChange={e=>updatePlan(plan.code,{limits:{...plan.limits,includedEmailSendsPerMonth:e.target.value===""?undefined:Number(e.target.value)}})}/>
                 <label>Included SMS segments / month</label>
                 <input type="number" min="0" step="1" value={plan.limits?.includedSmsSegmentsPerMonth??""} onChange={e=>updatePlan(plan.code,{limits:{...plan.limits,includedSmsSegmentsPerMonth:e.target.value===""?undefined:Number(e.target.value)}})}/>
-                <label className="checkbox-label"><input type="checkbox" checked={plan.is_active} onChange={e=>updatePlan(plan.code,{is_active:e.target.checked})}/> Available for purchase</label>
+                <label className="checkbox-label"><input type="checkbox" checked={plan.is_active} disabled={plan.code==="free"} onChange={e=>updatePlan(plan.code,{is_active:e.target.checked})}/> Available for purchase</label>
                 <button className="button button-dark" disabled={busy===plan.code} onClick={()=>void save(plan)}>{busy===plan.code?"Saving…":"Save plan"} <Save size={15}/></button>
               </div>
             </article>)}
