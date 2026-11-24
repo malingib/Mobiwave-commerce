@@ -18,10 +18,10 @@ describe("plan enforcement", () => {
     expect(canManagePaidFeatures("suspended", "free")).toBe(true);
   });
 
-  it("restricts paid entitlements outside active or trialing status", () => {
+  it("retains paid entitlements during Day 0-2 recovery and restricts after suspension", () => {
     expect(canManagePaidFeatures("active", "growth")).toBe(true);
     expect(canManagePaidFeatures("trialing", "professional")).toBe(true);
-    expect(canManagePaidFeatures("past_due", "growth")).toBe(false);
+    expect(canManagePaidFeatures("past_due", "growth")).toBe(true);
     expect(canManagePaidFeatures("suspended", "business")).toBe(false);
     expect(canManagePaidFeatures("cancelled", "starter")).toBe(false);
     expect(canManagePaidFeatures("expired", "enterprise")).toBe(false);
