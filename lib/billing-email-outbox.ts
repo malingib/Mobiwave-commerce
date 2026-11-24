@@ -2,6 +2,36 @@ import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
 import { db } from "@/lib/db";
 
+type StoreEmailInput = {
+  storeId:string; recipient:string; subject:string; text:string; idempotencyKey:string;
+  category:"transactional"|"marketing"; consentRecordedAt?:string; unsubscribeUrl?:string;
+};
+
+export async function enqueueStoreEmail(client:PoolClient,input:StoreEmailInput) {
+  const recipient=input.recipient.trim().toLowerCase();
+  if(!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(recipient) || recipient.length>254) throw new Error("invalid_email_recipient");
+  if(!input.storeId || input.idempotencyKey.trim().length<12 || input.idempotencyKey.length>180) throw new Error("invalid_email_idempotency_input");
+  if(!input.subject.trim() || input.subject.length>180 || !input.text.trim() || input.text.length>20000) throw new Error("invalid_email_content");
+  if(input.category==="marketing") {
+    if(!input.consentRecordedAt || !Number.isFinite(Date.parse(input.consentRecordedAt))) throw new Error("marketing_email_requires_recorded_consent");
+    if(!input.unsubscribeUrl) throw new Error("marketing_email_requires_unsubscribe_url");
+    const unsubscribe=new URL(input.unsubscribeUrl);
+    if(unsubscribe.protocol!=="https:") throw new Error("unsubscribe_url_requires_https");
+  }
+  const payload={category:input.category,subject:input.subject.trim(),textContent:input.text,consentRecordedAt:input.consentRecordedAt||null,unsubscribeUrl:input.unsubscribeUrl||null};
+  const result=await client.query(
+    `INSERT INTO message_events(store_id,channel,recipient,template_key,status,dedupe_key,payload)
+     VALUES($1,'email',$2,'merchant_email','queued',$3,$4::jsonb)
+     ON CONFLICT(store_id,dedupe_key) DO UPDATE SET dedupe_key=EXCLUDED.dedupe_key
+      WHERE message_events.channel='email' AND message_events.recipient=EXCLUDED.recipient
+        AND message_events.template_key=EXCLUDED.template_key AND message_events.payload=EXCLUDED.payload
+     RETURNING id`,
+    [input.storeId,recipient,input.idempotencyKey,JSON.stringify(payload)],
+  );
+  if(!result.rowCount) throw new Error("email_idempotency_conflict");
+  return {queued:true as const,id:result.rows[0].id};
+}
+
 type BillingEmail = {
   id:string; store_id:string; recipient:string; template_key:string;
   dedupe_key:string; payload:Record<string,unknown>; attempt_count:number; lease_token:string;
