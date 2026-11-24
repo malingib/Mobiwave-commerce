@@ -30,7 +30,7 @@ export async function GET(_request: Request, context: { params: Promise<{ storeI
       return NextResponse.json({ error: "Store billing record not found" }, { status: 404 });
     }
     const plans = await client.query(
-      "SELECT code, name, description, amount_minor, currency, billing_interval, is_active, limits, features FROM commerce_plans WHERE is_active=true ORDER BY CASE code WHEN 'free' THEN 0 WHEN 'growth' THEN 1 WHEN 'pro' THEN 2 ELSE 3 END",
+      "SELECT code, name, description, amount_minor, currency, billing_interval, is_active, limits, features FROM commerce_plans WHERE is_active=true ORDER BY CASE code WHEN 'free' THEN 0 WHEN 'starter' THEN 1 WHEN 'growth' THEN 2 WHEN 'professional' THEN 3 WHEN 'business' THEN 4 ELSE 5 END",
     );
     const mpesa = await client.query(
       "SELECT enabled FROM mpesa_configurations WHERE scope_type='platform' AND store_id IS NULL LIMIT 1",
