@@ -51,3 +51,8 @@ CREATE POLICY subscriptions_billing_worker_access ON subscriptions FOR ALL
 DROP POLICY IF EXISTS message_events_billing_worker_insert ON message_events;
 CREATE POLICY message_events_billing_worker_insert ON message_events FOR INSERT
   WITH CHECK (current_setting('app.billing_worker',true)='true' AND template_key IN ('subscription_dunning_day_1','subscription_dunning_day_2','subscription_suspended'));
+
+-- The service worker reads only the store contact fields needed for notices.
+DROP POLICY IF EXISTS stores_billing_worker_read ON stores;
+CREATE POLICY stores_billing_worker_read ON stores FOR SELECT
+ USING (current_setting('app.billing_worker',true)='true');
