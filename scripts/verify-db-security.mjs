@@ -39,6 +39,8 @@ const migrationPaths = [
   "db/migrations/0026-sms-wallet-enforcement.sql",
   "db/migrations/0027-mpesa-wallet-topups.sql",
   "db/migrations/0028-commerce-plan-tiers.sql",
+  "db/migrations/0029-subscription-dunning.sql",
+  "db/migrations/0030-email-usage-ledger.sql",
 ];
 
 const appUrl = new URL(databaseUrl);
@@ -94,6 +96,14 @@ try {
     { code: "business", amount_minor: "499900", email_allowance: "200", sms_allowance: "200" },
     { code: "enterprise", amount_minor: null, email_allowance: null, sms_allowance: null },
   ], "the permanent Free plan and approved monthly plan catalogue must be seeded exactly");
+
+  const billingSecurity = await owner.query(
+    `SELECT c.relname,c.relrowsecurity,c.relforcerowsecurity FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname IN ('subscription_billing_events','email_usage_ledger') ORDER BY c.relname`,
+  );
+  assert.deepEqual(billingSecurity.rows,[
+    {relname:"email_usage_ledger",relrowsecurity:true,relforcerowsecurity:true},
+    {relname:"subscription_billing_events",relrowsecurity:true,relforcerowsecurity:true},
+  ],"billing and email usage ledgers must enforce RLS");
 
   const roleChecks = await owner.query(`
     SELECT rolname, rolcanlogin, rolbypassrls
