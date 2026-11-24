@@ -12,7 +12,7 @@ MobiWave Commerce is MobiWave-owned, multi-tenant B2C commerce SaaS for Kenyan m
 - Server-side free-subdomain routing and custom-domain registration, DNS TXT verification, admin activation and custom-domain storefront resolution.
 - Daraja credential configuration at platform and merchant scope; encrypted credentials (AES-256-GCM), merchant/platform fallback for order STK Push, and East Africa Time timestamps.
 - Replay-safe Daraja callback handling, amount/currency/phone correlation, cross-order/subscription receipt claims and payment reconciliation queue.
-- Configurable subscription plan catalogue, admin-managed KES prices/quotas, M-Pesa subscription STK collection, callback-based activation and manual renewal.
+- Six-tier subscription catalogue with a permanent Free plan (no expiry/card), approved KES monthly prices, server-side capacity and communication entitlements, M-Pesa subscription STK collection and callback-based activation.
 - Transactional SMS outbox, deduplication, lease-based processing, retry/backoff and an authenticated worker endpoint.
 - Official Meta webhook ingress for WhatsApp Cloud API and Instagram Messaging, including raw-body signature verification, account matching, event normalization and deduplicated durable webhook storage.
 - Authenticated inbound event worker that creates channel-scoped identities/conversations, persists inbound messages and applies provider delivery/read statuses with replay-safe writes and bounded retries.
@@ -66,9 +66,9 @@ Platform administration:
 
 ## Integration and launch boundaries
 
-- Paid plan prices intentionally remain unconfigured (NULL) until MobiWave approves commercial rates. Free plan custom-domain quota is zero. Quotas are enforced when configured.
+- Free is a permanent KES 0 plan, not a trial. The current catalogue is Free (KES 0), Starter (KES 299), Growth (KES 999), Professional (KES 2,499), Business (KES 4,999), and Enterprise (negotiated). Monthly email/SMS allowances are 20, 30, 50, 100, 200 and negotiated respectively. Free plan limits are 20 products, 1 staff account and no custom domain. Plan changes are applied through reviewed migrations and audited admin updates.
 - Daraja credentials and callbacks are implemented, but real sandbox/production credentials and live callback tests are still required. Browser redirects never activate payments.
-- SMS messages are queued and retried. The adapter currently sends a bearer-authenticated JSON request with to, message, senderId and clientReference. The exact MobiWave SMS endpoint and payload contract must be confirmed against the provider documentation before live sending. No SMS has been sent from this audit.
+- SMS messages are queued and retried. The worker now reads included SMS segments from the active plan entitlement; wallet overage still requires a configured per-store billing rate and active wallet. The adapter currently sends a bearer-authenticated JSON request with recipient, message, sender_id and Idempotency-Key. The exact provider endpoint and payload contract must be confirmed before live sending.
 - Immediate SMS dispatch uses Next.js after(). The GitHub scheduled worker is available for retries; configure repository secrets `COMMERCE_BASE_URL`, `CRON_SECRET`, and `CHANNEL_WORKER_SECRET`. The app runtime must use the matching `CRON_SECRET` and `CHANNEL_WORKER_SECRET` values.
 - Custom domains require merchant DNS TXT verification, manual attachment to the Vercel project, then platform-admin activation. Production wildcard DNS, Vercel domain attachment and TLS have not been verified.
 - Social Commerce Phases 1–6 are merged to main as of 17 November 2026. The release includes tenant-scoped channel/conversation storage, verified Meta webhook ingress, inbound processing, WhatsApp Embedded Signup and Instagram Login foundations, encrypted provider-token storage, idempotent outbound text messaging, and the merchant unified inbox. Production Neon and production deployment have not been modified.
