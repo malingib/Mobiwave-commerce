@@ -56,3 +56,11 @@ CREATE POLICY message_events_billing_worker_insert ON message_events FOR INSERT
 DROP POLICY IF EXISTS stores_billing_worker_read ON stores;
 CREATE POLICY stores_billing_worker_read ON stores FOR SELECT
  USING (current_setting('app.billing_worker',true)='true');
+
+-- Existing paid subscriptions already in past_due enter the same Day 0-2 recovery clock.
+UPDATE subscriptions
+   SET past_due_since=COALESCE(past_due_since,current_period_end,updated_at,now()),
+       next_dunning_at=COALESCE(next_dunning_at,COALESCE(current_period_end,updated_at,now())+interval '1 day'),
+       billing_cycle_key=COALESCE(billing_cycle_key,to_char(COALESCE(current_period_end,updated_at,now()) AT TIME ZONE 'UTC','YYYYMMDDHH24MISS')),
+       updated_at=now()
+ WHERE plan_code<>'free' AND status='past_due';
