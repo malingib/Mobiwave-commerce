@@ -15,10 +15,10 @@ export function isPermanentFreePlan(planCode: string) {
 }
 
 // Subscription entitlement is separate from store-level abuse/security suspension.
-// Free never expires or enters dunning; paid plans require an active or trialing state.
+// Free never expires or enters dunning. Paid plans retain access throughout Day 0-2 past_due recovery.
 export function canManagePaidFeatures(subscriptionStatus: string, planCode: string) {
   if (isPermanentFreePlan(planCode)) return true;
-  return subscriptionStatus === "active" || subscriptionStatus === "trialing";
+  return subscriptionStatus === "active" || subscriptionStatus === "trialing" || subscriptionStatus === "past_due";
 }
 
 export function getIncludedAllowance(limits: PlanLimits | null | undefined, kind: "email" | "sms") {
