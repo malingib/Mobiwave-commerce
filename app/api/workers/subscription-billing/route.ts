@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { processSubscriptionDunningBatch } from "@/lib/subscription-dunning";
 import { processQueuedBillingEmails } from "@/lib/billing-email-outbox";
+import { processQueuedMerchantEmails } from "@/lib/merchant-email-worker";
 import { processQueuedSmsBatch } from "@/lib/message-outbox";
 
 export const runtime = "nodejs";
