@@ -78,7 +78,7 @@ export async function processSubscriptionDunningBatch(batchSize = 50): Promise<D
         WHERE s.plan_code<>'free' AND s.status='past_due'
           AND s.dunning_attempts<2 AND s.next_dunning_at<=now()
         ORDER BY s.next_dunning_at
-        FOR UPDATE OF s SKIP LOCKED LIMIT $1`,
+        LIMIT $1 FOR UPDATE OF s SKIP LOCKED`,
       [Math.max(1,Math.min(100,Math.floor(batchSize)||50))],
     );
     for (const row of retryRows.rows) {
@@ -99,7 +99,7 @@ export async function processSubscriptionDunningBatch(batchSize = 50): Promise<D
       if (inserted.rowCount) {
         await enqueueNotice(client,{
           storeId:row.store_id,subscriptionId:row.subscription_id,cycleKey:row.billing_cycle_key,
-          eventType,storeName:row.store_name,email:row.contact_email,phone:row.phone,billingUrl:appUrl + "/dashboard/billing",
+          eventType,storeName:row.store_name,email:row.contact_email,phone:row.phone,billingUrl:appUrl + "/dashboard/" + row.store_id + "/billing",
         });
         if (attempt===1) result.day1++; else result.day2++;
       }
@@ -113,7 +113,7 @@ export async function processSubscriptionDunningBatch(batchSize = 50): Promise<D
         WHERE s.plan_code<>'free' AND s.status='past_due'
           AND s.dunning_attempts=2 AND s.past_due_since<=now()-interval '3 days'
         ORDER BY s.past_due_since
-        FOR UPDATE OF s SKIP LOCKED LIMIT $1`,
+        LIMIT $1 FOR UPDATE OF s SKIP LOCKED`,
       [Math.max(1,Math.min(100,Math.floor(batchSize)||50))],
     );
     for (const row of suspendRows.rows) {
