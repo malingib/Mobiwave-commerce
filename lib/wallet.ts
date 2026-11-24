@@ -73,7 +73,7 @@ export function countSmsSegments(message: string): { encoding: "GSM-7" | "UCS-2"
 
 export type SmsUsageReservation =
   | { ok: true; usageId: string; walletReservationId: string | null; totalSegments: number; includedSegments: number; billableSegments: number; amountMinor: number; alreadyCommitted?: boolean }
-  | { ok: false; reason: "sms_billing_not_configured" | "wallet_not_configured" | "wallet_blocked" | "insufficient_funds" | "wallet_currency_mismatch" };
+  | { ok: false; reason: "sms_billing_not_configured" | "wallet_not_configured" | "wallet_blocked" | "insufficient_funds" | "wallet_currency_mismatch" | "subscription_not_active" };
 
 export async function reserveSmsUsage(client: PoolClient, input: {
   storeId: string; eventId: string; totalSegments: number;
@@ -101,11 +101,20 @@ export async function reserveSmsUsage(client: PoolClient, input: {
   // billing. Then lock the configuration row and recheck to serialize allowance.
   const prior = returnExisting(await findExisting());
   if (prior) return prior;
-  const config = await client.query(
-    "SELECT included_segments_per_month, unit_rate_minor, currency FROM store_sms_billing_config WHERE store_id=$1 AND enabled=true FOR UPDATE",
+  // Lock the subscription row to serialize monthly allowance consumption.
+  // Free is permanent; paid subscriptions in their Day 0-2 recovery window retain access.
+  const subscription = await client.query(
+    "SELECT s.status, COALESCE((p.limits->>'includedSmsSegmentsPerMonth')::integer,0) AS included_sms_segments " +
+    "FROM subscriptions s JOIN commerce_plans p ON p.code=s.plan_code WHERE s.store_id=$1 FOR UPDATE OF s",
     [input.storeId],
   );
-  if (!config.rowCount) return { ok: false, reason: "sms_billing_not_configured" };
+  if (!subscription.rowCount || !["active","trialing","past_due"].includes(String(subscription.rows[0].status))) {
+    return { ok: false, reason: "subscription_not_active" };
+  }
+  const config = await client.query(
+    "SELECT unit_rate_minor, currency FROM store_sms_billing_config WHERE store_id=$1 AND enabled=true FOR UPDATE",
+    [input.storeId],
+  );
   const afterLock = returnExisting(await findExisting());
   if (afterLock) return afterLock;
   const period = await client.query("SELECT date_trunc('month', now() AT TIME ZONE 'UTC')::date AS period_start");
@@ -115,21 +124,23 @@ export async function reserveSmsUsage(client: PoolClient, input: {
     "WHERE store_id=$1 AND period_start=$2 AND status IN ('reserved','committed')",
     [input.storeId,periodStart],
   );
-  const allowance = Number(config.rows[0].included_segments_per_month);
+  const allowance = Number(subscription.rows[0].included_sms_segments);
   const alreadyUsed = Number(consumed.rows[0].used);
-  const unitRateMinor = Number(config.rows[0].unit_rate_minor);
-  if (!Number.isSafeInteger(allowance) || !Number.isSafeInteger(alreadyUsed) || !Number.isSafeInteger(unitRateMinor) || unitRateMinor < 0) {
+  const unitRateMinor = config.rowCount ? Number(config.rows[0].unit_rate_minor) : 0;
+  const currency = config.rowCount ? String(config.rows[0].currency).trim() : "KES";
+  if (!Number.isSafeInteger(allowance) || allowance < 0 || !Number.isSafeInteger(alreadyUsed) || !Number.isSafeInteger(unitRateMinor) || unitRateMinor < 0) {
     throw new Error("sms_billing_configuration_out_of_range");
   }
   const includedSegments = Math.min(input.totalSegments,Math.max(0,allowance-alreadyUsed));
   const billableSegments = input.totalSegments-includedSegments;
+  if (billableSegments > 0 && !config.rowCount) return { ok:false, reason:"sms_billing_not_configured" };
   const amountMinor = billableSegments*unitRateMinor;
   if (!Number.isSafeInteger(amountMinor)) throw new Error("sms_charge_overflow");
   let walletReservationId: string | null = null;
   if (amountMinor > 0) {
     const account = await client.query("SELECT currency FROM store_wallet_accounts WHERE store_id=$1", [input.storeId]);
     if (!account.rowCount) return { ok:false, reason:"wallet_not_configured" };
-    if (String(account.rows[0].currency).trim() !== String(config.rows[0].currency).trim()) {
+    if (String(account.rows[0].currency).trim() !== currency) {
       return { ok:false, reason:"wallet_currency_mismatch" };
     }
     const reservation = await reserveStoreWalletFunds(client,{
@@ -142,7 +153,7 @@ export async function reserveSmsUsage(client: PoolClient, input: {
     "INSERT INTO store_sms_usage (store_id,event_id,period_start,total_segments,included_segments,billable_segments,unit_rate_minor,amount_minor,currency,wallet_reservation_id,status) " +
     "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'reserved') RETURNING id",
     [input.storeId,input.eventId,periodStart,input.totalSegments,includedSegments,billableSegments,unitRateMinor,amountMinor,
-      config.rows[0].currency,walletReservationId],
+      currency,walletReservationId],
   );
   return {ok:true,usageId:inserted.rows[0].id,walletReservationId,totalSegments:input.totalSegments,
     includedSegments,billableSegments,amountMinor};
