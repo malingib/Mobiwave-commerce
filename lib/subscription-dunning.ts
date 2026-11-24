@@ -1,5 +1,6 @@
 import type { PoolClient } from "pg";
 import { db } from "@/lib/db";
+import { normalizeKenyanPhone } from "@/lib/mpesa-utils";
 
 type DunningResult = {
   dueMarked: number;
@@ -29,12 +30,13 @@ async function enqueueNotice(
       [input.storeId,input.email.trim().toLowerCase(),templateKey,dedupeBase + ":email",payload],
     );
   }
-  if (input.phone) {
+  const phone = input.phone ? normalizeKenyanPhone(input.phone) : null;
+  if (phone) {
     await client.query(
       `INSERT INTO message_events(store_id,channel,recipient,template_key,status,dedupe_key,payload)
        VALUES($1,'sms',$2,$3,'queued',$4,$5::jsonb)
        ON CONFLICT(store_id,dedupe_key) DO NOTHING`,
-      [input.storeId,input.phone,templateKey,dedupeBase + ":sms",payload],
+      [input.storeId,phone,templateKey,dedupeBase + ":sms",payload],
     );
   }
 }
@@ -71,9 +73,7 @@ export async function processSubscriptionDunningBatch(batchSize = 50): Promise<D
 
     const retryRows = await client.query(
       `SELECT s.id AS subscription_id,s.store_id,s.billing_cycle_key,s.dunning_attempts,
-              st.name AS store_name,st.contact_email,
-              (SELECT p.customer_phone FROM subscription_payment_attempts p
-                WHERE p.subscription_id=s.id ORDER BY p.created_at DESC LIMIT 1) AS phone
+              st.name AS store_name,st.contact_email,st.contact_phone AS phone
          FROM subscriptions s JOIN stores st ON st.id=s.store_id
         WHERE s.plan_code<>'free' AND s.status='past_due'
           AND s.dunning_attempts<2 AND s.next_dunning_at<=now()
@@ -131,7 +131,7 @@ export async function processSubscriptionDunningBatch(batchSize = 50): Promise<D
       if (inserted.rowCount) {
         await enqueueNotice(client,{
           storeId:row.store_id,subscriptionId:row.subscription_id,cycleKey:row.billing_cycle_key,
-          eventType:"suspended",storeName:row.store_name,email:row.contact_email,phone:row.phone,billingUrl:appUrl + "/dashboard/billing",
+          eventType:"suspended",storeName:row.store_name,email:row.contact_email,phone:row.phone,billingUrl:appUrl + "/dashboard/" + row.store_id + "/billing",
         });
         result.suspended++;
       }
