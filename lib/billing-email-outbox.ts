@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { PoolClient } from "pg";
 import { db } from "@/lib/db";
 
 type BillingEmail = {
@@ -35,7 +36,7 @@ function renderBillingEmail(template:string,payload:Record<string,unknown>,billi
   };
 }
 
-async function updateEvent(client:any,event:BillingEmail,status:"sent"|"queued"|"failed"|"delivery_unknown",errorCode:string|null=null,delay=0) {
+async function updateEvent(client:PoolClient,event:BillingEmail,status:"sent"|"queued"|"failed"|"delivery_unknown",errorCode:string|null=null,delay=0) {
   await client.query("BEGIN");
   try {
     await client.query("SELECT set_config('app.email_worker','true',true)");
