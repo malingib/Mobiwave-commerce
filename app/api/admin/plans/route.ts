@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { getSuperAdmin } from "@/lib/admin";
 
 export const runtime = "nodejs";
-const validCodes = new Set(["free", "growth", "pro", "business"]);
+const validCodes = new Set(["free", "starter", "growth", "professional", "business", "enterprise"]);
 
 export async function GET() {
   const user = await getSuperAdmin();
@@ -13,7 +13,7 @@ export async function GET() {
     await client.query("BEGIN");
     await client.query("SELECT set_config('app.admin', 'true', true)");
     const result = await client.query(
-      "SELECT code, name, description, amount_minor, currency, billing_interval, is_active, limits, features, updated_at FROM commerce_plans ORDER BY CASE code WHEN 'free' THEN 0 WHEN 'growth' THEN 1 WHEN 'pro' THEN 2 ELSE 3 END",
+      "SELECT code, name, description, amount_minor, currency, billing_interval, is_active, limits, features, updated_at FROM commerce_plans ORDER BY CASE code WHEN 'free' THEN 0 WHEN 'starter' THEN 1 WHEN 'growth' THEN 2 WHEN 'professional' THEN 3 WHEN 'business' THEN 4 ELSE 5 END",
     );
     await client.query("COMMIT");
     return NextResponse.json({ plans: result.rows }, { headers: { "Cache-Control": "no-store" } });
@@ -35,8 +35,8 @@ export async function PUT(request: Request) {
   if (amountMinor !== null && (!Number.isSafeInteger(amountMinor) || amountMinor < 0)) {
     return NextResponse.json({ error: "Plan price must be a non-negative integer in minor currency units." }, { status: 400 });
   }
-  if (body.code === "free" && amountMinor !== 0) {
-    return NextResponse.json({ error: "The Free plan must remain zero-priced." }, { status: 400 });
+  if ((body.code === "free" && amountMinor !== 0) || (body.code === "enterprise" && amountMinor !== null)) {
+    return NextResponse.json({ error: body.code === "free" ? "The Free plan must remain zero-priced." : "Enterprise pricing must be negotiated and cannot be set as a standard catalogue price." }, { status: 400 });
   }
   if (typeof body.isActive !== "boolean" || body.billingInterval !== "monthly") {
     return NextResponse.json({ error: "Provide a valid active state and billing interval." }, { status: 400 });
@@ -46,7 +46,7 @@ export async function PUT(request: Request) {
   }
   const limitsInput = body.limits as Record<string, unknown>;
   const limits: Record<string, number> = {};
-  for (const key of ["maxProducts", "maxDomains", "maxMembers"]) {
+  for (const key of ["maxProducts", "maxDomains", "maxMembers", "includedEmailSendsPerMonth", "includedSmsSegmentsPerMonth"]) {
     const value = limitsInput[key];
     if (value === null || value === undefined || value === "") continue;
     const numeric = Number(value);
