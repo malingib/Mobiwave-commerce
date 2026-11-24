@@ -45,7 +45,7 @@ ON CONFLICT (code) DO UPDATE SET name=EXCLUDED.name,description=EXCLUDED.descrip
  is_active=EXCLUDED.is_active,limits=EXCLUDED.limits,features=EXCLUDED.features,updated_at=now();
 
 UPDATE subscriptions SET status='active',current_period_start=NULL,current_period_end=NULL,updated_at=now()
-WHERE plan_code='free' AND status IN ('trialing','past_due','expired');
+WHERE plan_code='free' AND status IN ('trialing','past_due','suspended','expired');
 
 COMMENT ON COLUMN commerce_plans.limits IS
  'Server-enforced plan entitlements including capacity and monthly email/SMS allowances. Enterprise limits and allowances are negotiated.';
