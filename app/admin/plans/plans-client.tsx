@@ -12,7 +12,7 @@ type Plan = {
   currency: string;
   billing_interval: "monthly" | "yearly";
   is_active: boolean;
-  limits: { maxProducts?: number; maxDomains?: number; maxMembers?: number };
+  limits: { maxProducts?: number; maxDomains?: number; maxMembers?: number; includedEmailSendsPerMonth?: number; includedSmsSegmentsPerMonth?: number };
   features: string[];
 };
 
@@ -91,27 +91,31 @@ export default function PlansClient({ email }: { email: string }) {
         {error && <p className="form-error dashboard-error" role="alert">{error}</p>}
         {notice && <p className="success-message dashboard-notice" role="status">{notice}</p>}
         <section className="workspace-panel">
-          <div className="panel-heading"><div><h3>Plan catalogue and entitlements</h3><p>Set subscription pricing and optional quotas. Blank quotas mean unlimited.</p></div><CreditCard size={20}/></div>
+          <div className="panel-heading"><div><h3>Plan catalogue and entitlements</h3><p>Set subscription pricing, capacity and monthly communication allowances. Blank capacity limits mean unlimited; Enterprise allowances are negotiated.</p></div><CreditCard size={20}/></div>
           {loading ? <p className="empty-state">Loading plans…</p> : <div className="admin-store-list">
             {plans.map(plan=><article className="admin-store-row" key={plan.code} style={{alignItems:"flex-start"}}>
               <div className="store-avatar"><CreditCard size={18}/></div>
               <div className="admin-store-info" style={{minWidth:180,flex:1}}>
                 <b>{plan.name} · {plan.code}</b><small>{plan.description}</small>
                 <label>Monthly price (KES)</label>
-                <input type="number" min="0" step="0.01" value={plan.amount_minor===null?"":(Number(plan.amount_minor)/100).toFixed(2)} placeholder={plan.code==="free"?"0.00":"Not configured"} disabled={plan.code==="free"} onChange={e=>updatePlan(plan.code,{amount_minor:e.target.value===""?null:Math.round(Number(e.target.value)*100)})}/>
+                <input type="number" min="0" step="0.01" value={plan.amount_minor===null?"":(Number(plan.amount_minor)/100).toFixed(2)} placeholder={plan.code==="free"?"0.00":plan.code==="enterprise"?"Negotiated":"Not configured"} disabled={plan.code==="free"||plan.code==="enterprise"} onChange={e=>updatePlan(plan.code,{amount_minor:e.target.value===""?null:Math.round(Number(e.target.value)*100)})}/>
                 <label>Maximum products <span>blank = unlimited</span></label>
                 <input type="number" min="0" step="1" value={plan.limits?.maxProducts??""} onChange={e=>updatePlan(plan.code,{limits:{...plan.limits,maxProducts:e.target.value===""?undefined:Number(e.target.value)}})}/>
                 <label>Maximum custom domains <span>blank = unlimited</span></label>
                 <input type="number" min="0" step="1" value={plan.limits?.maxDomains??""} onChange={e=>updatePlan(plan.code,{limits:{...plan.limits,maxDomains:e.target.value===""?undefined:Number(e.target.value)}})}/>
                 <label>Maximum members <span>blank = unlimited</span></label>
                 <input type="number" min="0" step="1" value={plan.limits?.maxMembers??""} onChange={e=>updatePlan(plan.code,{limits:{...plan.limits,maxMembers:e.target.value===""?undefined:Number(e.target.value)}})}/>
+                <label>Included email sends / month</label>
+                <input type="number" min="0" step="1" value={plan.limits?.includedEmailSendsPerMonth??""} onChange={e=>updatePlan(plan.code,{limits:{...plan.limits,includedEmailSendsPerMonth:e.target.value===""?undefined:Number(e.target.value)}})}/>
+                <label>Included SMS segments / month</label>
+                <input type="number" min="0" step="1" value={plan.limits?.includedSmsSegmentsPerMonth??""} onChange={e=>updatePlan(plan.code,{limits:{...plan.limits,includedSmsSegmentsPerMonth:e.target.value===""?undefined:Number(e.target.value)}})}/>
                 <label className="checkbox-label"><input type="checkbox" checked={plan.is_active} onChange={e=>updatePlan(plan.code,{is_active:e.target.checked})}/> Available for purchase</label>
                 <button className="button button-dark" disabled={busy===plan.code} onClick={()=>void save(plan)}>{busy===plan.code?"Saving…":"Save plan"} <Save size={15}/></button>
               </div>
             </article>)}
           </div>}
         </section>
-        <p className="billing-note">Paid plan prices are deliberately unconfigured until MobiWave sets approved commercial rates. A plan cannot be purchased through M-Pesa until it has a positive KES price and platform Daraja payments are enabled.</p>
+        <p className="billing-note">Free is permanent and never expires. Enterprise pricing and allowances are negotiated. Paid plans can be purchased only when their configured KES price is positive and platform Daraja payments are enabled.</p>
         <footer className="dashboard-footer">Signed in as {email} · Price and quota changes are audited.</footer>
       </div>
     </section>
