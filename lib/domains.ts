@@ -32,3 +32,19 @@ export function domainVerificationRecordName(hostname: string) {
 export function domainVerificationRecordValue(token: string) {
   return `mobiwave-commerce-verification=${token}`;
 }
+
+const MULTI_LABEL_PUBLIC_SUFFIXES = new Set([
+  "co.ke","or.ke","ac.ke","go.ke","sc.ke","me.ke","ne.ke","mobi.ke",
+  "co.uk","org.uk","ac.uk","gov.uk","com.au","net.au","org.au","co.nz","com.sg","com.my",
+]);
+
+export function isApexHostname(hostname: string) {
+  const labels = hostname.toLowerCase().replace(/\.$/, "").split(".");
+  if (labels.length <= 2) return true;
+  return labels.length === 3 && MULTI_LABEL_PUBLIC_SUFFIXES.has(labels.slice(-2).join("."));
+}
+
+export function canonicalHostname(hostname: string) {
+  const normalized = hostname.toLowerCase().replace(/\.$/, "");
+  return isApexHostname(normalized) ? `www.${normalized}` : normalized;
+}
