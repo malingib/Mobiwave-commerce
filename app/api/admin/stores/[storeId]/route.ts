@@ -23,6 +23,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ store
     await client.query("SELECT set_config('app.admin', 'true', true)");
     const store = await client.query("SELECT id, name, status FROM stores WHERE id=$1 FOR UPDATE", [storeId]);
     if (!store.rowCount) { await client.query("ROLLBACK"); return NextResponse.json({ error: "Store not found" }, { status: 404 }); }
+    if (body.status === "active") {
+      const launch = await client.query("SELECT launch_status FROM store_onboarding WHERE store_id=$1", [storeId]);
+      if (!launch.rowCount || !["auto_approved", "approved"].includes(launch.rows[0].launch_status)) {
+        await client.query("ROLLBACK");
+        return NextResponse.json({ error: "Store must pass launch validation or manual review before activation." }, { status: 409 });
+      }
+    }
     if (body.status !== undefined) {
       await client.query("UPDATE stores SET status=$1, updated_at=now() WHERE id=$2", [body.status, storeId]);
     }
