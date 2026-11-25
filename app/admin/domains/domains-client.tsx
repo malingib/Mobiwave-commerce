@@ -16,6 +16,7 @@ type DomainRow = {
   tls_status: string;
   is_primary: boolean;
   canonical_target: string | null;
+  last_error: string | null;
   created_at: string;
   store_name: string;
   store_slug: string;
