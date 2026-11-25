@@ -27,3 +27,18 @@ describe("custom domain validation", () => {
     expect(domainVerificationRecordValue("abc123")).toBe("mobiwave-commerce-verification=abc123");
   });
 });
+
+import { canonicalHostname, isApexHostname } from "@/lib/domains";
+
+describe("custom domain canonical host selection", () => {
+  it("prefers www for apex domains including common Kenyan public suffixes", () => {
+    expect(isApexHostname("example.com")).toBe(true);
+    expect(isApexHostname("example.co.ke")).toBe(true);
+    expect(canonicalHostname("example.co.ke")).toBe("www.example.co.ke");
+  });
+
+  it("does not add www to an existing subdomain", () => {
+    expect(isApexHostname("shop.example.com")).toBe(false);
+    expect(canonicalHostname("shop.example.com")).toBe("shop.example.com");
+  });
+});
