@@ -41,6 +41,7 @@ const migrationPaths = [
   "db/migrations/0028-commerce-plan-tiers.sql",
   "db/migrations/0029-subscription-dunning.sql",
   "db/migrations/0030-email-usage-ledger.sql",
+  "db/migrations/0031-store-launch-domain-lifecycle.sql",
 ];
 
 const appUrl = new URL(databaseUrl);
@@ -163,6 +164,10 @@ try {
     [storeA, userA, storeB, userB],
   );
   await owner.query(
+    "INSERT INTO store_onboarding (store_id,business_category,business_description) VALUES ($1,'general_retail','Tenant A business description'),($2,'fashion','Tenant B business description')",
+    [storeA, storeB],
+  );
+  await owner.query(
     "INSERT INTO products (id,store_id,name,slug,price_minor,status) VALUES ($1,$2,'Product A','product-a',100,'active'),($3,$4,'Product B','product-b',200,'active')",
     [productA, storeA, productB, storeB],
   );
@@ -250,7 +255,7 @@ try {
     "wallet reservation identity must be immutable",
   );
   await owner.query(
-    "INSERT INTO store_domains (store_id,hostname) VALUES ($1,'tenant-a.example.test'),($2,'tenant-b.example.test')",
+    "INSERT INTO store_domains (store_id,hostname,verification_token_hash) VALUES ($1,'tenant-a.example.test',encode(digest('tenant-a-token','sha256'),'hex')),($2,'tenant-b.example.test',encode(digest('tenant-b-token','sha256'),'hex'))",
     [storeA, storeB],
   );
   await owner.query(
@@ -357,6 +362,7 @@ try {
       "store_sms_usage",
       "wallet_topup_attempts",
       "store_domains",
+      "store_onboarding",
       "audit_events",
       "channel_connections",
       "channel_identities",
@@ -526,6 +532,16 @@ try {
       [storeB],
     );
     assert.equal(crossTenantUpdate.rowCount, 0, "user A must not update tenant B orders");
+    const ownOnboardingUpdate = await runtime.query(
+      "UPDATE store_onboarding SET business_description='Tenant A verified update' WHERE store_id=$1",
+      [storeA],
+    );
+    assert.equal(ownOnboardingUpdate.rowCount, 1, "store owner A must update its own onboarding record");
+    const crossTenantOnboardingUpdate = await runtime.query(
+      "UPDATE store_onboarding SET business_description='unauthorized' WHERE store_id=$1",
+      [storeB],
+    );
+    assert.equal(crossTenantOnboardingUpdate.rowCount, 0, "store owner A must not update tenant B onboarding");
 
     const crossTenantAttachmentUpdate = await runtime.query(
       "UPDATE conversation_attachments SET scan_status='available' WHERE store_id=$1",

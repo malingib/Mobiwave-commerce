@@ -7,8 +7,8 @@ Production database: Neon project mobiwave-commerce, project ID jolly-mountain-1
 
 ## 1. Current release state
 
-- GitHub main is at 83160c5c463ed3a295524ca0f418dd18bb33bef6.
-- The matching Vercel production deployment is READY and points to that commit.
+- GitHub main is at 590a953ae0110d7e2254d4dac5b39e0e3eb214fd (PR #25 squash merge).
+- The matching Vercel production deployment dpl_8CjT2iHmupZMNDKa2TKzPGZuJ7zc is READY and points to that commit.
 - GitHub Actions CI run #569 passed database-role/tenant-isolation checks, unit tests, dependency audit, typecheck, lint and production build.
 - GET /api/health returned HTTP 200 on 25 November. It verifies the runtime role and schema/role-isolation readiness; it does not prove payment, media or Meta provider acceptance.
 - GitHub main is currently unprotected. Configure required CI checks and prevent direct unreviewed pushes before public rollout.
@@ -22,7 +22,7 @@ The live database currently contains the commerce, authentication, social-channe
 For a new environment:
 
 1. Confirm the exact Neon project, database and branch.
-2. On a disposable branch, apply db/schema.sql as the initial baseline, then every db/migrations/*.sql file in numeric order through 0030-email-usage-ledger.sql.
+2. On a disposable branch, apply db/schema.sql as the initial baseline, then every db/migrations/*.sql file in numeric order through the latest approved migration.
 3. Before migration 0009, run db/roles/commerce-runtime-bootstrap.sql as the project owner.
 4. After migrations, run db/roles/commerce-runtime.sql and db/roles/commerce-auth-runtime.sql as the project owner.
 5. Configure DATABASE_URL with the commerce_runtime_app login and AUTH_DATABASE_URL with the separate commerce_auth_app login. Never use the Neon owner login or a BYPASSRLS login in application pools.
@@ -43,21 +43,24 @@ Sensitive production environment-variable entries exist for the database URLs, B
 
 ## 4. Preview environment isolation
 
-The latest PR preview deployment builds successfully, but its GET /api/health check returns HTTP 503. Runtime logs identify the generic Preview DATABASE_URL as using the unsupported PostgreSQL startup parameter role. The generic Preview environment also lacks a separate AUTH_DATABASE_URL entry.
+The original generic Preview DATABASE_URL used an unsupported PostgreSQL startup parameter and Preview lacked AUTH_DATABASE_URL. A dedicated Neon branch, `commerce-preview-isolated-2026-11-25`, has now been created from production main. Separate commerce_runtime_app and commerce_auth_app connections were verified with NOBYPASSRLS; the branch-specific Vercel Preview variables use those credentials and an independent Better Auth secret. The values are sensitive and are not recorded here.
 
-Do not fix this by copying production database credentials into Preview or by pointing a public preview at the production database. Before preview authentication/runtime acceptance, provision a disposable, sanitized Neon preview database with separate NOBYPASSRLS commerce and auth logins, then configure branch-specific DATABASE_URL and AUTH_DATABASE_URL values plus an independent BETTER_AUTH_SECRET for the PR branch. Verify the preview health endpoint and registration against that isolated database.
+Migration 0031 has been applied only to this isolated preview branch. The feature branch preview deployment still requires a green build and an HTTP 200 runtime health check before the database repair is considered fully accepted. Never copy production credentials into Preview.
 
-## 5. Store launch and custom-domain gaps
+## 5. Store launch and custom-domain lifecycle
 
-The approved hybrid launch and full domain lifecycle are not implemented yet:
+Implementation is in the unmerged branch `feat/store-launch-domain-lifecycle`; see `docs/store-launch-domain-lifecycle.md`.
 
-- POST /api/stores creates the store with status active directly, despite the database default being draft. The admin store PATCH endpoint can also set active without a server-side launch checklist.
-- No onboarding record, launch validator, risk-flag review queue or reviewer workflow was found in the current schema/API/UI tree.
-- The current store_domains table contains hostname, a plaintext verification_token, status, verified_at and activated_at. It does not persist provider-domain ID, DNS state, TLS state, canonical/primary hostname or a domain event history.
-- The domain verification flow issues a TXT record and the admin activation endpoint checks verified_at. It does not prove Vercel provider attachment, DNS readiness or TLS readiness before activation.
-- The current domain API does not implement the approved apex-to-www canonical policy or a complete provider-neutral attach/check/detach lifecycle.
+- New stores are draft-first and receive an onboarding record in the same transaction.
+- The server launch validator requires verified account email, valid Kenyan contact phone, business description and at least one published product.
+- Complete low-risk stores auto-launch; regulated and uncategorized stores enter the manual-review queue at `/admin/launch-reviews`. Approval/rejection is audited, and the admin store PATCH route cannot bypass launch approval.
+- Domain verification tokens are now intended to be stored as SHA-256 hashes and displayed only once; owners can rotate lost tokens.
+- Domain activation requires verified ownership, Vercel project attachment, DNS routing to Vercel and a valid TLS certificate. The app's DNS/TLS check blocks private/reserved IP targets.
+- Vercel project attachment remains a platform-operator step: attach the hostname to the Commerce Vercel project, record the provider reference, then run the DNS/TLS check. No Vercel API token is configured in the application, so do not claim provider attachment is automatic.
+- Apex domains require an active, ready www pair and redirect to the www canonical hostname. A single ready non-apex domain can be primary.
+- Migration 0031 creates onboarding RLS and review state, backfills existing stores, hashes/removes plaintext domain tokens, and adds provider/DNS/TLS/canonical fields.
 
-Do not treat custom domains or automatic store launch as production-ready. Before public onboarding, implement draft-first store creation, a shared server-authoritative launch validator, hybrid auto-launch/manual-review states, hashed verification tokens, provider/DNS/TLS lifecycle state, canonical primary-host selection and safe apex-to-www redirects.
+The migration has not been applied to production. Do not merge or deploy this feature until the latest CI matrix and isolated preview runtime tests pass, then obtain explicit production migration approval.
 
 ## 6. SMS wallet and usage readiness
 

@@ -12,7 +12,7 @@ export async function GET() {
     await client.query("BEGIN");
     await client.query("SELECT set_config('app.admin', 'true', true)");
     const result = await client.query(
-      `SELECT d.id, d.store_id, d.hostname, d.status, d.verified_at, d.activated_at, d.created_at,
+      `SELECT d.id, d.store_id, d.hostname, d.status, d.verified_at, d.activated_at, d.provider_status, d.provider_domain_id, d.dns_status, d.tls_status, d.is_primary, d.canonical_target, d.last_checked_at, d.last_error, d.created_at,
               s.name AS store_name, s.slug AS store_slug
          FROM store_domains d
          JOIN stores s ON s.id=d.store_id

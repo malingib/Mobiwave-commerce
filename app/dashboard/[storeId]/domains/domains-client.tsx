@@ -8,9 +8,12 @@ type DomainRow = {
   id: string;
   hostname: string;
   status: string;
-  verification_token: string;
   verification_record_name: string;
-  verification_record_value: string;
+  provider_status?: string;
+  dns_status?: string;
+  tls_status?: string;
+  is_primary?: boolean;
+  verification_record_value?: string;
   verified_at: string | null;
   activated_at: string | null;
 };
@@ -22,6 +25,7 @@ export default function DomainsClient({ storeId, userName }: { storeId: string; 
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [issuedTokens, setIssuedTokens] = useState<Record<string,string>>({});
 
   const load = useCallback(async () => {
     try {
@@ -54,9 +58,23 @@ export default function DomainsClient({ storeId, userName }: { storeId: string; 
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not add domain");
       setHostname("");
-      setNotice("Domain registered. Add the TXT record below, then verify ownership.");
+      setIssuedTokens(current => ({ ...current, [data.domain.id]: data.domain.verification_record_value }));
+      setNotice("Domain registered. Add the TXT record below. The token is shown only once.");
       await load();
     } catch (e) { setError(e instanceof Error ? e.message : "Could not add domain"); }
+    finally { setBusy(""); }
+  }
+
+  async function generateToken(domain: DomainRow) {
+    setBusy(domain.id); setError(""); setNotice("");
+    try {
+      const response = await fetch(`/api/stores/${storeId}/domains/${domain.id}/verification-token`, { method: "POST" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not generate verification token");
+      setIssuedTokens(current => ({ ...current, [domain.id]: data.verification_record_value }));
+      setNotice("New TXT verification value generated. The previous token is no longer valid.");
+      await load();
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not generate verification token"); }
     finally { setBusy(""); }
   }
 
@@ -101,11 +119,12 @@ export default function DomainsClient({ storeId, userName }: { storeId: string; 
             {domains.map(domain=><article className="admin-store-row" key={domain.id}>
               <div className="store-avatar"><Globe size={18}/></div>
               <div className="admin-store-info"><b>{domain.hostname}</b><small>Status: {domain.status.replaceAll("_"," ")}</small>
-                {domain.status==="pending_verification" && <><small>TXT host: <code>{domain.verification_record_name}</code></small><small>TXT value: <code>{domain.verification_record_value}</code></small></>}
+                {domain.status==="pending_verification" && <><small>TXT host: <code>{domain.verification_record_name}</code></small>{issuedTokens[domain.id] ? <small>TXT value: <code>{issuedTokens[domain.id]}</code></small> : <small>TXT token is hidden after the initial display. Generate a new one if you did not save it.</small>}</>}
                 {domain.status==="verified" && <small>Verified. Waiting for Vercel domain attachment and platform activation.</small>}
               </div>
-              {domain.status==="pending_verification" && <button className="status-toggle" disabled={busy===domain.id} onClick={()=>void verify(domain)}>{busy===domain.id?"Checking…":"Verify DNS"}</button>}
-              {domain.status==="active" && <span className="order-status-pill status-active">active</span>}
+              {domain.status==="pending_verification" && <><button className="status-toggle" disabled={busy===domain.id} onClick={()=>void verify(domain)}>{busy===domain.id?"Checking…":"Verify DNS"}</button>{!issuedTokens[domain.id]&&<button className="status-toggle" disabled={busy===domain.id} onClick={()=>void generateToken(domain)}>Generate TXT token</button>}</>}
+              {domain.status==="active" && <span className="order-status-pill status-active">{domain.is_primary?"primary · active":"active"}</span>}
+              <small>Provider: {domain.provider_status||"pending"} · DNS: {domain.dns_status||"pending"} · TLS: {domain.tls_status||"pending"}</small>
             </article>)}
           </div>}
         </section>
