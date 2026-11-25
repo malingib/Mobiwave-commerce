@@ -658,3 +658,20 @@ h1,h2,h3,h4,h5,h6{font-family:"Outfit",sans-serif;letter-spacing:-.025em}
  .cm-inner-mobile-nav a{font-size:11px;color:#696981;font-weight:600}
  .cm-inner-mobile-nav a:hover{color:#5955d1}
 }
+
+/* Merchant onboarding and custom-domain lifecycle */
+.launch-checklist{display:grid;gap:11px;margin:18px 0 22px;padding:0;list-style:none;color:#3d3d55;font-size:13px}
+.launch-checklist li{padding:11px 13px;border:1px solid #eeeef3;border-radius:8px;background:#fbfbfe}
+.store-setup-link{display:inline-flex;align-items:center;margin-left:10px;padding:6px 10px;border-radius:6px;background:#f2f2ff;color:#4a46bd;font-size:11px;font-weight:700}
+.domain-provider-attach{display:flex;align-items:center;gap:8px;flex-wrap:wrap;max-width:430px}
+.domain-provider-attach input{min-width:190px;flex:1;border:1px solid #e3e4ec;border-radius:7px;padding:8px 10px;font:500 11px "Instrument Sans",sans-serif;color:#0c243c}
+.launch-review-row{align-items:flex-start}
+.launch-review-row .admin-store-info{min-width:0;flex:1}
+.launch-review-row .admin-store-info p{margin:9px 0;color:#696981;font-size:12px;line-height:1.65}
+.launch-review-row textarea{display:block;width:100%;max-width:620px;margin-top:12px;border:1px solid #e3e4ec;border-radius:7px;padding:10px 11px;font:500 12px "Instrument Sans",sans-serif;resize:vertical}
+.launch-review-row .form-actions{display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:760px){
+  .launch-review-row{flex-wrap:wrap}
+  .launch-review-row .form-actions{width:100%}
+  .domain-provider-attach{width:100%}
+}
