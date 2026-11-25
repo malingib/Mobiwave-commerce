@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSuperAdmin } from "@/lib/admin";
+import { canonicalHostname, isApexHostname } from "@/lib/domains";
 
 export const runtime = "nodejs";
 type Context = { params: Promise<{ domainId: string }> };
@@ -45,8 +46,8 @@ export async function PATCH(request: Request, context: Context) {
         await client.query("ROLLBACK");
         return NextResponse.json({ error: "Vercel attachment, DNS routing and valid TLS must all be confirmed before activation." }, { status: 409 });
       }
-      if (!domain.hostname.startsWith("www.")) {
-        const wwwHost = `www.${domain.hostname}`;
+      if (isApexHostname(domain.hostname)) {
+        const wwwHost = canonicalHostname(domain.hostname);
         const www = await client.query(
           "SELECT id FROM store_domains WHERE store_id=$1 AND hostname=$2 AND status='active' AND provider_status='attached' AND dns_status='ready' AND tls_status='ready'",
           [domain.store_id, wwwHost]
@@ -59,6 +60,10 @@ export async function PATCH(request: Request, context: Context) {
     }
 
     if (body.isPrimary === true) {
+      if (isApexHostname(domain.hostname)) {
+        await client.query("ROLLBACK");
+        return NextResponse.json({ error: `Use the canonical www host (${canonicalHostname(domain.hostname)}) as the primary domain.` }, { status: 409 });
+      }
       if (nextStatus !== "active" || nextProvider !== "attached" || nextDns !== "ready" || nextTls !== "ready") {
         await client.query("ROLLBACK");
         return NextResponse.json({ error: "Only an active, provider-attached domain with ready DNS and TLS can be primary." }, { status: 409 });
@@ -66,8 +71,8 @@ export async function PATCH(request: Request, context: Context) {
       await client.query("UPDATE store_domains SET is_primary=false WHERE store_id=$1", [domain.store_id]);
     }
 
-    const canonicalTarget = !domain.hostname.startsWith("www.") && nextStatus === "active"
-      ? `https://www.${domain.hostname}`
+    const canonicalTarget = isApexHostname(domain.hostname) && nextStatus === "active"
+      ? `https://${canonicalHostname(domain.hostname)}`
       : null;
     await client.query(
       `UPDATE store_domains
