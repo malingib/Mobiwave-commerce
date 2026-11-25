@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { ArrowLeft, CheckCircle2, ClipboardList, Store } from "lucide-react";
 
 type Onboarding = {
@@ -37,7 +37,7 @@ export default function OnboardingClient({ storeId, userName }: { storeId: strin
   const [notice,setNotice] = useState("");
   const [missing,setMissing] = useState<string[]>([]);
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       const response=await fetch(`/api/stores/${storeId}/onboarding`,{cache:"no-store"});
       const result=await response.json();
@@ -49,8 +49,8 @@ export default function OnboardingClient({ storeId, userName }: { storeId: strin
       setWebsite(result.onboarding.website_url||"");
     } catch(e) {setError(e instanceof Error?e.message:"Could not load onboarding details");}
     finally {setLoading(false);}
-  }
-  useEffect(()=>{void load();},[storeId]);
+  }, [storeId]);
+  useEffect(()=>{void load();},[load]);
 
   async function save(event:FormEvent<HTMLFormElement>) {
     event.preventDefault();setBusy("save");setError("");setNotice("");setMissing([]);
