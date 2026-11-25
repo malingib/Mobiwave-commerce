@@ -20,6 +20,10 @@ CREATE TABLE store_onboarding (
   CHECK (website_url IS NULL OR (website_url ~ '^https://[^[:space:]/]+([/?#].*)?$' AND length(website_url) <= 2048)),
   CHECK (review_note IS NULL OR length(review_note) <= 2000)
 );
+INSERT INTO store_onboarding (store_id)
+SELECT id FROM stores
+ON CONFLICT (store_id) DO NOTHING;
+
 CREATE INDEX store_onboarding_review_queue_idx
   ON store_onboarding(submitted_at DESC)
   WHERE launch_status = 'pending_review';
