@@ -63,6 +63,7 @@ ALTER TABLE store_domains ADD COLUMN verification_token_hash text;
 UPDATE store_domains
    SET verification_token_hash = encode(digest(verification_token, 'sha256'), 'hex')
  WHERE verification_token IS NOT NULL;
+ALTER TABLE store_domains ALTER COLUMN verification_token_hash SET NOT NULL;
 ALTER TABLE store_domains ALTER COLUMN verification_token DROP NOT NULL;
 ALTER TABLE store_domains DROP COLUMN verification_token;
 
