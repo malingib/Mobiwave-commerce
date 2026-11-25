@@ -32,7 +32,7 @@ export async function GET(_request: Request, context: Context) {
       FROM stores s JOIN store_onboarding o ON o.store_id=s.id WHERE s.id=$1`, [storeId]);
     await client.query("COMMIT");
     if (!result.rowCount) return NextResponse.json({ error: "Store not found" }, { status: 404 });
-    return NextResponse.json({ onboarding: result.rows[0], email_verified: user.emailVerified === true }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ onboarding: result.rows[0], email_verified: user.emailVerified === true, role: member.rows[0].role }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     await client.query("ROLLBACK");
     return NextResponse.json({ error: "Could not load store onboarding" }, { status: 500 });
