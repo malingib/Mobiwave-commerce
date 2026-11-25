@@ -75,6 +75,15 @@ export async function PATCH(request: Request, context: Context) {
     const canonicalTarget = isApexHostname(domain.hostname) && nextStatus === "active"
       ? `https://${canonicalHostname(domain.hostname)}`
       : null;
+
+    // Do not leave an active apex redirect pointing at a disabled or unhealthy www host.
+    if (domain.hostname.startsWith("www.") && isApexHostname(domain.hostname.slice(4)) &&
+        (nextStatus === "disabled" || nextProvider !== "attached" || nextDns !== "ready" || nextTls !== "ready")) {
+      await client.query(
+        "UPDATE store_domains SET status='disabled', activated_at=NULL, is_primary=false, canonical_target=NULL WHERE store_id=$1 AND hostname=$2",
+        [domain.store_id, domain.hostname.slice(4)]
+      );
+    }
     await client.query(
       `UPDATE store_domains
           SET status=$1::domain_status,
