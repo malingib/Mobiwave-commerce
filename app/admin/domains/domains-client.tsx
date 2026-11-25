@@ -11,6 +11,11 @@ type DomainRow = {
   status: string;
   verified_at: string | null;
   activated_at: string | null;
+  provider_status: string;
+  dns_status: string;
+  tls_status: string;
+  is_primary: boolean;
+  canonical_target: string | null;
   created_at: string;
   store_name: string;
   store_slug: string;
@@ -44,6 +49,19 @@ export default function AdminDomainsClient({ email }: { email: string }) {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
+
+  async function updateLifecycle(domain: DomainRow, change: Record<string, unknown>, success: string) {
+    setBusy(domain.id); setError(""); setNotice("");
+    try {
+      const response = await fetch(`/api/admin/domains/${domain.id}`, {
+        method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(change),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not update domain");
+      setNotice(success); await load();
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not update domain"); }
+    finally { setBusy(""); }
+  }
 
   async function setStatus(domain: DomainRow, status: "active" | "disabled") {
     setBusy(domain.id); setError(""); setNotice("");
@@ -80,8 +98,10 @@ export default function AdminDomainsClient({ email }: { email: string }) {
             {domains.map(domain=><article className="admin-store-row" key={domain.id}>
               <div className="store-avatar"><Globe size={18}/></div>
               <div className="admin-store-info"><b>{domain.hostname}</b><small>{domain.store_name} · {domain.store_slug}.shop.mobiwave.co.ke</small><small>Status: {domain.status.replaceAll("_"," ")}</small></div>
-              {domain.status==="verified" && <button className="status-toggle" disabled={busy===domain.id} onClick={()=>void setStatus(domain,"active")}>{busy===domain.id?"Saving…":"Activate"}</button>}
-              {domain.status==="active" && <button className="status-toggle" disabled={busy===domain.id} onClick={()=>void setStatus(domain,"disabled")}>{busy===domain.id?"Saving…":"Disable"}</button>}
+              {domain.verified_at && domain.provider_status!=="attached" && <button className="status-toggle" disabled={busy===domain.id} onClick={()=>void updateLifecycle(domain,{providerStatus:"attached"},"Vercel attachment recorded. Confirm DNS and TLS readiness before activation.")}>Mark Vercel attached</button>}
+              {domain.provider_status==="attached" && (domain.dns_status!=="ready"||domain.tls_status!=="ready") && <button className="status-toggle" disabled={busy===domain.id} onClick={()=>void updateLifecycle(domain,{dnsStatus:"ready",tlsStatus:"ready"},"DNS and TLS readiness recorded. Activate only after confirming the domain in Vercel.")}>Confirm DNS + TLS ready</button>}
+              {domain.status==="verified" && domain.provider_status==="attached" && domain.dns_status==="ready" && domain.tls_status==="ready" && <button className="status-toggle" disabled={busy===domain.id} onClick={()=>void setStatus(domain,"active")}>{busy===domain.id?"Saving…":"Activate"}</button>}
+              {domain.status==="active" && <><button className="status-toggle" disabled={busy===domain.id} onClick={()=>void setStatus(domain,"disabled")}>{busy===domain.id?"Saving…":"Disable"}</button>{!domain.is_primary&&<button className="status-toggle" disabled={busy===domain.id} onClick={()=>void updateLifecycle(domain,{isPrimary:true},"Primary domain updated.")}>Set primary</button>}</>}
               {domain.status==="pending_verification" && <span className="table-status">Awaiting DNS</span>}
               {domain.status==="disabled" && domain.verified_at && <button className="status-toggle" disabled={busy===domain.id} onClick={()=>void setStatus(domain,"active")}>{busy===domain.id?"Saving…":"Reactivate"}</button>}
             </article>)}
