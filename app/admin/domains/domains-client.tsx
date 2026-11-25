@@ -12,6 +12,7 @@ type DomainRow = {
   verified_at: string | null;
   activated_at: string | null;
   provider_status: string;
+  provider_domain_id: string | null;
   dns_status: string;
   tls_status: string;
   is_primary: boolean;
@@ -28,6 +29,7 @@ export default function AdminDomainsClient({ email }: { email: string }) {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [providerRefs, setProviderRefs] = useState<Record<string,string>>({});
 
   async function load() {
     try {
@@ -111,7 +113,7 @@ export default function AdminDomainsClient({ email }: { email: string }) {
             {domains.map(domain=><article className="admin-store-row" key={domain.id}>
               <div className="store-avatar"><Globe size={18}/></div>
               <div className="admin-store-info"><b>{domain.hostname}</b><small>{domain.store_name} · {domain.store_slug}.shop.mobiwave.co.ke</small><small>Status: {domain.status.replaceAll("_"," ")}</small><small>Vercel: {domain.provider_status} · DNS: {domain.dns_status} · TLS: {domain.tls_status}</small>{domain.canonical_target&&<small>Canonical redirect: {domain.canonical_target}</small>}{domain.last_error&&<small className="form-error">{domain.last_error}</small>}</div>
-              {domain.verified_at && domain.provider_status!=="attached" && <button className="status-toggle" disabled={busy===domain.id} onClick={()=>void updateLifecycle(domain,{providerStatus:"attached"},"Vercel attachment recorded. Confirm DNS and TLS readiness before activation.")}>Mark Vercel attached</button>}
+              {domain.verified_at && domain.provider_status!=="attached" && <div className="domain-provider-attach"><input aria-label="Vercel domain reference" value={providerRefs[domain.id]??domain.hostname} onChange={e=>setProviderRefs(v=>({...v,[domain.id]:e.target.value}))} placeholder="Vercel domain ID or hostname"/><button className="status-toggle" disabled={busy===domain.id||!(providerRefs[domain.id]??domain.hostname).trim()} onClick={()=>void updateLifecycle(domain,{providerStatus:"attached",providerDomainId:(providerRefs[domain.id]??domain.hostname).trim()},"Vercel attachment reference recorded. Run DNS and TLS checks before activation.")}>Confirm Vercel attachment</button></div>}
               {domain.provider_status==="attached" && (domain.dns_status!=="ready"||domain.tls_status!=="ready") && <button className="status-toggle" disabled={busy===domain.id} onClick={()=>void checkReadiness(domain)}>{busy===domain.id?"Checking…":"Check DNS + TLS"}</button>}
               {domain.status==="verified" && domain.provider_status==="attached" && domain.dns_status==="ready" && domain.tls_status==="ready" && <button className="status-toggle" disabled={busy===domain.id} onClick={()=>void setStatus(domain,"active")}>{busy===domain.id?"Saving…":"Activate"}</button>}
               {domain.status==="active" && <><button className="status-toggle" disabled={busy===domain.id} onClick={()=>void setStatus(domain,"disabled")}>{busy===domain.id?"Saving…":"Disable"}</button>{!domain.is_primary&&<button className="status-toggle" disabled={busy===domain.id} onClick={()=>void updateLifecycle(domain,{isPrimary:true},"Primary domain updated.")}>Set primary</button>}</>}
