@@ -27,7 +27,8 @@ export async function GET(_request: Request, context: Context) {
     if (!member.rowCount) { await client.query("ROLLBACK"); return NextResponse.json({ error: "Store owner or manager access required" }, { status: 403 }); }
     const result = await client.query(`SELECT s.name, s.slug, s.contact_email, s.contact_phone,
       o.business_category, o.business_description, o.website_url, o.launch_status, o.risk_flags,
-      o.submitted_at, o.review_note
+      o.submitted_at, o.review_note,
+      (SELECT count(*)::int FROM products p WHERE p.store_id=s.id AND p.status='active') AS active_product_count
       FROM stores s JOIN store_onboarding o ON o.store_id=s.id WHERE s.id=$1`, [storeId]);
     await client.query("COMMIT");
     if (!result.rowCount) return NextResponse.json({ error: "Store not found" }, { status: 404 });
