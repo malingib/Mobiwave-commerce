@@ -27,6 +27,7 @@ const categories = [
 export default function OnboardingClient({ storeId, userName }: { storeId: string; userName: string }) {
   const [data,setData] = useState<Onboarding|null>(null);
   const [emailVerified,setEmailVerified] = useState(false);
+  const [canEdit,setCanEdit] = useState(false);
   const [category,setCategory] = useState("general_retail");
   const [description,setDescription] = useState("");
   const [phone,setPhone] = useState("");
@@ -42,7 +43,7 @@ export default function OnboardingClient({ storeId, userName }: { storeId: strin
       const response=await fetch(`/api/stores/${storeId}/onboarding`,{cache:"no-store"});
       const result=await response.json();
       if(!response.ok) throw new Error(result.error||"Could not load onboarding details");
-      setData(result.onboarding);setEmailVerified(result.email_verified===true);
+      setData(result.onboarding);setEmailVerified(result.email_verified===true);setCanEdit(result.role==="owner");
       setCategory(result.onboarding.business_category||"general_retail");
       setDescription(result.onboarding.business_description||"");
       setPhone(result.onboarding.contact_phone||"");
@@ -95,7 +96,7 @@ export default function OnboardingClient({ storeId, userName }: { storeId: strin
             <div className="panel-heading"><div><h3>{data.name}</h3><p>{data.slug}.shop.mobiwave.co.ke · Store remains private until launch approval.</p></div><Store size={20}/></div>
             <form className="auth-form store-form" onSubmit={save}>
               <label htmlFor="business-category">Business category</label>
-              <select id="business-category" value={category} onChange={e=>setCategory(e.target.value)} disabled={locked}>
+              <select id="business-category" value={category} onChange={e=>setCategory(e.target.value)} disabled={locked||!canEdit}>
                 {categories.map(([value,label])=><option key={value} value={value}>{label}</option>)}
               </select>
               <label htmlFor="business-description">What does your business sell or provide?</label>
@@ -105,7 +106,7 @@ export default function OnboardingClient({ storeId, userName }: { storeId: strin
               <label htmlFor="business-website">Website <span>optional</span></label>
               <input id="business-website" type="url" value={website} onChange={e=>setWebsite(e.target.value)} placeholder="https://example.com" disabled={locked}/>
               <p className="billing-note">Account email: {data.contact_email||"Not set"} · {emailVerified?"Verified":"Email verification required before launch"}</p>
-              {!locked&&<button className="button button-dark" disabled={busy==="save"}>{busy==="save"?"Saving…":"Save business details"}</button>}
+              {!locked&&canEdit&&<button className="button button-dark" disabled={busy==="save"}>{busy==="save"?"Saving…":"Save business details"}</button>}
             </form>
           </section>
           <section className="workspace-panel">
@@ -117,10 +118,10 @@ export default function OnboardingClient({ storeId, userName }: { storeId: strin
               <li>{Number(data.active_product_count)>0?"✓":"○"} At least one published product</li>
             </ul>
             {missing.length>0&&<div className="form-error"><b>Still required</b><ul>{missing.map(item=><li key={item}>{item}</li>)}</ul></div>}
-            {data.launch_status==="pending_review"&&<p className="billing-note">Your store is awaiting platform review. It will remain private until approved.</p>}
+            {data.launch_status==="pending_review"&&<p className="billing-note">Your store is awaiting platform review. It will remain private until approved.</p>}{!canEdit&&<p className="billing-note">Only the store owner can edit onboarding details or submit this store for launch.</p>}
             {data.launch_status==="rejected"&&<p className="form-error">Review note: {data.review_note||"Please contact MobiWave support."} Save updated details and resubmit when ready.</p>}
             {(data.launch_status==="auto_approved"||data.launch_status==="approved")&&<p className="success-message">Your store is live.</p>}
-            {!locked&&<div className="form-actions"><Link className="button button-light" href={`/dashboard/${storeId}/products`}>Manage products</Link><button className="button button-dark" disabled={busy==="launch"} onClick={()=>void submitLaunch()}>{busy==="launch"?"Checking…":"Submit for launch"}</button></div>}
+            {!locked&&canEdit&&<div className="form-actions"><Link className="button button-light" href={`/dashboard/${storeId}/products`}>Manage products</Link><button className="button button-dark" disabled={busy==="launch"} onClick={()=>void submitLaunch()}>{busy==="launch"?"Checking…":"Submit for launch"}</button></div>}
           </section>
         </>}
         <footer className="dashboard-footer">MobiWave Commerce · Stores stay private until launch checks pass.</footer>
