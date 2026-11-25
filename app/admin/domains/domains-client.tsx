@@ -63,6 +63,18 @@ export default function AdminDomainsClient({ email }: { email: string }) {
     finally { setBusy(""); }
   }
 
+  async function checkReadiness(domain: DomainRow) {
+    setBusy(domain.id); setError(""); setNotice("");
+    try {
+      const response = await fetch(`/api/admin/domains/${domain.id}/check`, { method: "POST" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not check DNS and TLS");
+      setNotice(data.success ? "DNS and TLS checks passed." : data.error || "DNS or TLS is not ready yet.");
+      await load();
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not check DNS and TLS"); }
+    finally { setBusy(""); }
+  }
+
   async function setStatus(domain: DomainRow, status: "active" | "disabled") {
     setBusy(domain.id); setError(""); setNotice("");
     try {
@@ -97,9 +109,9 @@ export default function AdminDomainsClient({ email }: { email: string }) {
           {loading ? <p className="empty-state">Loading domain requests…</p> : domains.length === 0 ? <p className="empty-state">No custom domain requests yet.</p> : <div className="admin-store-list">
             {domains.map(domain=><article className="admin-store-row" key={domain.id}>
               <div className="store-avatar"><Globe size={18}/></div>
-              <div className="admin-store-info"><b>{domain.hostname}</b><small>{domain.store_name} · {domain.store_slug}.shop.mobiwave.co.ke</small><small>Status: {domain.status.replaceAll("_"," ")}</small><small>Vercel: {domain.provider_status} · DNS: {domain.dns_status} · TLS: {domain.tls_status}</small>{domain.canonical_target&&<small>Canonical redirect: {domain.canonical_target}</small>}</div>
+              <div className="admin-store-info"><b>{domain.hostname}</b><small>{domain.store_name} · {domain.store_slug}.shop.mobiwave.co.ke</small><small>Status: {domain.status.replaceAll("_"," ")}</small><small>Vercel: {domain.provider_status} · DNS: {domain.dns_status} · TLS: {domain.tls_status}</small>{domain.canonical_target&&<small>Canonical redirect: {domain.canonical_target}</small>}{domain.last_error&&<small className="form-error">{domain.last_error}</small>}</div>
               {domain.verified_at && domain.provider_status!=="attached" && <button className="status-toggle" disabled={busy===domain.id} onClick={()=>void updateLifecycle(domain,{providerStatus:"attached"},"Vercel attachment recorded. Confirm DNS and TLS readiness before activation.")}>Mark Vercel attached</button>}
-              {domain.provider_status==="attached" && (domain.dns_status!=="ready"||domain.tls_status!=="ready") && <button className="status-toggle" disabled={busy===domain.id} onClick={()=>void updateLifecycle(domain,{dnsStatus:"ready",tlsStatus:"ready"},"DNS and TLS readiness recorded. Activate only after confirming the domain in Vercel.")}>Confirm DNS + TLS ready</button>}
+              {domain.provider_status==="attached" && (domain.dns_status!=="ready"||domain.tls_status!=="ready") && <button className="status-toggle" disabled={busy===domain.id} onClick={()=>void checkReadiness(domain)}>{busy===domain.id?"Checking…":"Check DNS + TLS"}</button>}
               {domain.status==="verified" && domain.provider_status==="attached" && domain.dns_status==="ready" && domain.tls_status==="ready" && <button className="status-toggle" disabled={busy===domain.id} onClick={()=>void setStatus(domain,"active")}>{busy===domain.id?"Saving…":"Activate"}</button>}
               {domain.status==="active" && <><button className="status-toggle" disabled={busy===domain.id} onClick={()=>void setStatus(domain,"disabled")}>{busy===domain.id?"Saving…":"Disable"}</button>{!domain.is_primary&&<button className="status-toggle" disabled={busy===domain.id} onClick={()=>void updateLifecycle(domain,{isPrimary:true},"Primary domain updated.")}>Set primary</button>}</>}
               {domain.status==="pending_verification" && <span className="table-status">Awaiting DNS</span>}
