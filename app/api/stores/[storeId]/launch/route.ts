@@ -43,7 +43,7 @@ export async function POST(_request: Request, context: Context) {
     }
     await client.query("UPDATE stores SET status='active', updated_at=now() WHERE id=$1", [storeId]);
     await client.query("UPDATE store_onboarding SET launch_status='auto_approved', risk_flags='{}', submitted_at=now(), auto_approved_at=now(), updated_at=now() WHERE store_id=$1", [storeId]);
-    await client.query("INSERT INTO audit_events (store_id, actor_user_id, action, resource_type, resource_id, metadata) VALUES ($1,$2,'store.auto_launched','store',$1,'{"source":"launch_validator"}'::jsonb)", [storeId, user.id]);
+    await client.query("INSERT INTO audit_events (store_id, actor_user_id, action, resource_type, resource_id, metadata) VALUES ($1,$2,'store.auto_launched','store',$1,$3::jsonb)", [storeId, user.id, JSON.stringify({ source: "launch_validator" })]);
     await client.query("COMMIT");
     return NextResponse.json({ success: true, status: "active", message: "Your store is live." });
   } catch {
