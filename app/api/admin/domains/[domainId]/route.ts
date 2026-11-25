@@ -18,6 +18,7 @@ export async function PATCH(request: Request, context: Context) {
   const validDns = body.dnsStatus === undefined || body.dnsStatus === "ready" || body.dnsStatus === "error" || body.dnsStatus === "pending";
   const validTls = body.tlsStatus === undefined || body.tlsStatus === "ready" || body.tlsStatus === "error" || body.tlsStatus === "pending";
   if (!validStatus || !validProvider || !validDns || !validTls ||
+      (body.providerStatus === "attached" && (typeof body.providerDomainId !== "string" || !body.providerDomainId.trim())) ||
       (body.isPrimary !== undefined && typeof body.isPrimary !== "boolean") ||
       (body.providerDomainId !== undefined && (typeof body.providerDomainId !== "string" || body.providerDomainId.length > 256)) ||
       (body.status === undefined && body.providerStatus === undefined && body.dnsStatus === undefined && body.tlsStatus === undefined && body.isPrimary === undefined)) {
