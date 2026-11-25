@@ -1,133 +1,90 @@
-# Deployment and operations runbook
+# MobiWave Commerce deployment and operations runbook
 
-## 1. Release branch and review
+Last verified: 25 November 2026
+Repository: malingib/Mobiwave-commerce
+Production project: Vercel mobiwave-commerce in Dwayne's projects (Hobby plan; restricted pilot only)
+Production database: Neon project mobiwave-commerce, project ID jolly-mountain-13278023, default branch main
 
-- Current remediation branch: feat/commerce-production-remediation.
-- Review the draft pull request before merging.
-- Do not deploy while CI is queued or failing.
-- Keep production untouched until the migration plan, secrets and provider tests are approved.
+## 1. Current release state
 
-## 2. Neon database
+- GitHub main is at 83160c5c463ed3a295524ca0f418dd18bb33bef6.
+- The matching Vercel production deployment is READY and points to that commit.
+- GitHub Actions CI run #569 passed database-role/tenant-isolation checks, unit tests, dependency audit, typecheck, lint and production build.
+- GET /api/health returned HTTP 200 on 25 November. It verifies the runtime role and schema/role-isolation readiness; it does not prove payment, media or Meta provider acceptance.
+- GitHub main is currently unprotected. Configure required CI checks and prevent direct unreviewed pushes before public rollout.
+- The Vercel Hobby project is approved for restricted internal/pilot use only, not public or scale-ready production.
+- A passing build or health check is not permission to run production migrations, enable provider sends, activate billing suspension or promote a new release.
 
-1. Confirm the intended production Neon project, database and branch before applying anything.
-2. On a disposable Neon branch, apply `db/schema.sql` as the initial baseline, then apply `db/migrations/0002-auth.sql` through `0017-commerce-hardening.sql` in numeric order. If the database already has earlier migrations, reconcile migration state first; do not replay baseline DDL blindly.
-3. Before applying migration 0009, run `db/roles/commerce-runtime-bootstrap.sql` as the Neon project owner. Migration 0009 grants privileges to `commerce_runtime` and therefore requires this role to exist.
-4. After all schema migrations are applied, run `db/roles/commerce-runtime.sql` and `db/roles/commerce-auth-runtime.sql` as the Neon project owner.
-5. Set strong passwords for the generated login roles `commerce_runtime_app` and `commerce_auth_app` in Neon. Configure `DATABASE_URL` with the `commerce_runtime_app` connection string and `AUTH_DATABASE_URL` with the separate `commerce_auth_app` connection string. Never use the Neon owner or a BYPASSRLS login for either application pool.
-6. The application uses separate pools without PostgreSQL startup role options: `commerce_runtime_app` is NOBYPASSRLS and inherits `commerce_runtime`; `commerce_auth_app` is NOBYPASSRLS and inherits `commerce_auth_runtime`. Both inherited runtime roles must be NOLOGIN and NOBYPASSRLS. Neon pooled endpoints reject custom startup options such as `-c role=...`.
-7. Verify `commerce_runtime_app` can read commerce tables but cannot read Better Auth identity/session tables. Verify `commerce_auth_app` can read/write Better Auth tables but cannot read stores, orders or payment data. Verify both login roles report `rolbypassrls=false`.
-8. Verify two separate merchant users cannot read each other's orders, payment attempts, configuration, domains or messages.
-9. Verify callback, checkout, worker and admin capability flags are set only inside their intended server-side transactions.
+## 2. Neon database and migrations
 
-Do not grant future tables to `commerce_runtime` by default. Each application migration must explicitly grant the required table/sequence privileges to that role.
+The live database currently contains the commerce, authentication, social-channel, attachment, wallet, subscription-dunning and email-usage tables. The live role health check passes with separate commerce_runtime_app and commerce_auth_app logins and non-login, NOBYPASSRLS runtime roles.
 
-### Existing-database signup repair
+For a new environment:
 
-The previous pool configuration passed `-c role=commerce_runtime` and `-c role=commerce_auth_runtime` as PostgreSQL startup options. Neon pooled endpoints reject the `role` startup parameter, causing database connection failures before Better Auth can validate its schema. The fix is to use two dedicated NOBYPASSRLS login roles and omit startup role options entirely.
+1. Confirm the exact Neon project, database and branch.
+2. On a disposable branch, apply db/schema.sql as the initial baseline, then every db/migrations/*.sql file in numeric order through 0030-email-usage-ledger.sql.
+3. Before migration 0009, run db/roles/commerce-runtime-bootstrap.sql as the project owner.
+4. After migrations, run db/roles/commerce-runtime.sql and db/roles/commerce-auth-runtime.sql as the project owner.
+5. Configure DATABASE_URL with the commerce_runtime_app login and AUTH_DATABASE_URL with the separate commerce_auth_app login. Never use the Neon owner login or a BYPASSRLS login in application pools.
+6. Verify the health endpoint, effective role memberships and two-merchant isolation before promoting a schema change.
 
-On a disposable Neon branch, run both role scripts as the database owner, set passwords for the two login roles, and test the application using the corresponding separate connection strings. Verify:
+For the existing production database, do not replay the baseline or migrations. The current schema has no dedicated migration-history table visible in the inspected public schema; reconcile the actual schema against the ordered migration files on a disposable branch before any production migration.
 
-- `commerce_runtime_app` is a member of `commerce_runtime`, has RLS enabled, and cannot read Better Auth identity/session tables.
-- `commerce_auth_app` is a member of `commerce_auth_runtime`, can read/write Better Auth tables, and cannot read commerce tables.
-- Neither login role has BYPASSRLS; both inherited runtime roles are NOLOGIN/NOBYPASSRLS.
-- `/api/health` returns HTTP 200 and a disposable test registration succeeds.
+## 3. Vercel project, environment and domains
 
-Only after the target branch and backup/rollback point are confirmed should these role scripts and role-specific connection strings be applied to production. After the new application connections are verified, revoke the legacy `commerce_app` membership in `commerce_runtime` so the old BYPASSRLS login no longer has commerce-table access.
+The active production deployment is mobiwave-commerce.vercel.app. The project has these domains attached:
+- mobiwave-commerce.vercel.app — verified.
+- shop.mobiwave.co.ke — pending TXT ownership verification.
+- *.shop.mobiwave.co.ke — pending TXT ownership verification.
 
-## 3. Vercel environment variables
+commerce.mobiwave.co.ke was not present in the current project-domain listing. Do not update BETTER_AUTH_URL or NEXT_PUBLIC_APP_URL to that hostname until it is attached, verified and TLS-ready. The current production app URL variables still point to the Vercel domain.
 
-Set these as server-side Vercel environment variables for Preview and Production as appropriate. DATABASE_URL and AUTH_DATABASE_URL must be separate role-specific connection strings:
+Sensitive production environment-variable entries exist for the database URLs, Better Auth, channel encryption/worker secrets, R2 credentials and scanner token. Their values are intentionally not exposed in this audit. Verify functionality through authenticated health checks rather than attempting to display secret values.
 
-- DATABASE_URL
-- AUTH_DATABASE_URL
-- BETTER_AUTH_SECRET
-- BETTER_AUTH_URL
-- NEXT_PUBLIC_APP_URL
-- NEXT_PUBLIC_ROOT_DOMAIN
-- SUPERADMIN_EMAILS
-- BREVO_API_KEY
-- BREVO_SENDER_EMAIL
-- BREVO_SENDER_NAME
-- MPESA_CREDENTIALS_ENCRYPTION_KEY
-- MPESA_CALLBACK_TOKEN
-- MOBIWAVE_SMS_API_URL
-- MOBIWAVE_SMS_API_KEY
-- MOBIWAVE_SMS_SENDER_ID
-- CHANNEL_WORKER_SECRET
-- R2_ACCOUNT_ID
-- R2_BUCKET_NAME
-- R2_S3_ENDPOINT
-- R2_ACCESS_KEY_ID
-- R2_SECRET_ACCESS_KEY
-- MEDIA_SCANNER_URL (optional; media remains quarantined without it)
-- MEDIA_SCANNER_TOKEN (optional; media remains quarantined without it)
+## 4. Worker architecture
 
-Generate a 32-byte encryption key with openssl rand -base64 32. Generate a strong callback/worker secret with openssl rand -hex 32. Keep the M-Pesa encryption key stable; rotating it without re-encrypting stored credentials makes the saved Daraja configuration unreadable.
+GitHub Actions is CI/CD only. The production Neon commercescheduler function currently has three enabled one-minute triggers:
+- commerce-channel-webhooks → POST /api/internal/channels/process?limit=50
+- commerce-channel-outbound → POST /api/internal/channels/send?limit=4
+- commerce-message-outbox → POST /api/internal/messages/process
 
-Use a verified Brevo sender. When Brevo is configured, account verification is required. Platform-admin access always requires a verified email and membership in SUPERADMIN_EMAILS; never disable that check to work around missing email delivery.
+Recent Neon logs show HTTP 200 for all three application endpoints. The subscription-billing worker endpoint exists, but its dedicated COMMERCE_BILLING_WORKER_TOKEN, scheduler route deployment and hourly trigger remain outstanding. See docs/worker-deployment.md. Do not enable the billing trigger until production activation is explicitly approved because it can send notices and suspend paid entitlements on Day 3.
 
-## 4. M-Pesa configuration and tests
+## 5. Subscription plans and billing
 
-- Configure platform Daraja credentials at /admin/integrations/mpesa.
-- Configure merchant-specific credentials at /dashboard/{storeId}/integrations/mpesa when a merchant uses its own shortcode.
-- Store credentials only through the encrypted configuration APIs. Do not add consumer keys/passkeys to frontend variables.
-- Set the callback token and canonical app URL in Vercel.
-- Test Sandbox first: successful payment, rejected PIN, timeout/uncertain outcome, duplicate callback, wrong amount, wrong phone, duplicate receipt and manual reconciliation.
-- Verify order payment status and subscription activation only change after a valid callback or audited admin reconciliation.
-- Subscription prices are intentionally blank for paid plans. Set approved KES monthly prices at /admin/plans before enabling paid subscriptions.
-- Do not enable production Daraja until the Safaricom account and shortcode are approved.
+The current catalogue is Free (KES 0, permanent), Starter (KES 299), Growth (KES 999), Professional (KES 2,499), Business (KES 4,999) and Enterprise (negotiated). Free is not a time-limited trial. Monthly included email/SMS allowances are 20, 30, 50, 100, 200 and negotiated respectively.
 
-## 5. Custom domains
+Paid subscriptions retain entitlements during the Day 0–2 recovery window. Day 1 and Day 2 reminders are queued; paid entitlements are suspended on Day 3 if payment remains outstanding. Store records and customer data are preserved. A verified M-Pesa payment restores paid status. Do not count an STK prompt, browser redirect or unverified callback as payment.
 
-The Vercel project currently has the following domains attached but awaiting TXT ownership verification. Add all three TXT values at the same owner name, `_vercel.mobiwave.co.ke`, in the authoritative DNS zone:
+The dunning code and worker endpoint are merged, but scheduled production activation is not complete. Validate against disposable/test subscriptions before enabling the hourly trigger.
 
-- `vc-domain-verify=commerce.mobiwave.co.ke,9f97ccf6453c15e4cbad`
-- `vc-domain-verify=shop.mobiwave.co.ke,c4b220763e84b89efea1`
-- `vc-domain-verify=*.shop.mobiwave.co.ke,3b28d4da8c28435b247e`
+## 6. M-Pesa and SMS
 
-The configured tenant root domain is `shop.mobiwave.co.ke`; the platform URL is `commerce.mobiwave.co.ke`. Verify each domain in Vercel after DNS propagation. Once the platform domain is verified and the production release is approved, update production `BETTER_AUTH_URL` and `NEXT_PUBLIC_APP_URL` to `https://commerce.mobiwave.co.ke`.
+Daraja integration code supports encrypted platform/merchant credentials, STK requests, callback correlation and reconciliation. Real Daraja sandbox success, rejected PIN, timeout/unknown outcome, duplicate callback, wrong amount/phone, duplicate receipt and manual reconciliation tests remain release gates. Do not enable production Daraja until Safaricom account/shortcode approval and explicit production authorization.
 
-1. Merchant registers the hostname in the store dashboard.
-2. Merchant creates the TXT record shown by the app: host _mobiwave-commerce.<hostname>, value mobiwave-commerce-verification=<token>.
-3. Merchant verifies DNS ownership in the dashboard.
-4. Platform administrator attaches the hostname to the MobiWave Commerce Vercel project and confirms DNS/TLS.
-5. Platform administrator activates the domain at /admin/domains.
-6. Verify that only active, verified domains route to the intended store.
-
-Free subdomains require wildcard DNS and TLS for the configured NEXT_PUBLIC_ROOT_DOMAIN. The platform root, root-domain hostname and wildcard hostname must each be verified on the Vercel project.
-
-## 6. Transactional SMS
-
-The outbox sends through the MobiWave v3 API. The default base URL is https://sms.mobiwave.co.ke/api/v3 and the adapter posts to /sms/send using Bearer authentication and JSON fields recipient, sender_id, type=plain and message. The API response must contain status=success; the returned data.uid is stored as the provider reference. The sender ID is limited to 11 characters. Provider documentation does not guarantee idempotency-key support or publish the delivery-webhook payload/signature contract, so confirm duplicate-send behavior and delivery callback details before enabling production retries or marking messages delivered.
-
-Set MOBIWAVE_SMS_API_URL, MOBIWAVE_SMS_API_KEY and MOBIWAVE_SMS_SENDER_ID in Vercel. Set CHANNEL_WORKER_SECRET as a sensitive Vercel production variable and add the same value as the GitHub repository Actions secret CHANNEL_WORKER_SECRET. The scheduled workflows use https://mobiwave-commerce.vercel.app until the custom platform domain is verified and active.
-
-The GitHub scheduled workflows call POST /api/internal/messages/process, /api/internal/channels/process and /api/internal/channels/send every five minutes. Do not mark worker operations healthy until each scheduled run succeeds. Next.js after() attempts immediate delivery after checkout, payment and order status updates. Verify provider idempotency behavior and delivery receipts before relying on automatic retry.
+The SMS adapter uses the MobiWave v3 API. Confirm provider-side idempotency, segment billing, rejection semantics and delivery-report authenticity before relying on automatic retries or treating messages as delivered. Wallet-funded overage must reserve funds atomically and block submission when funds are insufficient.
 
 ## 7. Private R2 media
 
-The bucket mobiwave-commerce-media is private. Configure the S3-compatible R2 credentials in Vercel production: R2_ACCOUNT_ID, R2_BUCKET_NAME, R2_S3_ENDPOINT, R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY. Create an R2 API token with Object Read & Write permissions scoped only to this bucket; never use an account-wide Cloudflare API token or expose credentials to browser code.
+The private media pipeline is implemented in code. Vercel has production environment-variable entries for the R2 account, bucket and endpoint, plus sensitive access-key and scanner-token entries. Secret values were not exposed. The authenticated POST /api/internal/media/health route verifies R2 write/HEAD/read/delete and scanner connectivity; a successful live check has not yet been recorded. Keep media downloads and Meta media sending disabled until this check and real attachment tests pass.
 
-The bucket CORS policy currently permits PUT, GET and HEAD only from https://mobiwave-commerce.vercel.app and https://commerce.mobiwave.co.ke. The app reserves an attachment row, issues a five-minute staging PUT URL, verifies object size and file signatures on completion, computes SHA-256, and promotes clean objects to immutable final keys. Downloads are signed for 60 seconds and only available for attachments marked available.
+Inbound Meta media retrieval and outbound WhatsApp/Instagram media sending are separate outstanding integrations; the existing merchant attachment pipeline does not prove those Meta flows work.
 
-The selected provider is Cloudmersive Virus Scan over HTTPS (POST https://api.cloudmersive.com/virus/scan/file, Apikey header, multipart inputFile). Add the Cloudmersive API key as the sensitive Vercel production variable MEDIA_SCANNER_TOKEN. The code accepts only an explicit CleanResult=true as clean and an explicit false as rejected; provider errors, malformed responses or missing credentials leave the object quarantined. Do not make quarantined files downloadable. See docs/media-storage-architecture.md for the scanner contract and upload sequence.
+## 8. Production acceptance checklist
 
-Apply db/migrations/0022-conversation-attachment-security.sql to the intended Neon production branch only after reviewing the complete migration history and verifying that migrations 0018–0021 are already applied. Do not replay the baseline schema or apply this migration twice.
+- [ ] Protect GitHub main with required green CI checks and reviewed changes.
+- [ ] Confirm Vercel project ownership, paid-plan decision and pilot allowlist/caps.
+- [ ] Verify production custom-domain DNS, ownership, TLS and canonical routing.
+- [ ] Reconcile migrations on a disposable Neon branch; never replay production baseline.
+- [ ] Verify both runtime roles, effective RLS and two-merchant negative tests.
+- [ ] Complete signup, email verification, login and superadmin allowlist tests.
+- [ ] Complete product, inventory, checkout, order and fulfilment tests.
+- [ ] Complete Daraja sandbox callback/replay/reconciliation acceptance.
+- [ ] Confirm MobiWave SMS provider contract, wallet reservations, duplicate behavior and delivery receipts.
+- [ ] Run authenticated R2/scanner health check and cross-tenant attachment tests.
+- [ ] Complete real Meta WhatsApp/Instagram test-asset acceptance, including templates and delivery status.
+- [ ] Enable the subscription-billing trigger only after explicit production approval and test-subscription acceptance.
+- [ ] Verify backup and restore in a test environment.
+- [ ] Deploy the reviewed commit, smoke-test it, and retain a rollback point.
 
-## 8. Production acceptance
-
-- [ ] Confirm target Vercel project and production domain.
-- [ ] Confirm all CI jobs pass on the exact merge commit.
-- [ ] Commit the generated npm lockfile and use npm ci for deployment.
-- [ ] Apply reviewed migrations to the intended Neon production branch only after disposable-branch verification.
-- [ ] Verify both runtime roles and effective RLS.
-- [ ] Verify signup, email verification, login and superadmin allowlist.
-- [ ] Run two-merchant isolation tests.
-- [ ] Run product, inventory, checkout and order fulfilment tests.
-- [ ] Run Daraja Sandbox success/failure/duplicate/timeout/reconciliation tests.
-- [ ] Run SMS provider send/retry/dedupe tests.
-- [ ] Verify custom domain DNS/TLS and storefront routing.
-- [ ] Verify database backup and restore.
-- [ ] Deploy and smoke-test production; retain rollback point.
-
-No production deployment or production migration is considered complete until the exact deployed commit and runtime behavior have been verified.
+No production release is complete until the exact deployed commit and runtime behavior have been verified.
