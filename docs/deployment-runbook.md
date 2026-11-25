@@ -47,7 +47,25 @@ The latest PR preview deployment builds successfully, but its GET /api/health ch
 
 Do not fix this by copying production database credentials into Preview or by pointing a public preview at the production database. Before preview authentication/runtime acceptance, provision a disposable, sanitized Neon preview database with separate NOBYPASSRLS commerce and auth logins, then configure branch-specific DATABASE_URL and AUTH_DATABASE_URL values plus an independent BETTER_AUTH_SECRET for the PR branch. Verify the preview health endpoint and registration against that isolated database.
 
-## 5. Worker architecture
+## 5. Store launch and custom-domain gaps
+
+The approved hybrid launch and full domain lifecycle are not implemented yet:
+
+- POST /api/stores creates the store with status active directly, despite the database default being draft. The admin store PATCH endpoint can also set active without a server-side launch checklist.
+- No onboarding record, launch validator, risk-flag review queue or reviewer workflow was found in the current schema/API/UI tree.
+- The current store_domains table contains hostname, a plaintext verification_token, status, verified_at and activated_at. It does not persist provider-domain ID, DNS state, TLS state, canonical/primary hostname or a domain event history.
+- The domain verification flow issues a TXT record and the admin activation endpoint checks verified_at. It does not prove Vercel provider attachment, DNS readiness or TLS readiness before activation.
+- The current domain API does not implement the approved apex-to-www canonical policy or a complete provider-neutral attach/check/detach lifecycle.
+
+Do not treat custom domains or automatic store launch as production-ready. Before public onboarding, implement draft-first store creation, a shared server-authoritative launch validator, hybrid auto-launch/manual-review states, hashed verification tokens, provider/DNS/TLS lifecycle state, canonical primary-host selection and safe apex-to-www redirects.
+
+## 6. SMS wallet and usage readiness
+
+Wallet-funded SMS overage is implemented in code and migrations. The immutable per-event usage ledger is named store_sms_usage; it reserves included plan segments first, calculates GSM-7/UCS-2 segments, reserves wallet funds atomically, commits on provider acceptance, releases on definite rejection, and retains ambiguous outcomes for reconciliation. The wallet ledger and reservation tables are protected by RLS and append-only/transition constraints.
+
+The live database currently has zero stores, subscriptions, orders, wallet accounts, wallet reservations, wallet transactions, SMS usage rows and SMS billing configuration rows. Therefore no merchant wallet has been funded or configured, and no end-to-end overage charge has been demonstrated. With no per-store SMS billing configuration, chargeable overage correctly fails closed. Configure and test a disposable merchant, top-up, rate, reservation, rejection/release and ambiguous-delivery reconciliation before enabling merchant billing.
+
+## 7. Worker architecture
 
 GitHub Actions is CI/CD only. The production Neon commercescheduler function currently has three enabled one-minute triggers:
 - commerce-channel-webhooks → POST /api/internal/channels/process?limit=50
@@ -56,7 +74,7 @@ GitHub Actions is CI/CD only. The production Neon commercescheduler function cur
 
 Recent Neon logs show HTTP 200 for all three application endpoints. The subscription-billing worker endpoint exists, but its dedicated COMMERCE_BILLING_WORKER_TOKEN, scheduler route deployment and hourly trigger remain outstanding. See docs/worker-deployment.md. Do not enable the billing trigger until production activation is explicitly approved because it can send notices and suspend paid entitlements on Day 3.
 
-## 6. Subscription plans and billing
+## 8. Subscription plans and billing
 
 The current catalogue is Free (KES 0, permanent), Starter (KES 299), Growth (KES 999), Professional (KES 2,499), Business (KES 4,999) and Enterprise (negotiated). Free is not a time-limited trial. Monthly included email/SMS allowances are 20, 30, 50, 100, 200 and negotiated respectively.
 
@@ -64,19 +82,19 @@ Paid subscriptions retain entitlements during the Day 0–2 recovery window. Day
 
 The dunning code and worker endpoint are merged, but scheduled production activation is not complete. Validate against disposable/test subscriptions before enabling the hourly trigger.
 
-## 7. M-Pesa and SMS
+## 9. M-Pesa and SMS
 
 Daraja integration code supports encrypted platform/merchant credentials, STK requests, callback correlation and reconciliation. Real Daraja sandbox success, rejected PIN, timeout/unknown outcome, duplicate callback, wrong amount/phone, duplicate receipt and manual reconciliation tests remain release gates. Do not enable production Daraja until Safaricom account/shortcode approval and explicit production authorization.
 
 The SMS adapter uses the MobiWave v3 API. Confirm provider-side idempotency, segment billing, rejection semantics and delivery-report authenticity before relying on automatic retries or treating messages as delivered. Wallet-funded overage must reserve funds atomically and block submission when funds are insufficient.
 
-## 8. Private R2 media
+## 10. Private R2 media
 
 The private media pipeline is implemented in code. Vercel has production environment-variable entries for the R2 account, bucket and endpoint, plus sensitive access-key and scanner-token entries. Secret values were not exposed. The authenticated POST /api/internal/media/health route verifies R2 write/HEAD/read/delete and scanner connectivity; a successful live check has not yet been recorded. Keep media downloads and Meta media sending disabled until this check and real attachment tests pass.
 
 Inbound Meta media retrieval and outbound WhatsApp/Instagram media sending are separate outstanding integrations; the existing merchant attachment pipeline does not prove those Meta flows work.
 
-## 9. Production acceptance checklist
+## 11. Production acceptance checklist
 
 - [ ] Protect GitHub main with required green CI checks and reviewed changes.
 - [ ] Confirm Vercel project ownership, paid-plan decision and pilot allowlist/caps.
