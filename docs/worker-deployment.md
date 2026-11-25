@@ -1,31 +1,58 @@
-# Worker deployment configuration
+# Commerce worker deployment
 
-The GitHub Actions worker schedules run every five minutes. A missing secret causes an intentional fail-fast error; it does not indicate a worker-code or database failure.
+GitHub Actions is used for CI/CD only. Durable scheduled Commerce work runs through Neon Function Triggers, which invoke the existing authenticated Vercel worker routes. Queue claims, tenant scoping, idempotency, provider calls and retry behavior remain in the application/database.
 
-## GitHub Actions repository secrets
+## Current production state — 25 November 2026
 
-Configure these secrets in the repository's Actions secrets settings. Do not commit their values or paste them into pull requests.
+The production Neon main branch has one deployed commercescheduler function and three enabled one-minute triggers:
 
-| Secret | Used by | Value |
+| Trigger | Schedule (UTC) | Function path | Application endpoint | Observed status |
+|---|---|---|---|---|
+| commerce-channel-webhooks | * * * * * | /webhooks | POST /api/internal/channels/process?limit=50 | Recent HTTP 200 |
+| commerce-channel-outbound | * * * * * | /outbound | POST /api/internal/channels/send?limit=4 | Recent HTTP 200 |
+| commerce-message-outbox | * * * * * | /outbox | POST /api/internal/messages/process | Recent HTTP 200 |
+
+The subscription-billing worker endpoint exists, but its scheduled Neon trigger and dedicated production secret are not yet configured. The scheduler source in this change adds the /billing handler; this does not deploy the function, create the trigger, or activate billing automation.
+
+## Secret boundaries
+
+Configure the following as sensitive server-side Vercel Production environment variables and as environment variables on the Neon Function deployment:
+
+| Secret | Used by | Requirement |
 |---|---|---|
-| `COMMERCE_BASE_URL` | All three workers | The canonical HTTPS production application origin, without a trailing path |
-| `CRON_SECRET` | Transactional message outbox | Must exactly match the application's `CRON_SECRET` |
-| `CHANNEL_WORKER_SECRET` | Meta inbound webhook and outbound message workers | Must exactly match the application's `CHANNEL_WORKER_SECRET` |
+| CHANNEL_WORKER_SECRET | Webhook, outbound and SMS outbox workers | At least 32 random bytes; same value in Vercel and Neon Function |
+| COMMERCE_BILLING_WORKER_TOKEN | Subscription dunning and merchant/billing email worker | Separate token, at least 32 random bytes; same value in Vercel and Neon Function |
 
-## Application environment
+Do not reuse the Meta App Secret, Meta webhook verify token, database password, channel encryption key or provider access token as a worker token. Never commit token values, include them in URLs, or expose them through NEXT_PUBLIC_* variables.
 
-The deployed application must have both `CRON_SECRET` and `CHANNEL_WORKER_SECRET` configured as server-only environment variables. Use independently generated high-entropy values, at least 32 random bytes each. The GitHub Actions secret for each worker must be the exact corresponding application value.
+The Neon Function validates the proxy-issued x-neon-trigger-invocation-id header against the invocation ID in the signed trigger delivery body. The Neon Functions proxy strips caller-supplied x-neon-* headers. The Vercel endpoints independently validate their bearer tokens using constant-time comparison.
 
-Do not reuse the Meta App Secret, Meta webhook verify token, database password, or any provider access token as a worker secret.
+## Billing worker activation gate
 
-## Acceptance sequence
+The /billing route is intentionally not scheduled until production activation is explicitly approved. It invokes POST /api/workers/subscription-billing, which:
 
-1. Confirm the canonical production origin and active deployment.
-2. Generate independent secrets and set them in the application hosting environment.
-3. Set matching GitHub Actions repository secrets.
-4. Redeploy the application so its runtime receives the new environment.
-5. Run each workflow manually: **Message outbox**, **Channel webhook worker**, and **Channel outbound worker**.
-6. Confirm all three requests return HTTP success and inspect application logs for processed/claimed counts.
-7. Confirm the scheduled runs remain green at the next five-minute interval.
+1. Processes subscription dunning transitions and idempotently queues Day 1, Day 2 and Day 3 notices.
+2. Sends queued platform billing notices.
+3. Sends queued merchant email messages after reserving the merchant's monthly plan allowance.
 
-Never set placeholder values or mark a workflow green without a successful authenticated request. Production acceptance also requires a real test message and a real inbound Meta webhook event.
+The existing one-minute message outbox continues to deliver queued SMS. The billing worker does not need a second SMS consumer.
+
+After production approval:
+
+1. Generate an independent high-entropy COMMERCE_BILLING_WORKER_TOKEN.
+2. Add it as a sensitive Vercel Production variable.
+3. Deploy the updated commercescheduler function with both worker secrets.
+4. Add an enabled Neon schedule trigger named commerce-subscription-billing, path /billing, cron 0 * * * * (hourly UTC).
+5. Run the trigger once manually and verify HTTP success, dunning/email result counts and Vercel application logs.
+6. Confirm the next scheduled invocation succeeds before treating automated billing as active.
+
+Do not enable this trigger until the merchant suspension and notification behavior has been reviewed against live subscriptions. Day 3 suspension removes paid entitlements; it does not delete store data.
+
+## Acceptance checks
+
+- The three existing triggers continue returning HTTP 200.
+- The scheduler rejects non-POST requests, unknown paths, missing Neon invocation headers, mismatched trigger names and missing secrets.
+- Each route uses only its designated secret.
+- The billing route returns 502 if the upstream application worker fails.
+- The billing worker runs dunning and both email queues without sending a duplicate SMS batch.
+- A real test subscription and test merchant email are used before production activation.

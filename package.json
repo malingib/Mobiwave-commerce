@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test $(find lib -name '*.test.ts' -print)",
+    "test": "tsx --test $(find lib -name '*.test.ts' -print) neon/functions/commerce-scheduler/index.test.mjs",
     "test:db-security": "node scripts/verify-db-security.mjs"
   },
   "dependencies": {

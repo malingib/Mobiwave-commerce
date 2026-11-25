@@ -8,7 +8,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: commerce-ci-${{ github.ref }}
@@ -36,27 +36,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Resolve dependencies and generate lockfile
-        run: npm install --no-audit --no-fund
-      - name: Persist lockfile on same-repository branches
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        env:
-          GH_TOKEN: ${{ github.token }}
-          HEAD_REF: ${{ github.head_ref }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json
-          if ! git diff --cached --quiet; then
-            git commit -m "build: commit reproducible npm lockfile"
-            git fetch origin "${HEAD_REF}"
-            git rebase "origin/${HEAD_REF}"
-            git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:${HEAD_REF}"
-          fi
+          cache: npm
       - name: Install from committed lockfile
         id: deps-install
         run: npm ci --no-audit --no-fund
@@ -78,11 +63,3 @@ jobs:
       - name: Build
         if: ${{ always() && steps.deps-install.outcome == 'success' }}
         run: npm run build
-      - name: Upload generated lockfile
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: commerce-package-lock
-          path: package-lock.json
-          if-no-files-found: error
-          retention-days: 3
