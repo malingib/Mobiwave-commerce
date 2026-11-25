@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import { processSubscriptionDunningBatch } from "@/lib/subscription-dunning";
 import { processQueuedBillingEmails } from "@/lib/billing-email-outbox";
 import { processQueuedMerchantEmails } from "@/lib/merchant-email-worker";
-import { processQueuedSmsBatch } from "@/lib/message-outbox";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -20,11 +19,14 @@ export async function POST(request:Request) {
   if(!authorized(request)) return NextResponse.json({error:"Unauthorized worker request"},{status:401});
   try {
     const dunning=await processSubscriptionDunningBatch(50);
-    const [email,sms]=await Promise.all([
+    const [billingEmail,merchantEmail]=await Promise.all([
       processQueuedBillingEmails(20),
-      processQueuedSmsBatch(20),
+      processQueuedMerchantEmails(20),
     ]);
-    return NextResponse.json({ok:true,dunning,email,sms},{headers:{"Cache-Control":"no-store"}});
+    return NextResponse.json(
+      {ok:true,dunning,billingEmail,merchantEmail},
+      {headers:{"Cache-Control":"no-store"}},
+    );
   } catch(error) {
     const code=error instanceof Error ? error.message.slice(0,160) : "billing_worker_failed";
     return NextResponse.json({error:"Subscription billing worker failed",code},{status:500});
